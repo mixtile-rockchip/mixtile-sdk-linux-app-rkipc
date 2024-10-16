@@ -736,17 +736,6 @@ int rkipc_venc_0_init() {
 	}
 	RK_MPI_VENC_SetRcParam(VIDEO_PIPE_0, &venc_rc_param);
 
-	if (!strcmp(tmp_output_data_type, "H.264")) {
-		VENC_H264_TRANS_S pstH264Trans;
-		RK_MPI_VENC_GetH264Trans(VIDEO_PIPE_0, &pstH264Trans);
-		pstH264Trans.bScalingListValid = scalinglist;
-		RK_MPI_VENC_SetH264Trans(VIDEO_PIPE_0, &pstH264Trans);
-	} else if (!strcmp(tmp_output_data_type, "H.265")) {
-		VENC_H265_TRANS_S pstH265Trans;
-		RK_MPI_VENC_GetH265Trans(VIDEO_PIPE_0, &pstH265Trans);
-		pstH265Trans.bScalingListEnabled = scalinglist;
-		RK_MPI_VENC_SetH265Trans(VIDEO_PIPE_0, &pstH265Trans);
-	}
 	VENC_CHN_REF_BUF_SHARE_S stVencChnRefBufShare;
 	memset(&stVencChnRefBufShare, 0, sizeof(VENC_CHN_REF_BUF_SHARE_S));
 	stVencChnRefBufShare.bEnable = rk_param_get_int("video.0:enable_refer_buffer_share", 0);
