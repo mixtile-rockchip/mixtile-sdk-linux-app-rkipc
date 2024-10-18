@@ -753,7 +753,7 @@ int rk_isp_set_hdr(int cam_id, const char *value) {
 	if (strcmp(value, old_value)) {
 		if (rk_param_get_int("isp:group_mode", 0)) {
 			RK_MPI_VI_PauseChn(0, 0);
-			RK_MPI_VI_PauseChn(0, 1);
+			RK_MPI_VI_PauseChn(1, 0);
 			rk_isp_group_deinit(0);
 			rk_param_set_string(entry, value);
 			// usleep(100 * 1000);
@@ -761,7 +761,7 @@ int rk_isp_set_hdr(int cam_id, const char *value) {
 			if (rk_param_get_int("isp:init_from_ini", 1))
 				ret |= rk_isp_set_from_ini(0);
 			RK_MPI_VI_ResumeChn(0, 0);
-			RK_MPI_VI_ResumeChn(0, 1);
+			RK_MPI_VI_ResumeChn(1, 0);
 		} else {
 			if (enable_venc_0)
 				RK_MPI_VI_PauseChn(0, 0);
