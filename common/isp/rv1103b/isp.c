@@ -1218,6 +1218,40 @@ int rk_isp_set_gray_scale_mode(int cam_id, const char *value) {
 	return ret;
 }
 
+int rk_isp_set_gray_scale_mode_without_venc(int cam_id, const char *value) {
+	int ret, video_full_range_flag;
+	char entry[128] = {'\0'};
+	const char *tmp_output_data_type = NULL;
+	RK_ISP_CHECK_CAMERA_ID(cam_id);
+	int Cspace = -1;
+	rk_aiq_uapi2_getColorSpace(rkipc_aiq_get_ctx(cam_id), &Cspace);
+	if (!strcmp(value, "[16-235]")) {
+		video_full_range_flag = 0;
+		if (Cspace == 0 || Cspace == 1) {
+			Cspace = 1;
+		} else if (Cspace == 2 || Cspace == 3) {
+			Cspace = 3;
+		} else {
+			Cspace = 254;
+		}
+	} else {
+		video_full_range_flag = 1;
+		if (Cspace == 0 || Cspace == 1) {
+			Cspace = 0;
+		} else if (Cspace == 2 || Cspace == 3) {
+			Cspace = 2;
+		} else {
+			Cspace = 253;
+		}
+	}
+	rk_aiq_uapi2_setColorSpace(rkipc_aiq_get_ctx(cam_id), Cspace);
+
+	snprintf(entry, 127, "isp.%d.enhancement:gray_scale_mode", rkipc_get_scenario_id(cam_id));
+	rk_param_set_string(entry, value);
+
+	return ret;
+}
+
 int rk_isp_get_distortion_correction(int cam_id, const char **value) {
 	RK_ISP_CHECK_CAMERA_ID(cam_id);
 	char entry[128] = {'\0'};
@@ -1791,7 +1825,7 @@ int rk_isp_set_from_ini(int cam_id) {
 	rk_isp_set_dehaze(cam_id, value);
 	snprintf(entry, 127, "isp.%d.enhancement:gray_scale_mode", rkipc_get_scenario_id(cam_id));
 	strcpy(value, rk_param_get_string(entry, "[0-255]"));
-	rk_isp_set_gray_scale_mode(cam_id, value);
+	rk_isp_set_gray_scale_mode_without_venc(cam_id, value);
 	snprintf(entry, 127, "isp.%d.enhancement:distortion_correction", rkipc_get_scenario_id(cam_id));
 	strcpy(value, rk_param_get_string(entry, "close"));
 	rk_isp_set_distortion_correction(cam_id, value);
