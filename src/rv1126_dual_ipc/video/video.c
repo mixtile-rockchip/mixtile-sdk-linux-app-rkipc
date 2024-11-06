@@ -1057,12 +1057,12 @@ static void *rkipc_get_nn_update_osd(void *arg) {
 			LOG_ERROR("RK_MPI_RGN_GetCanvasInfo failed with %#x!", ret);
 			continue;
 		}
-		if ((stCanvasInfo.stSize.u32Width != UPALIGNTO16(video_width)) ||
-		    (stCanvasInfo.stSize.u32Height != UPALIGNTO16(video_height))) {
+		if ((stCanvasInfo.stSize.u32Width != UPALIGNTO2(video_width)) ||
+		    (stCanvasInfo.stSize.u32Height != UPALIGNTO2(video_height))) {
 			LOG_WARN("canvas is %d*%d, not equal %d*%d, maybe in the process of switching,"
 			         "skip this time\n",
 			         stCanvasInfo.stSize.u32Width, stCanvasInfo.stSize.u32Height,
-			         UPALIGNTO16(video_width), UPALIGNTO16(video_height));
+			         UPALIGNTO2(video_width), UPALIGNTO2(video_height));
 			continue;
 		}
 		memset((void *)stCanvasInfo.u64VirAddr, 0,
