@@ -550,7 +550,7 @@ int rk_isp_get_night_to_day(int cam_id, const char **value) {
 }
 
 int rk_isp_set_night_to_day(int cam_id, const char *value) {
-	int ret;
+	int ret = 0;
 	RK_ISP_CHECK_CAMERA_ID(cam_id);
 
 	if (!strcmp(value, "night")) {
@@ -638,7 +638,7 @@ int rk_isp_get_night_to_day_filter_level(int cam_id, int *value) {
 }
 
 int rk_isp_set_night_to_day_filter_level(int cam_id, int value) {
-	int ret;
+	int ret = 0;
 	RK_ISP_CHECK_CAMERA_ID(cam_id);
 	// TODO
 	char entry[128] = {'\0'};
@@ -660,7 +660,7 @@ int rk_isp_get_night_to_day_filter_time(int cam_id, int *value) {
 }
 
 int rk_isp_set_night_to_day_filter_time(int cam_id, int value) {
-	int ret;
+	int ret = 0;
 	RK_ISP_CHECK_CAMERA_ID(cam_id);
 	// TODO
 	char entry[128] = {'\0'};
@@ -809,7 +809,7 @@ int rk_isp_get_hdr_level(int cam_id, int *value) {
 }
 
 int rk_isp_set_hdr_level(int cam_id, int value) {
-	int ret;
+	int ret = 0;
 	RK_ISP_CHECK_CAMERA_ID(cam_id);
 	// rk_aiq_uapi2_setDrcGain(rkipc_aiq_get_ctx(cam_id), (float)value, 0.1, 16); // Gain: [1, 8]
 	int level = 50; // [1 -4] -> [50 - 100]; level: [0 - 100]
@@ -836,7 +836,7 @@ int rk_isp_get_blc_strength(int cam_id, int *value) {
 }
 
 int rk_isp_set_blc_strength(int cam_id, int value) {
-	int ret;
+	int ret = 0;
 	RK_ISP_CHECK_CAMERA_ID(cam_id);
 	RK_ISP_CHECK_NORMAL_MODE(cam_id);
 
@@ -1159,7 +1159,7 @@ int rk_isp_get_gray_scale_mode(int cam_id, const char **value) {
 }
 
 int rk_isp_set_gray_scale_mode(int cam_id, const char *value) {
-	int ret, video_full_range_flag;
+	int ret = 0, video_full_range_flag;
 	char entry[128] = {'\0'};
 	const char *tmp_output_data_type = NULL;
 	RK_ISP_CHECK_CAMERA_ID(cam_id);

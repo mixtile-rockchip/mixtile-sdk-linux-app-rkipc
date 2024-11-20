@@ -87,7 +87,10 @@ int load_bmp_form_file(osd_data_s *data) {
 	}
 	// read head
 	if (bmp_check(pfile, &bitHead, &bitInfoHead))
+	{
+		fclose(pfile);
 		return -1;
+	}
 	// read data
 	LOG_INFO("ReadBmpData\n");
 	int width = bitInfoHead.biWidth;
@@ -97,10 +100,12 @@ int load_bmp_form_file(osd_data_s *data) {
 	bmp_data = (uint8_t *)malloc(dataSize);
 	if (bmp_data == NULL) {
 		printf("bmp_data malloc fail!\n");
+		fclose(pfile);
 		return -1;
 	}
 	if (fread(bmp_data, 1, dataSize, pfile) <= 0) {
 		printf("bmp_data fread fail!\n");
+		fclose(pfile);
 		return -1;
 	}
 
@@ -108,6 +113,7 @@ int load_bmp_form_file(osd_data_s *data) {
 	memset(data->buffer, 0, bitInfoHead.biWidth * bitInfoHead.biHeight * sizeof(RGBQUAD));
 	if (data->buffer == NULL) {
 		printf("data->buffer malloc fail!\n");
+		fclose(pfile);
 		return -1;
 	}
 

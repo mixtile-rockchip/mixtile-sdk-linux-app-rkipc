@@ -1531,6 +1531,7 @@ int RK_wifi_get_mac(char *wifi_mac) {
 
 	if ((ioctl(sock_mac, SIOCGIFHWADDR, &ifr_mac)) < 0) {
 		pr_info("Mac socket ioctl failed.");
+		close(sock_mac);
 		return -1;
 	}
 

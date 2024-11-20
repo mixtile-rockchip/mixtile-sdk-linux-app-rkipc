@@ -343,7 +343,10 @@ int rkipc_rockiva_write_rgb888_frame(uint16_t width, uint16_t height, uint32_t f
 	int ret;
 	RockIvaImage *image = (RockIvaImage *)malloc(sizeof(RockIvaImage));
 	if (!rockit_run_flag)
+	{
+		free(image);
 		return 0;
+	}
 	memset(image, 0, sizeof(RockIvaImage));
 	image->info.width = width;
 	image->info.height = height;
@@ -365,7 +368,10 @@ int rkipc_rockiva_write_rgb888_frame_by_fd(uint16_t width, uint16_t height, uint
 	int ret;
 	RockIvaImage *image = (RockIvaImage *)malloc(sizeof(RockIvaImage));
 	if (!rockit_run_flag)
+	{
+		free(image);
 		return 0;
+	}
 	memset(image, 0, sizeof(RockIvaImage));
 	image->info.width = width;
 	image->info.height = height;
@@ -389,7 +395,10 @@ int rkipc_rockiva_write_nv12_frame_by_fd(uint16_t width, uint16_t height, uint32
 	int ret;
 	RockIvaImage *image = (RockIvaImage *)malloc(sizeof(RockIvaImage));
 	if (!rockit_run_flag)
+	{
+		free(image);
 		return 0;
+	}
 	int rotation = rk_param_get_int("video.source:rotation", 0);
 	if (rk_param_get_int("video.source:rotate_in_venc", 0))
 		rotation = 0;
@@ -418,7 +427,10 @@ int rkipc_rockiva_write_nv12_frame_by_phy_addr(uint16_t width, uint16_t height, 
 	int ret;
 	RockIvaImage *image = (RockIvaImage *)malloc(sizeof(RockIvaImage));
 	if (!rockit_run_flag)
+	{
+		free(image);
 		return 0;
+	}
 	int rotation = rk_param_get_int("video.source:rotation", 0);
 	if (rk_param_get_int("video.source:rotate_in_venc", 0))
 		rotation = 0;

@@ -2927,8 +2927,10 @@ int rkipc_read_venctype_from_meta() {
 		}
 	} else {
 		LOG_ERROR("mmap fail.\n");
+		close(mem_fd);
 		return -1;
 	}
+	close(mem_fd);
 }
 
 int rk_video_init() {

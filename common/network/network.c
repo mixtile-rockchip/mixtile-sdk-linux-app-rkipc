@@ -190,6 +190,7 @@ RKIPC_MAYBE_UNUSED static int whether_ether_is_linked(char *ifname, int ifname_s
 	} else if (errno != EOPNOTSUPP) {
 		perror("Cannot get link status\n");
 	}
+	close(fd);
 	return 1;
 }
 
@@ -408,6 +409,7 @@ int rk_network_get_mac(const char *ifname, char *mac) {
 
 	if (ioctl(sock, SIOCGIFHWADDR, &ifreq) < 0) {
 		perror("ioctl");
+		close(sock);
 		return -1;
 	}
 	snprintf(mac, 64, "%X:%X:%X:%X:%X:%X", (unsigned char)ifreq.ifr_hwaddr.sa_data[0],
@@ -415,6 +417,7 @@ int rk_network_get_mac(const char *ifname, char *mac) {
 	         (unsigned char)ifreq.ifr_hwaddr.sa_data[3], (unsigned char)ifreq.ifr_hwaddr.sa_data[4],
 	         (unsigned char)ifreq.ifr_hwaddr.sa_data[5]);
 	LOG_INFO("mac:%s\n", mac);
+	close(sock);
 	return 0;
 }
 
@@ -522,6 +525,7 @@ int rk_network_nicspeed_set(const char *ifname, int speed, int duplex, int auton
 	err = ioctl(fd, SIOCETHTOOL, &ifr);
 	if (err < 0) {
 		perror("Cannot get current device settings\n");
+		close(fd);
 		return -1;
 	}
 	if (speed_wanted != -1)

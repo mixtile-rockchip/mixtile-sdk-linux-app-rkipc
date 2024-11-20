@@ -1333,8 +1333,7 @@ int update_fw_cmd(int fp, int argc, char *argv[]) {
 		update.end = 1;
 		ret = ioctl(fp, ATBM_UPDATE_FW, (unsigned int)(&update));
 		if (ret) {
-			printf("Line:%d end update err:%d\n", __LINE__);
-			fclose(file);
+			printf("Line:%d end update err:%d\n", __LINE__, ret);
 			goto err;
 		}
 	}
@@ -2514,12 +2513,14 @@ void *get_command_func(void *arg) {
 	ret = bind(socket_fd, (struct sockaddr *)&ser_un, sizeof(struct sockaddr_un));
 	if (ret < 0) {
 		printf("bind err %s %s\n", SER_SOCKET_PATH, strerror(errno));
+		close(socket_fd);
 		return NULL;
 	}
 
 	ret = listen(socket_fd, 5);
 	if (ret < 0) {
 		printf("listen err\n");
+		close(socket_fd);
 		return NULL;
 	}
 

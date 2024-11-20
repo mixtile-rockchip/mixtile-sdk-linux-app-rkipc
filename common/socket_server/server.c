@@ -2331,16 +2331,18 @@ int ser_rk_video_get_resolution(int fd) {
 	char *value = malloc(20);
 
 	if (sock_read(fd, &id, sizeof(id)) == SOCKERR_CLOSED)
-		return -1;
+		goto	set_rk_video_get_resolution_err;
 	err = rk_video_get_resolution(id, &value);
 	len = strlen(value);
 	LOG_DEBUG("len is %d, value is %s, addr is %p\n", len, value, value);
 	if (sock_write(fd, &len, sizeof(len)) == SOCKERR_CLOSED)
-		return -1;
+		goto	set_rk_video_get_resolution_err;
 	if (sock_write(fd, value, len) == SOCKERR_CLOSED)
-		return -1;
+		goto	set_rk_video_get_resolution_err;
 	if (sock_write(fd, &err, sizeof(int)) == SOCKERR_CLOSED)
-		return -1;
+		goto	set_rk_video_get_resolution_err;
+
+set_rk_video_get_resolution_err:
 	free(value);
 
 	return 0;
