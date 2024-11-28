@@ -2834,7 +2834,6 @@ int rk_video_init() {
 int rk_video_deinit() {
 	LOG_DEBUG("%s\n", __func__);
 	g_video_run_ = 0;
-	g_nn_osd_run_ = 0;
 	int ret = 0;
 	rk_roi_set_callback_register(NULL);
 	if (enable_osd)
