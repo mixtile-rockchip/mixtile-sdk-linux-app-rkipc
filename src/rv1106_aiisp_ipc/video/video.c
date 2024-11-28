@@ -53,6 +53,7 @@
 static int g_do_capture = 0;
 static int g_enable_ivs, g_enable_jpeg, g_enable_venc_0, g_enable_venc_1, g_enable_venc_2,
     g_enable_npu, g_enable_aiisp;
+static int g_enable_rtmp, g_enable_rtsp, g_enable_osd;
 static int g_video_run_ = 1;
 static int g_pipe_id = 0;
 static int g_dev_id = 0;
@@ -1744,13 +1745,15 @@ static void *rkipc_get_venc_0(void *arg) {
 			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_ISLICE)) {
 				rk_storage_write_video_frame(0, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 1);
-				rk_rtmp_write_video_frame(0, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-				                          1);
+				if (g_enable_rtmp)
+					rk_rtmp_write_video_frame(0, data, stFrame.pstPack->u32Len,
+					                          stFrame.pstPack->u64PTS, 1);
 			} else {
 				rk_storage_write_video_frame(0, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 0);
-				rk_rtmp_write_video_frame(0, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-				                          0);
+				if (g_enable_rtmp)
+					rk_rtmp_write_video_frame(0, data, stFrame.pstPack->u32Len,
+					                          stFrame.pstPack->u64PTS, 0);
 			}
 			ret = RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_0, &stFrame);
 			if (ret != RK_SUCCESS) {
@@ -1791,13 +1794,15 @@ static void *rkipc_get_venc_1(void *arg) {
 			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_ISLICE)) {
 				rk_storage_write_video_frame(1, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 1);
-				rk_rtmp_write_video_frame(1, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-				                          1);
+				if (g_enable_rtmp)
+					rk_rtmp_write_video_frame(1, data, stFrame.pstPack->u32Len,
+					                          stFrame.pstPack->u64PTS, 1);
 			} else {
 				rk_storage_write_video_frame(1, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 0);
-				rk_rtmp_write_video_frame(1, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-				                          0);
+				if (g_enable_rtmp)
+					rk_rtmp_write_video_frame(1, data, stFrame.pstPack->u32Len,
+					                          stFrame.pstPack->u64PTS, 0);
 			}
 			ret = RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_1, &stFrame);
 			if (ret != RK_SUCCESS)
@@ -1832,13 +1837,15 @@ static void *rkipc_get_venc_2(void *arg) {
 			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_ISLICE)) {
 				rk_storage_write_video_frame(2, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 1);
-				rk_rtmp_write_video_frame(2, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-				                          1);
+				if (g_enable_rtmp)
+					rk_rtmp_write_video_frame(2, data, stFrame.pstPack->u32Len,
+					                          stFrame.pstPack->u64PTS, 1);
 			} else {
 				rk_storage_write_video_frame(2, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 0);
-				rk_rtmp_write_video_frame(2, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-				                          0);
+				if (g_enable_rtmp)
+					rk_rtmp_write_video_frame(2, data, stFrame.pstPack->u32Len,
+					                          stFrame.pstPack->u64PTS, 0);
 			}
 			ret = RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_2, &stFrame);
 			if (ret != RK_SUCCESS)
@@ -3081,6 +3088,9 @@ int rk_video_init() {
 	g_enable_ivs = rk_param_get_int("video.source:enable_ivs", 1);
 	g_enable_npu = rk_param_get_int("video.source:enable_npu", 1);
 	g_enable_aiisp = rk_param_get_int("video.source:enable_aiisp", 1);
+	g_enable_rtsp = rk_param_get_int("video.source:enable_rtsp", 1);
+	g_enable_rtmp = rk_param_get_int("video.source:enable_rtmp", 1);
+	g_enable_osd = rk_param_get_int("osd.common:enable_osd", 0);
 
 	ret |= rkipc_vi_dev_init();
 	ret |= rkipc_vi_chn_init();
@@ -3095,13 +3105,14 @@ int rk_video_init() {
 		ret |= rkipc_jpeg_init();
 	if (g_enable_ivs)
 		rkipc_ivs_init();
-	ret |= rkipc_osd_init();
+	if (g_enable_osd)
+		ret |= rkipc_osd_init();
 	ret |= rkipc_bind_init();
 	start_all_threads();
-
-	ret |= rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
-	ret |= rkipc_rtmp_init();
-
+	if (g_enable_rtsp)
+		ret |= rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
+	if (g_enable_rtmp)
+		ret |= rkipc_rtmp_init();
 	rk_roi_set_callback_register(rk_roi_set);
 	ret |= rk_roi_set_all();
 	rk_region_clip_set_callback_register(rk_region_clip_set);
@@ -3118,12 +3129,14 @@ int rk_video_deinit() {
 	rk_region_clip_set_callback_register(NULL);
 	rk_roi_set_callback_register(NULL);
 
-	ret |= rkipc_rtmp_deinit();
-	ret |= rkipc_rtsp_deinit();
-
+	if (g_enable_rtmp)
+		ret |= rkipc_rtmp_deinit();
+	if (g_enable_rtsp)
+		ret |= rkipc_rtsp_deinit();
 	stop_all_threads();
 	ret |= rkipc_bind_deinit();
-	ret |= rkipc_osd_deinit();
+	if (g_enable_osd)
+		ret |= rkipc_osd_deinit();
 	if (g_enable_ivs)
 		ret |= rkipc_ivs_deinit();
 	if (g_enable_jpeg)
