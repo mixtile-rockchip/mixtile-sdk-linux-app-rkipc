@@ -2,9 +2,9 @@
 
 ID: RK-KF-YF-937
 
-Release Version: V1.6.9
+Release Version: V1.7.0
 
-Release Date: 2024-08-29
+Release Date: 2025-01-06
 
 Security Level: □Top-Secret   □Secret   □Internal   ■Public
 
@@ -86,7 +86,8 @@ Software development engineers
 | V1.6.6      | Fenrir Lin | 2023-11-08 | Added RV1106 AIISP block diagram.                            |
 | V1.6.7      | Fenrir Lin | 2024-05-21 | Added RK3576 IPC and RK3576 Multi-IPC block diagram.         |
 | V1.6.8      | Fenrir Lin | 2024-07-18 | Supplement the relevant explanations for RV1103B.            |
-| V1.6.9      | Fenrir Lin | 2024-0829  | Modify the RV1106 Dual-IPC block diagram.                    |
+| V1.6.9      | Fenrir Lin | 2024-08-29 | Modify the RV1106 Dual-IPC block diagram.                    |
+| V1.7.0      | Fenrir Lin | 2025-01-06 | Added RK3576 DV block diagram.                               |
 
 ---
 
@@ -353,6 +354,16 @@ graph TB
 	VPSS_GRP_2-->VO
 	VPSS_GRP_2-->VPSS_GRP_4(VPSS_GRP_4_896*512)-->NPU
 	VPSS_GRP_0_BYPASS-->VGS-->VENC_3_JPEG_6000*1088
+```
+
+### RK3576 DV
+
+```mermaid
+graph LR
+	AI-->AENC-->RTSP_RTMP_0
+	VI_0-->GDC_0-->VENC_0-->MUXER-->MP4
+	VENC_0-->RTSP_RTMP_0
+	VI_1-->GDC_1-->VO
 ```
 
 ## Code Structure

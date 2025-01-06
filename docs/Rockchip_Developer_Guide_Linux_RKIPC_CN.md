@@ -2,9 +2,9 @@
 
 文件标识：RK-KF-YF-937
 
-发布版本：V1.6.9
+发布版本：V1.7.0
 
-日期：2024-08-29
+日期：2025-01-06
 
 文件密级：□绝密   □秘密   □内部资料   ■公开
 
@@ -93,6 +93,7 @@ Rockchip Electronics Co., Ltd.
 | V1.6.7     | Fenrir Lin | 2024-05-21   | 新增RK3576 IPC和RK3576 Multi-IPC的流程框图                   |
 | V1.6.8     | Fenrir Lin | 2024-07-18   | 补充RV1103B相关说明                                          |
 | V1.6.9     | Fenrir Lin | 2024-08-29   | 修改RV1106 Dual-IPC的流程框图。                              |
+| V1.7.0     | Fenrir Lin | 2025-01-06   | 新增RK3576 DV的流程框图                                      |
 
 ---
 
@@ -359,6 +360,16 @@ graph TB
 	VPSS_GRP_2-->VO
 	VPSS_GRP_2-->VPSS_GRP_4(VPSS_GRP_4_896*512)-->NPU
 	VPSS_GRP_0_BYPASS-->VGS-->VENC_3_JPEG_6000*1088
+```
+
+### RK3576 DV
+
+```mermaid
+graph LR
+	AI-->AENC-->RTSP_RTMP_0
+	VI_0-->GDC_0-->VENC_0-->MUXER-->MP4
+	VENC_0-->RTSP_RTMP_0
+	VI_1-->GDC_1-->VO
 ```
 
 ## 代码结构
