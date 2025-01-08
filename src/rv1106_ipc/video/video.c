@@ -702,6 +702,18 @@ int rkipc_vi_dev_init() {
 		LOG_ERROR("RK_MPI_VI_EnableDev already\n");
 	}
 
+#ifdef RKIPC_RV1103B
+	VI_PARAM_MOD_S stModParam;
+	memset(&stModParam, 0, sizeof(stModParam));
+	stModParam.enViModType = VI_DEV_PIPE_MODE;
+	stModParam.stDevPipeModParam.enDevPipeMode = rk_param_get_int("isp:vi_dev_pipe_mode", 1);
+	ret = RK_MPI_VI_SetModParam(&stModParam);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_VI_SetModParam %#x\n", ret);
+		return -1;
+	}
+#endif
+
 	return 0;
 }
 
