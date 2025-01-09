@@ -57,6 +57,15 @@
 		assert(cond);                                                                              \
 	}
 
+/* Pointer Check */
+#define RKIPC_CHECK_POINTER(p, errcode)                                                            \
+	do {                                                                                           \
+		if (!(p)) {                                                                                \
+			LOG_WARN("pointer[%s] is NULL\n", #p);												   \
+			return errcode;                                                                        \
+		}                                                                                          \
+	} while (0)
+
 void *rk_signal_create(int defval, int maxval);
 void rk_signal_destroy(void *sem);
 int rk_signal_wait(void *sem, int timeout);

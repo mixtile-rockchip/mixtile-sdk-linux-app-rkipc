@@ -42,15 +42,6 @@
 #define MAX_ATTR_LEN 256
 #define MAX_STRLINE_LEN 1024
 
-/* Pointer Check */
-#define RKIPC_CHECK_POINTER(p, errcode)                                                            \
-	do {                                                                                           \
-		if (!(p)) {                                                                                \
-			LOG_DEBUG("pointer[%s] is NULL", #p);                                                  \
-			return errcode;                                                                        \
-		}                                                                                          \
-	} while (0)
-
 typedef int (*rkipc_reg_msg_cb)(void *, int, void *, int, void *);
 
 typedef enum {
