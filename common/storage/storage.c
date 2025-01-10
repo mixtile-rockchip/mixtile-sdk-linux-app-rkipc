@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "storage.h"
+#include "file_cache.h"
+#include "file_common.h"
+#include "file_msg.h"
 
 #ifdef LOG_TAG
 #undef LOG_TAG
@@ -1782,6 +1785,18 @@ int rk_storage_muxer_deinit_by_id(int id) {
 
 // TODO, need record plan
 int rk_storage_init() {
+	FILE_CACHE_ARG stFileCacheAttr;
+	if (rk_param_get_int("storage:enable_file_cache", 0)) {
+		setenv("file_cache_env", "1", 1);
+		memset(&stFileCacheAttr, 0, sizeof(FILE_CACHE_ARG));
+		stFileCacheAttr.sdcard_path = rk_param_get_string("storage:dev_path", "/dev/mmcblk1p1");
+		stFileCacheAttr.total_cache = rk_param_get_int("storage:file_total_cache", 36) * 1024 * 1024;
+		stFileCacheAttr.write_cache = rk_param_get_int("storage:file_write_cache", 6) * 1024 * 1024;
+		stFileCacheAttr.write_thread_arg.sched_policy = FILE_SCHED_FIFO;
+		stFileCacheAttr.write_thread_arg.priority = 99;
+		file_cache_init(&stFileCacheAttr);
+	}
+
 	if (rkipc_storage_set_dev_attr(&g_sd_dev_attr)) {
 		LOG_ERROR("Set devAttr failed.\n");
 		return -1;
@@ -1806,6 +1821,8 @@ int rk_storage_deinit() {
 	rkipc_storage_free_dev_attr(g_sd_dev_attr);
 	rkipc_storage_manager_deinit(g_sd_phandle);
 	g_sd_phandle = NULL;
+	if (rk_param_get_int("storage:enable_file_cache", 0))
+		file_cache_deinit();
 
 	return 0;
 }
