@@ -65,8 +65,8 @@ static int dp_vo_w = 1920;
 static int dp_vo_h = 1080;
 static int lcd_vo_w = 240;
 static int lcd_vo_h = 320;
-static int gdc_display_w = 512;
-static int gdc_display_h = 288;
+static int gdc_display_w = 704;
+static int gdc_display_h = 384;
 
 static void *rkipc_get_venc_0(void *arg) {
 	printf("#Start %s thread, arg:%p\n", __func__, arg);
@@ -362,6 +362,7 @@ int rkipc_vi_chn_init() {
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.u32Depth = 0;
 	vi_chn_attr.stIspOpt.bAttchFrmInfo = true;
+	memcpy(vi_chn_attr.stIspOpt.aEntityName, "/dev/video21", strlen("/dev/video21"));
 	ret = RK_MPI_VI_SetChnAttr(pipe_id_, 1, &vi_chn_attr);
 	ret |= RK_MPI_VI_EnableChn(pipe_id_, 1);
 	if (ret) {
