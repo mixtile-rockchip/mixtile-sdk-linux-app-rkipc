@@ -336,8 +336,8 @@ int rkipc_vi_dev_deinit() {
 
 int rkipc_vi_chn_init() {
 	int ret;
-	int video_width = rk_param_get_int("video.0:width", -1);
-	int video_height = rk_param_get_int("video.0:height", -1);
+	int video_width = rk_param_get_int("video.source:width", -1);
+	int video_height = rk_param_get_int("video.source:height", -1);
 	int buf_cnt = rk_param_get_int("video.0:buf_cnt", 32);
 	// VI init
 	VI_CHN_ATTR_S vi_chn_attr;
