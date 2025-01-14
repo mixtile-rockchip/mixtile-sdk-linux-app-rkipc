@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #pragma once
+#include <stdint.h>
+#include <stdbool.h>
 
 typedef enum {
 	RK_PLAYER_EOF,
@@ -10,9 +12,10 @@ typedef enum {
 	RK_PLAYER_PAUSE,
 	RK_PLAYER_STOP,
 	RK_PLAYER_ERROR,
-} PLAYER_EVENT;
+	RK_PLAYER_BUTT,
+} RK_PLAYER_EVENT;
 
-typedef void (*rk_player_event_cb)(PLAYER_EVENT );
+typedef void (*rk_player_event_cb)(RK_PLAYER_EVENT);
 
 typedef struct _rkPlayerConfig {
 	bool enable_audio;
