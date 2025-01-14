@@ -5,6 +5,10 @@
 #include "file_cache.h"
 #include "file_common.h"
 #include "file_msg.h"
+#ifdef RKFSMK
+#include <sys/mount.h>
+#include <rkfsmk.h>
+#endif
 
 #ifdef LOG_TAG
 #undef LOG_TAG
@@ -14,7 +18,7 @@
 #define STORAGE_NUM 3
 
 static int record_flag[STORAGE_NUM] = {-1};
-static void *g_sd_phandle = NULL;
+void *g_sd_phandle = NULL;
 static void *g_file_scan_signal = NULL;
 static rkipc_str_dev_attr g_sd_dev_attr;
 static pthread_mutex_t g_rkmuxer_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -1757,6 +1761,7 @@ static int rk_storage_muxer_init_by_id(int id) {
 
 int rkipc_storage_dev_mount_status_get() {
 	if (g_sd_phandle == NULL) {
+		LOG_ERROR("not initialize storage module!\n");
 		return DISK_UNMOUNTED;
 	}
 	rkipc_storage_handle *phandle = (rkipc_storage_handle *)g_sd_phandle;
@@ -1878,7 +1883,6 @@ int rk_storage_record_stop() {
 	rkmuxer_deinit(0);
 	pthread_mutex_unlock(&g_rkmuxer_mutex);
 	LOG_INFO("end\n");
-
 	return 0;
 }
 
@@ -1886,3 +1890,27 @@ int rk_storage_record_statue_get(int *value) {
 	*value = rk_storage_muxer_group[0].g_record_run_;
 	return 0;
 }
+
+
+#ifdef RKFSMK
+// INFO: Call these function after rk_storage_deinit has been called.
+int rk_storage_format() {
+	int ret = 0;
+	const char* mount_path = rk_param_get_string("storage:mount_path", "/mnt/sdcard");
+	const char* dev_path = rk_param_get_string("storage:dev_path", "/dev/mmcblk1p1");
+	ret = umount2(mount_path, MNT_DETACH);
+	if (ret != 0) {
+		LOG_ERROR("unmount failed %s\n", strerror(errno));
+		return ret;
+	}
+	ret = rkfsmk_format(dev_path, NULL);
+	if (ret != 0) {
+		LOG_ERROR("rkfsmk_format failed %d\n", ret);
+		return ret;
+	}
+	ret = mount("/dev/mmcblk1p1", "/mnt/sdcard", "vfat", MS_NOATIME | MS_NOSUID, NULL);
+	if (ret != 0)
+		LOG_ERROR("unmount failed %s\n", strerror(errno));
+	return ret;
+}
+#endif // RKFSMK
