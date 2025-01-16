@@ -25,12 +25,32 @@ typedef struct _rkPlayerConfig {
 	void *ctx;
 } RK_PLAYER_CONFIG_S;
 
+typedef struct _rkPhotoConfig {
+	const char *file_path;
+	uint32_t input_width;
+	uint32_t input_height;
+	uint32_t output_width;
+	uint32_t output_height;
+	uint32_t output_format;
+} RK_PHOTO_CONFIG;
+
+typedef struct _rkPhotoData {
+	void *data;
+	uint32_t width;
+	uint32_t height;
+	uint32_t size;
+	uint32_t format;
+} RK_PHOTO_DATA;
+
 int rk_player_create(RK_PLAYER_CONFIG_S *config);
 int rk_player_destroy(RK_PLAYER_CONFIG_S *config);
 int rk_player_play(RK_PLAYER_CONFIG_S *config);
 int rk_player_pause(RK_PLAYER_CONFIG_S *config);
 int rk_player_stop(RK_PLAYER_CONFIG_S *config);
 int rk_player_set_file(RK_PLAYER_CONFIG_S *config, const char *input_file_path);
+
+int rk_player_get_photo(RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data);
+int rk_player_release_photo(RK_PHOTO_DATA *data);
 
 int rk_player_video_seek(RK_PLAYER_CONFIG_S *config, uint64_t time_ms);
 int rk_player_audio_seek(RK_PLAYER_CONFIG_S *config, uint64_t time_ms);

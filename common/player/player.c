@@ -18,13 +18,21 @@
 #include <rk_mpi_sys.h>
 #include <rk_mpi_tde.h>
 #include <rk_mpi_vdec.h>
+#include <rk_mpi_vpss.h>
 #include <rk_mpi_vo.h>
 #include <rkdemuxer.h>
+#include <byteswap.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 #define VDEC_CHN_ID 0
 #define ADEC_CHN_ID 0
 #define AO_CHN_ID 0
 #define AO_DEV_ID 0
+
+#define JPEG_VDEC_CHN_ID 1
+#define JPEG_VPSS_GRP_ID 2
+#define JPEG_VPSS_CHN_ID 0
 
 typedef enum {
 	UNINITIALIZED,
@@ -525,6 +533,241 @@ static int unbind_adec_ao(void) {
 		return -1;
 	}
 	return 0;
+}
+
+static int get_jpeg_resolution(uint8_t *buf, uint32_t buf_size, uint32_t *width, uint32_t *height) {
+	uint32_t cur = 0;
+	if (buf[0] != 0xFF || buf[1] != 0xD8) {
+		LOG_ERROR("Invalid jpeg data\n");
+		return -1;
+	}
+	cur += 2;
+	while (cur + 4 + 4 < buf_size) {
+		if (buf[cur] != 0xFF) {
+			LOG_ERROR("Bad Jpg file, 0xFF expected at offset 0x%x\n", cur);
+			break;
+		}
+
+		if (buf[cur + 1] == 0xC0 || buf[cur + 1] == 0xC2) {
+			cur += 5;
+			*height = bswap_16(*(uint16_t *) (buf + cur));
+			cur += 2;
+			*width = bswap_16(*(uint16_t *) (buf + cur));
+			LOG_INFO("w * h[%d, %d]\n", *width, *height);
+			return 0;
+		}
+		cur += 2;
+		cur += bswap_16(*(uint16_t *) (buf + cur));
+	}
+	LOG_ERROR("Can't get resolution\n");
+	return -1;
+}
+
+static bool validate_format(uint32_t format) {
+	if (format == RK_FMT_BGRA8888 || format == RK_FMT_RGBA8888 || format == RK_FMT_RGB565 || format == RK_FMT_YUV420SP)
+		return true;
+	return false;
+};
+
+static uint32_t cal_size_by_format(uint32_t width, uint32_t height, uint32_t format) {
+	uint32_t size = 0;
+	switch (format) {
+		case RK_FMT_YUV420SP:
+			size = width * height * 3 / 2;
+			break;
+		case RK_FMT_RGB565:
+			size = width * height * 2;
+			break;
+		case RK_FMT_RGBA8888:
+		case RK_FMT_BGRA8888:
+			size = width * height * 4;
+			break;
+		default:
+			break;
+	}
+	return size;
+}
+
+static int create_jpeg_vdec(const RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data) {
+	int ret = RK_SUCCESS;
+	VDEC_CHN_ATTR_S stAttr;
+	VDEC_CHN_PARAM_S stVdecParam;
+	MB_POOL_CONFIG_S stMbPoolCfg;
+	VDEC_PIC_BUF_ATTR_S stVdecPicBufAttr;
+	MB_PIC_CAL_S stMbPicCalret;
+	VDEC_MOD_PARAM_S stModParam;
+
+	memset(&stAttr, 0, sizeof(VDEC_CHN_ATTR_S));
+	memset(&stVdecParam, 0, sizeof(VDEC_CHN_PARAM_S));
+	memset(&stModParam, 0, sizeof(VDEC_MOD_PARAM_S));
+
+	stAttr.enMode = VIDEO_MODE_FRAME;
+	stAttr.enType = RK_VIDEO_ID_JPEG;
+	stAttr.u32PicWidth = config->input_width; // width of jpeg
+	stAttr.u32PicHeight = config->input_height; // height of jpeg
+	stAttr.u32FrameBufCnt = 8;
+	stAttr.u32StreamBufCnt = 3;
+
+	ret = RK_MPI_VDEC_CreateChn(JPEG_VDEC_CHN_ID, &stAttr);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("create %d vdec failed! ", JPEG_VDEC_CHN_ID);
+		return ret;
+	}
+
+	stVdecParam.stVdecPictureParam.enPixelFormat = RK_FMT_YUV420SP;
+
+	ret = RK_MPI_VDEC_SetChnParam(JPEG_VDEC_CHN_ID, &stVdecParam);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("set chn %d param failed %x! ", JPEG_VDEC_CHN_ID, ret);
+		return ret;
+	}
+
+	ret = RK_MPI_VDEC_StartRecvStream(JPEG_VDEC_CHN_ID);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("start recv chn %d failed %x! ", JPEG_VDEC_CHN_ID, ret);
+		return ret;
+	}
+	LOG_INFO("create vdec success\n");
+	return ret;
+}
+
+static void destroy_jpeg_vdec(void) {
+	RK_MPI_VDEC_StopRecvStream(JPEG_VDEC_CHN_ID);
+	RK_MPI_VDEC_DestroyChn(JPEG_VDEC_CHN_ID);
+	return;
+}
+
+// Use vpss to resize and change image format.
+static int create_jpeg_vpss(const RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data) {
+	int ret = 0;
+	VPSS_GRP_ATTR_S stVpssGrpAttr;
+	VPSS_CHN_ATTR_S stVpssChnAttr;
+	memset(&stVpssGrpAttr, 0, sizeof(stVpssGrpAttr));
+	memset(&stVpssChnAttr, 0, sizeof(stVpssChnAttr));
+	stVpssGrpAttr.u32MaxW = 4096;
+	stVpssGrpAttr.u32MaxH = 4096;
+	stVpssGrpAttr.enPixelFormat = RK_FMT_YUV420SP;
+	stVpssGrpAttr.stFrameRate.s32SrcFrameRate = -1;
+	stVpssGrpAttr.stFrameRate.s32DstFrameRate = -1;
+	stVpssGrpAttr.enCompressMode = COMPRESS_MODE_NONE;
+	ret = RK_MPI_VPSS_CreateGrp(JPEG_VPSS_GRP_ID, &stVpssGrpAttr);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_VPSS_CreateGrp error! ret is %#x\n", ret);
+		return ret;
+	}
+
+	stVpssChnAttr.enChnMode = VPSS_CHN_MODE_AUTO;
+	stVpssChnAttr.enDynamicRange = DYNAMIC_RANGE_SDR8;
+	stVpssChnAttr.enPixelFormat = config->output_format;
+	stVpssChnAttr.stFrameRate.s32SrcFrameRate = -1;
+	stVpssChnAttr.stFrameRate.s32DstFrameRate = -1;
+	stVpssChnAttr.u32Width = config->output_width;
+	stVpssChnAttr.u32Height = config->output_height;
+	stVpssChnAttr.enCompressMode = COMPRESS_MODE_NONE;
+	stVpssChnAttr.u32Depth = 1;
+	ret = RK_MPI_VPSS_SetChnAttr(JPEG_VPSS_GRP_ID, JPEG_VPSS_CHN_ID, &stVpssChnAttr);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("0: RK_MPI_VPSS_SetChnAttr error! ret is %#x\n", ret);
+		return ret;
+	}
+	ret = RK_MPI_VPSS_EnableChn(JPEG_VPSS_GRP_ID, JPEG_VPSS_CHN_ID);
+	if (ret != RK_SUCCESS)
+		LOG_ERROR("0: RK_MPI_VPSS_EnableChn error! ret is %#x\n", ret);
+	RK_MPI_VPSS_SetVProcDev(JPEG_VPSS_GRP_ID, VIDEO_PROC_DEV_GPU);
+	ret = RK_MPI_VPSS_StartGrp(JPEG_VPSS_GRP_ID);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_VPSS_StartGrp error! ret is %#x\n", ret);
+		return ret;
+	}
+	LOG_INFO("create vpss success\n");
+	return ret;
+}
+
+static int destroy_jpeg_vpss(void) {
+	RK_MPI_VPSS_StopGrp(JPEG_VPSS_GRP_ID);
+	RK_MPI_VPSS_DisableChn(JPEG_VPSS_GRP_ID, JPEG_VPSS_CHN_ID);
+	RK_MPI_VPSS_DestroyGrp(JPEG_VPSS_GRP_ID);
+	return 0;
+}
+
+static int send_jpeg_to_vdec(RK_PHOTO_DATA *data, MB_BLK input_mb, RK_U32 input_size) {
+	int ret = 0;
+	MPP_CHN_S stSrcChn, stDestChn;
+	VDEC_STREAM_S input_frame;
+	VIDEO_FRAME_INFO_S output_frame;
+	stSrcChn.enModId = RK_ID_VDEC;
+	stSrcChn.s32DevId = 0;
+	stSrcChn.s32ChnId = JPEG_VDEC_CHN_ID;
+
+	stDestChn.enModId = RK_ID_VPSS;
+	stDestChn.s32DevId = JPEG_VPSS_GRP_ID;
+	stDestChn.s32ChnId = JPEG_VPSS_CHN_ID;
+
+	ret = RK_MPI_SYS_Bind(&stSrcChn, &stDestChn);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("vdec bind vpss error %#X\n", ret);
+		return ret;
+	}
+
+	memset(&input_frame, 0, sizeof(input_frame));
+	input_frame.u64PTS = 0;
+	input_frame.pMbBlk = input_mb;
+	input_frame.u32Len = input_size;
+	input_frame.bEndOfStream = RK_TRUE;
+	input_frame.bEndOfFrame = RK_TRUE;
+	input_frame.bBypassMbBlk = RK_FALSE;
+
+	ret = RK_MPI_VDEC_SendStream(JPEG_VDEC_CHN_ID, &input_frame, 2000);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_VDEC_SendStream failed %#X\n", ret);
+		RK_MPI_SYS_UnBind(&stSrcChn, &stDestChn);
+		return ret;
+	}
+	ret = RK_MPI_VPSS_GetChnFrame(JPEG_VPSS_GRP_ID, JPEG_VPSS_CHN_ID, &output_frame, 2000);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_VPSS_GetChnFrame failed %#X\n", ret);
+		RK_MPI_SYS_UnBind(&stSrcChn, &stDestChn);
+		return ret;
+	}
+	LOG_INFO("get frame width %d, height %d, format %X, size %d\n"
+			, output_frame.stVFrame.u32Width
+			, output_frame.stVFrame.u32Height
+			, output_frame.stVFrame.enPixelFormat
+			, cal_size_by_format(output_frame.stVFrame.u32Width
+				, output_frame.stVFrame.u32Height, output_frame.stVFrame.enPixelFormat)
+			);
+	data->width = output_frame.stVFrame.u32Width;
+	data->height = output_frame.stVFrame.u32Height;
+	data->format = output_frame.stVFrame.enPixelFormat;
+	data->size = cal_size_by_format(output_frame.stVFrame.u32Width
+				, output_frame.stVFrame.u32Height, output_frame.stVFrame.enPixelFormat);
+	data->data = malloc(data->size);
+	if (!data) {
+		LOG_ERROR("malloc failed\n");
+		ret = -1;
+	} else {
+		memcpy(data->data, RK_MPI_MB_Handle2VirAddr(output_frame.stVFrame.pMbBlk), data->size);
+	}
+	RK_MPI_VPSS_ReleaseChnFrame(JPEG_VPSS_GRP_ID, JPEG_VPSS_GRP_ID, &output_frame);
+	RK_MPI_SYS_UnBind(&stSrcChn, &stDestChn);
+	LOG_INFO("get jpeg success\n");
+	return 0;
+}
+
+static int decode_one_jpeg(RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data, MB_BLK input_mb, RK_U32 input_size) {
+	int ret = 0;
+	ret = create_jpeg_vdec(config, data);
+	if (ret != 0)
+		return ret;
+	ret = create_jpeg_vpss(config, data);
+	if (ret != 0) {
+		destroy_jpeg_vdec();
+		return ret;
+	}
+	ret = send_jpeg_to_vdec(data, input_mb, input_size);
+	destroy_jpeg_vpss();
+	destroy_jpeg_vdec();
+	return ret;
 }
 
 static int buffer_free_cb(void *opaque) {
@@ -1120,5 +1363,94 @@ int rk_player_get_audio_position(RK_PLAYER_CONFIG_S *config, uint32_t *position)
 	if (ctx->enable_audio)
 		*position = (ctx->audio_current_pts / 1000);
 	pthread_mutex_unlock(&ctx->mutex);
+	return 0;
+}
+
+int rk_player_get_photo(RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data) {
+	RKIPC_CHECK_POINTER(config, -1);
+	RKIPC_CHECK_POINTER(data, -1);
+	RKIPC_CHECK_POINTER(config->file_path, -1);
+	if (config->output_width == 0 || config->output_height == 0) {
+		LOG_ERROR("invalid output size");
+		return -1;
+	}
+	if (!validate_format(config->output_format)) {
+		LOG_ERROR("invalid output format\n");
+		return -1;
+	}
+	int fd = -1;
+	int ret = 0;
+	uint32_t width, height;
+	uint32_t buf_size = 0;
+	uint8_t *buf = NULL;
+	MB_BLK mb_buffer = NULL;
+	struct stat statbuf;
+	MB_EXT_CONFIG_S mb_ext_config;
+
+	// Parse jpeg file.
+	fd = open(config->file_path, O_RDONLY);
+	if (fd < 0) {
+		LOG_ERROR("open file %s error: %s\n", config->file_path, strerror(errno));
+		return -1;
+	}
+	ret = fstat(fd, &statbuf);
+	if (ret != 0) {
+		LOG_ERROR("get file %s stat error: %s\n", config->file_path, strerror(errno));
+		close(fd);
+		return -1;
+	}
+	buf_size = statbuf.st_size;
+	buf = malloc(buf_size);
+	if (!buf) {
+		LOG_ERROR("malloc error\n");
+		close(fd);
+	}
+	ret = read(fd, buf, buf_size);
+	if (ret <= 0) {
+		LOG_ERROR("read error %s\n", strerror(errno));
+		close(fd);
+		free(buf);
+		return -1;
+	}
+	if (config->input_width == 0 || config->input_height == 0) {
+		ret = get_jpeg_resolution(buf, buf_size, &config->input_width, &config->input_height);
+		if (ret != 0) {
+			LOG_ERROR("get jpeg resolution failed\n");
+			close(fd);
+			free(buf);
+			return -1;
+		}
+	}
+	LOG_INFO("read jpeg %s: width %u, height %u, jpeg size %u\n"
+			, config->file_path, config->input_width, config->input_height, buf_size);
+
+	// Prepare vdec input frame.
+	memset(&mb_ext_config, 0, sizeof(MB_EXT_CONFIG_S));
+	mb_ext_config.pFreeCB = buffer_free_cb;
+	mb_ext_config.pOpaque = (void *)buf;
+	mb_ext_config.pu8VirAddr = (RK_U8 *)buf;
+	mb_ext_config.u64Size = buf_size;
+	ret = RK_MPI_SYS_CreateMB(&mb_buffer, &mb_ext_config);
+	if (ret != 0) {
+		LOG_ERROR("RK_MPI_SYS_CreateMB failed %#X\n", ret);
+		close(fd);
+		free(buf);
+		return -1;
+	}
+	// Decode jpeg.
+	ret = decode_one_jpeg(config, data, mb_buffer, buf_size);
+	if (ret != 0)
+		LOG_ERROR("decode jpeg failed\n");
+	RKIPC_CHECK_POINTER(data, -1);
+
+	RK_MPI_MB_ReleaseMB(mb_buffer);
+	close(fd);
+	return ret;
+}
+
+int rk_player_release_photo(RK_PHOTO_DATA *data) {
+	RKIPC_CHECK_POINTER(data, -1);
+	RKIPC_CHECK_POINTER(data->data, -1);
+	free(data->data);
 	return 0;
 }
