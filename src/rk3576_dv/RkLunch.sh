@@ -101,12 +101,7 @@ post_chk()
 	export rt_vo_disable_vop=0
 	modetest -e
 	# change to 58fps, need v4l2-ctl 58fps, ini fps=58, echo 1200000 > cpu0/cpufreq/scaling_setspeed
-	v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30
-	rkipc &
 }
-
-ulimit -c unlimited
-echo "/data/core-%p-%e" > /proc/sys/kernel/core_pattern
 
 echo userspace > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed
@@ -126,6 +121,14 @@ echo 300000000 > /sys/class/devfreq/27800000.gpu/userspace/set_freq
 
 echo userspace > /sys/class/devfreq/dmc/governor
 echo 1560000000 > /sys/class/devfreq/dmc/userspace/set_freq
-echo 750000 > /sys/kernel/debug/regulator/vdd_ddr_s0/voltage
 
 post_chk &
+
+while true; do
+	exist=`ps -e | grep rkipc | grep -v grep`
+	if [ -z "$exist" ]; then
+		rkipc &
+		echo "rkipc is running..."
+	fi
+	sleep 1
+done

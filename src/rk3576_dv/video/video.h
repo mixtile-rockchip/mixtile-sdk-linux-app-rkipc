@@ -28,6 +28,10 @@
 int rk_video_init();
 int rk_video_deinit();
 int rk_video_restart();
+int rk_media_init(void);
+int rk_media_deinit(void);
+int rk_video_start_record(void);
+int rk_video_stop_record(void);
 int rk_video_get_gop(int stream_id, int *value);
 int rk_video_set_gop(int stream_id, int value);
 int rk_video_get_max_rate(int stream_id, int *value);

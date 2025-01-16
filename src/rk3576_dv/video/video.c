@@ -44,11 +44,12 @@ int g_vi_for_vo_chn_id = 1;
 
 static int take_photo_one = 0;
 static int enable_jpeg, enable_venc_0, enable_venc_1, enable_venc_2, enable_npu, enable_gdc,
-			enable_dp, enable_lcd;
+    enable_dp, enable_lcd;
 int g_enable_vo;
 static int dp_vo_dev_id = RK3576_VO_DEV_DP;
 static int lcd_vo_dev_id = RK3576_VO_DEV_LCD;
 static int g_video_run_ = 1;
+static int g_start_record_ = 0;
 static int g_nn_osd_run_ = 0;
 static const char *tmp_output_data_type = "H.264";
 static const char *tmp_rc_mode;
@@ -57,9 +58,10 @@ static const char *tmp_smart;
 static const char *tmp_gop_mode;
 static const char *tmp_rc_quality;
 static pthread_t venc_thread_0, venc_thread_1, venc_thread_2, jpeg_venc_thread_id,
-				get_vpss_2_send_npu_thread, get_nn_update_osd_thread_id;
+    get_vpss_2_send_npu_thread, get_nn_update_osd_thread_id;
 
-static MPP_CHN_S vi_chn[2], gdc_chn[2], vpss_in_chn, vi_for_vo_chn, vo_chn[2], vpss_out_chn[4], venc_chn[4];
+static MPP_CHN_S vi_chn[2], gdc_chn[2], vpss_in_chn, vi_for_vo_chn, vo_chn[2], vpss_out_chn[4],
+    venc_chn[4];
 static VO_DEV dp_vo_layer, lcd_vo_layer;
 static int dp_vo_w = 1920;
 static int dp_vo_h = 1080;
@@ -78,7 +80,7 @@ static void *rkipc_get_venc_0(void *arg) {
 	stFrame.pstPack = malloc(sizeof(VENC_PACK_S));
 	long long before_time = 0;
 
-	while (g_video_run_) {
+	while (g_start_record_) {
 		// 5.get the frame
 		ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_0, &stFrame, 2500);
 		if (ret == RK_SUCCESS) {
@@ -96,13 +98,15 @@ static void *rkipc_get_venc_0(void *arg) {
 			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_IDRSLICE) ||
 			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_ISLICE)) {
 				rk_storage_write_video_frame(0, data, stFrame.pstPack->u32Len,
-				                            stFrame.pstPack->u64PTS, 1);
-				// rk_rtmp_write_video_frame(0, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
+				                             stFrame.pstPack->u64PTS, 1);
+				// rk_rtmp_write_video_frame(0, data, stFrame.pstPack->u32Len,
+				// stFrame.pstPack->u64PTS,
 				//                           1);
 			} else {
 				rk_storage_write_video_frame(0, data, stFrame.pstPack->u32Len,
-				                            stFrame.pstPack->u64PTS, 0);
-				// rk_rtmp_write_video_frame(0, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
+				                             stFrame.pstPack->u64PTS, 0);
+				// rk_rtmp_write_video_frame(0, data, stFrame.pstPack->u32Len,
+				// stFrame.pstPack->u64PTS,
 				//                           0);
 			}
 			if (rkipc_get_curren_time_ms() - before_time > 100)
@@ -121,7 +125,7 @@ static void *rkipc_get_venc_0(void *arg) {
 	if (stFrame.pstPack)
 		free(stFrame.pstPack);
 	if (fp)
-	fclose(fp);
+		fclose(fp);
 
 	return 0;
 }
@@ -581,8 +585,8 @@ int rkipc_venc_0_init() {
 	venc_chn_attr.stVencAttr.u32PicHeight = video_height;
 	venc_chn_attr.stVencAttr.u32VirWidth = video_width;
 	venc_chn_attr.stVencAttr.u32VirHeight = video_height;
-	venc_chn_attr.stVencAttr.u32StreamBufCnt = 60*3; // 3s
-	venc_chn_attr.stVencAttr.u32BufSize = 65*1024*1024*3/8; // 3s * 65Mbps, 24MB
+	venc_chn_attr.stVencAttr.u32StreamBufCnt = 60 * 3;              // 3s
+	venc_chn_attr.stVencAttr.u32BufSize = 65 * 1024 * 1024 * 3 / 8; // 3s * 65Mbps, 24MB
 	// venc_chn_attr.stVencAttr.u32Depth = 1;
 	ret = RK_MPI_VENC_CreateChn(VIDEO_PIPE_0, &venc_chn_attr);
 	if (ret) {
@@ -642,18 +646,11 @@ int rkipc_venc_0_init() {
 		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_0, ROTATION_270);
 	}
 
-	VENC_RECV_PIC_PARAM_S stRecvParam;
-	memset(&stRecvParam, 0, sizeof(VENC_RECV_PIC_PARAM_S));
-	stRecvParam.s32RecvPicNum = -1;
-	RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_0, &stRecvParam);
-	pthread_create(&venc_thread_0, NULL, rkipc_get_venc_0, NULL);
-
 	return ret;
 }
 
 int rkipc_venc_0_deinit() {
 	int ret = 0;
-	ret = RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_0);
 	ret |= RK_MPI_VENC_DestroyChn(VIDEO_PIPE_0);
 	if (ret)
 		LOG_ERROR("ERROR: Destroy VENC error! ret=%#x\n", ret);
@@ -1115,15 +1112,24 @@ int rkipc_bind_init() {
 	vo_chn[1].s32DevId = lcd_vo_layer;
 	vo_chn[1].s32ChnId = 0;
 
-    ret = RK_MPI_SYS_Bind(&vi_chn[0], &gdc_chn[0]);
-    if (ret != RK_SUCCESS) {
-        LOG_ERROR("vi 0 bind gdc 0 fail:%x", ret);
-    }
+	ret = RK_MPI_SYS_Bind(&vi_chn[0], &gdc_chn[0]);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("vi 0 bind gdc 0 fail:%x", ret);
+	}
 
 	ret = RK_MPI_SYS_Bind(&gdc_chn[0], &venc_chn[0]);
-    if (ret != RK_SUCCESS) {
-        LOG_ERROR("gdc bind venc fail:%x", ret);
-    }
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("gdc bind venc fail:%x", ret);
+	}
+
+
+	// HACK: avoid rockit error
+	VENC_RECV_PIC_PARAM_S stRecvParam;
+	VENC_STREAM_S stFrame;
+	stRecvParam.s32RecvPicNum = 1;
+	RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_0, &stRecvParam);
+	RK_MPI_VENC_GetStream(VIDEO_PIPE_0, &stFrame, 1000);
+	RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_0);
 
 	if (enable_lcd) {
 		ret = RK_MPI_SYS_Bind(&vi_chn[1], &gdc_chn[1]);
@@ -1148,21 +1154,21 @@ int rkipc_bind_deinit() {
 	int ret;
 
 	ret = RK_MPI_SYS_UnBind(&gdc_chn[0], &venc_chn[0]);
-    if (ret != RK_SUCCESS) {
-        LOG_ERROR("gdc unbind venc fail:%x", ret);
-    }
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("gdc unbind venc fail:%x", ret);
+	}
 
 	ret = RK_MPI_SYS_UnBind(&vi_chn[0], &gdc_chn[0]);
-    if (ret != RK_SUCCESS) {
-        LOG_ERROR("vi 0 unbind gdc 0 fail:%x", ret);
-    }
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("vi 0 unbind gdc 0 fail:%x", ret);
+	}
 
 	if (enable_lcd) {
 		ret = RK_MPI_SYS_UnBind(&gdc_chn[1], &vo_chn[1]);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("gdc 1 unbind vo 1 fail:%x", ret);
 		}
-		
+
 		ret = RK_MPI_SYS_UnBind(&vi_chn[1], &gdc_chn[1]);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("vi 1 unbind gdc 1 fail:%x", ret);
@@ -1215,7 +1221,7 @@ int rkipc_vo_init() {
 		stLayerAttr.stImageSize.u32Width = dp_vo_w;
 		stLayerAttr.stImageSize.u32Height = dp_vo_h;
 		LOG_INFO("stLayerAttr W=%d, H=%d\n", stLayerAttr.stDispRect.u32Width,
-				stLayerAttr.stDispRect.u32Height);
+		         stLayerAttr.stDispRect.u32Height);
 
 		stLayerAttr.u32DispFrmRt = 30;
 		stLayerAttr.enPixFormat = RK_FMT_YUV420SP;
@@ -1243,17 +1249,19 @@ int rkipc_vo_init() {
 		ret = RK_MPI_VO_EnableChn(dp_vo_layer, u32VoChn);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("create %d layer %d ch vo failed!\n", dp_vo_layer, u32VoChn);
-			//return ret;
+			// return ret;
 		}
 		LOG_INFO("RK_MPI_VO_EnableChn success\n");
 	}
 
-	// lcd
+	// LCD device is create by ui, and never disabled.
 	if (enable_lcd) {
+		RK_S32 u32VoChn = 0;
 		VoPubAttr.enIntfType = VO_INTF_LCD;
 		VoPubAttr.enIntfSync = VO_OUTPUT_DEFAULT;
 		lcd_vo_layer = RK3576_VOP_LAYER_ESMART1;
 
+#ifndef DRAW_UI_BY_VO
 		ret = RK_MPI_VO_SetPubAttr(lcd_vo_dev_id, &VoPubAttr);
 		ret = RK_MPI_VO_Enable(lcd_vo_dev_id);
 		ret = RK_MPI_VO_GetLayerDispBufLen(lcd_vo_layer, &u32DispBufLen);
@@ -1275,7 +1283,7 @@ int rkipc_vo_init() {
 		stLayerAttr.stImageSize.u32Width = lcd_vo_w;
 		stLayerAttr.stImageSize.u32Height = lcd_vo_h;
 		LOG_INFO("stLayerAttr W=%d, H=%d\n", stLayerAttr.stDispRect.u32Width,
-				stLayerAttr.stDispRect.u32Height);
+		         stLayerAttr.stDispRect.u32Height);
 
 		stLayerAttr.u32DispFrmRt = 30;
 		stLayerAttr.enPixFormat = RK_FMT_YUV420SP;
@@ -1292,19 +1300,19 @@ int rkipc_vo_init() {
 		ret = RK_MPI_VO_SetLayerSpliceMode(lcd_vo_layer, VO_SPLICE_MODE_RGA);
 		ret = RK_MPI_VO_EnableLayer(lcd_vo_layer);
 		ret = RK_MPI_VO_SetLayerCSC(lcd_vo_layer, &VideoCSC);
-
+#endif // DRAW_UI_BY_VO
 		VoChnAttr.bDeflicker = RK_FALSE;
 		VoChnAttr.u32Priority = 1;
 		VoChnAttr.stRect.s32X = 0;
 		VoChnAttr.stRect.s32Y = 0;
-		VoChnAttr.stRect.u32Width = stLayerAttr.stDispRect.u32Width;
-		VoChnAttr.stRect.u32Height = stLayerAttr.stDispRect.u32Height;
+		VoChnAttr.stRect.u32Width = lcd_vo_w;
+		VoChnAttr.stRect.u32Height = lcd_vo_h;
 		VoChnAttr.enRotation = ROTATION_90;
-		ret = RK_MPI_VO_SetChnAttr(lcd_vo_layer, 0, &VoChnAttr);
+		ret = RK_MPI_VO_SetChnAttr(lcd_vo_layer, u32VoChn, &VoChnAttr);
 		ret = RK_MPI_VO_EnableChn(lcd_vo_layer, u32VoChn);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("create %d layer %d ch vo failed!\n", lcd_vo_layer, u32VoChn);
-			//return ret;
+			// return ret;
 		}
 		LOG_INFO("RK_MPI_VO_EnableChn success\n");
 	}
@@ -1338,12 +1346,14 @@ int rkipc_vo_deinit() {
 			return -1;
 		}
 	}
+	// LCD device is create by ui, and never disabled.
 	if (enable_lcd) {
 		ret = RK_MPI_VO_DisableChn(lcd_vo_layer, u32VoChn);
 		if (ret) {
 			LOG_ERROR("RK_MPI_VO_DisableChn failed, ret is %#x\n", ret);
 			return -1;
 		}
+#ifndef DRAW_UI_BY_VO
 		ret = RK_MPI_VO_DisableLayer(lcd_vo_layer);
 		if (ret) {
 			LOG_ERROR("RK_MPI_VO_DisableLayer failed, ret is %#x\n", ret);
@@ -1359,14 +1369,16 @@ int rkipc_vo_deinit() {
 			LOG_ERROR("RK_MPI_VO_UnBindLayer failed, ret is %#x\n", ret);
 			return -1;
 		}
+#endif // DRAW_UI_BY_VO
 	}
 
+#ifndef DRAW_UI_BY_VO
 	ret = RK_MPI_VO_CloseFd();
 	if (ret) {
 		LOG_ERROR("RK_MPI_VO_CloseFd failed, ret is %#x\n", ret);
 		return -1;
 	}
-
+#endif
 	return 0;
 }
 
@@ -2533,7 +2545,7 @@ int rkipc_osd_draw_nn_deinit() {
 
 static void *gdc_thread(void *arg) {
 	fd_set readfds, writefds;
-    int s32DevFd = RK_MPI_GDC_GetFd(0);
+	int s32DevFd = RK_MPI_GDC_GetFd(0);
 	LOG_INFO("s32DevFd is %d\n", s32DevFd);
 	VIDEO_FRAME_INFO_S getFrame = {0};
 	RK_S32 result = 0;
@@ -2541,16 +2553,14 @@ static void *gdc_thread(void *arg) {
 	int loopCount = 0;
 	int ret;
 
-    while (g_video_run_) {
+	while (g_video_run_) {
 		result = RK_MPI_GDC_GetFrame(0, &getFrame, 1000);
 		if (result == 0) {
 			void *data = RK_MPI_MB_Handle2VirAddr(getFrame.stVFrame.pMbBlk);
 			RK_U64 len = RK_MPI_MB_GetSize(getFrame.stVFrame.pMbBlk);
 			LOG_INFO("RK_MPI_GDC_GetFrame ok:count: %d data %p seq:%d pts:%lld ms, len=%llu\n",
-									loopCount, data,
-									getFrame.stVFrame.u32TimeRef,
-									getFrame.stVFrame.u64PTS/1000,
-									len);
+			         loopCount, data, getFrame.stVFrame.u32TimeRef, getFrame.stVFrame.u64PTS / 1000,
+			         len);
 			// if (g_enable_vo) {
 			// 	// ret = RK_MPI_VO_SendLayerFrame(lcd_vo_layer, vi_frame);
 			// 	// if (ret)
@@ -2575,24 +2585,24 @@ static void *gdc_thread(void *arg) {
 			LOG_WARN("RK_MPI_GDC_GetFrame timeout\n");
 			break;
 		}
-    }
+	}
 
-    return 0;
+	return 0;
 }
 
 int rkipc_gdc_init() {
 	RK_S32 ret = RK_SUCCESS;
-    GDC_CHN_ATTR_S stAttr = {0};
-    stAttr.u32MaxInQueue = 8;
-    stAttr.u32MaxOutQueue = 8;
-    stAttr.s32SrcWidth = rk_param_get_int("video.source:width", 4032);
-    stAttr.s32SrcHeight = rk_param_get_int("video.source:height", 2256);
-    stAttr.s32DstWidth = rk_param_get_int("video.0:width", 3840);
-    stAttr.s32DstHeight = rk_param_get_int("video.0:height", 2160);
-    stAttr.enPixelFormat = RK_FMT_YUV420SP;
-    stAttr.enCompMode = COMPRESS_MODE_NONE;
-   	memcpy(stAttr.cfgFile, "/usr/share/rkeis_config.json", strlen("/usr/share/rkeis_config.json"));
-    ret = RK_MPI_GDC_CreateChn(0, &stAttr);
+	GDC_CHN_ATTR_S stAttr = {0};
+	stAttr.u32MaxInQueue = 8;
+	stAttr.u32MaxOutQueue = 8;
+	stAttr.s32SrcWidth = rk_param_get_int("video.source:width", 4032);
+	stAttr.s32SrcHeight = rk_param_get_int("video.source:height", 2256);
+	stAttr.s32DstWidth = rk_param_get_int("video.0:width", 3840);
+	stAttr.s32DstHeight = rk_param_get_int("video.0:height", 2160);
+	stAttr.enPixelFormat = RK_FMT_YUV420SP;
+	stAttr.enCompMode = COMPRESS_MODE_NONE;
+	memcpy(stAttr.cfgFile, "/usr/share/rkeis_config.json", strlen("/usr/share/rkeis_config.json"));
+	ret = RK_MPI_GDC_CreateChn(0, &stAttr);
 
 	if (enable_lcd) {
 		stAttr.u32MaxInQueue = 8;
@@ -2603,14 +2613,15 @@ int rkipc_gdc_init() {
 		stAttr.s32DstHeight = gdc_display_h;
 		stAttr.enPixelFormat = RK_FMT_YUV420SP;
 		stAttr.enCompMode = COMPRESS_MODE_NONE;
-		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_display.json", strlen("/usr/share/rkeis_config_display.json"));
+		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_display.json",
+		       strlen("/usr/share/rkeis_config_display.json"));
 		ret = RK_MPI_GDC_CreateChn(1, &stAttr);
 	}
 
 	// pthread_t gdc;
 	// pthread_create(&gdc, NULL, gdc_thread, NULL);
 
-    return ret;
+	return ret;
 }
 
 int rkipc_gdc_deinit() {
@@ -2649,7 +2660,7 @@ int rk_video_init() {
 	ret |= rkipc_gdc_init();
 	ret |= rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
 	ret |= rkipc_rtmp_init();
-	//ret |= rkipc_vpss_init();
+	// ret |= rkipc_vpss_init();
 	if (enable_venc_0)
 		ret |= rkipc_venc_0_init();
 	if (enable_venc_1)
@@ -2661,15 +2672,6 @@ int rk_video_init() {
 	if (g_enable_vo)
 		ret |= rkipc_vo_init();
 	ret |= rkipc_bind_init();
-	ret |= rkipc_osd_init();
-	rk_roi_set_callback_register(rk_roi_set);
-	rk_roi_set_all();
-	rk_region_clip_set_callback_register(rk_region_clip_set);
-	rk_region_clip_set_all();
-	if (enable_npu) {
-		pthread_create(&get_vpss_2_send_npu_thread, NULL, rkipc_get_vpss_2_send_npu, NULL);
-		rkipc_osd_draw_nn_init();
-	}
 	LOG_INFO("over\n");
 
 	return ret;
@@ -2680,18 +2682,10 @@ int rk_video_deinit() {
 
 	g_video_run_ = 0;
 	int ret = 0;
-	if (enable_npu) {
-		rkipc_osd_draw_nn_deinit();
-		pthread_join(get_vpss_2_send_npu_thread, NULL);
-	}
-	rk_region_clip_set_callback_register(NULL);
-	rk_roi_set_callback_register(NULL);
-	ret |= rkipc_osd_deinit();
 	if (g_enable_vo)
 		ret |= rkipc_vo_deinit();
 	ret |= rkipc_bind_deinit();
 	if (enable_venc_0) {
-		pthread_join(venc_thread_0, NULL);
 		ret |= rkipc_venc_0_deinit();
 	}
 	if (enable_venc_1) {
@@ -2706,7 +2700,7 @@ int rk_video_deinit() {
 		pthread_join(jpeg_venc_thread_id, NULL);
 		ret |= rkipc_venc_3_deinit();
 	}
-	//ret |= rkipc_vpss_deinit();
+	// ret |= rkipc_vpss_deinit();
 	ret |= rkipc_gdc_deinit();
 	ret |= rkipc_vi_chn_deinit();
 	ret |= rkipc_vi_dev_deinit();
@@ -2717,6 +2711,34 @@ int rk_video_deinit() {
 }
 
 extern char *rkipc_iq_file_path_;
+
+int rk_media_deinit(void) {
+	int ret = 0;
+	ret = rk_video_deinit();
+	ret |= rk_isp_deinit(0);
+	return ret;
+}
+
+int rk_media_init(void) {
+	int ret = 0;
+	int fps = rk_param_get_int("isp.0.adjustment:fps", 30);
+	if (fps != 30) {
+		LOG_WARN("====================> change to 60fps\n");
+		system("echo 1416000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
+		system("echo 1560000000 > /sys/class/devfreq/dmc/userspace/set_freq");
+		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=58");
+	} else {
+		LOG_WARN("====================> change to 30fps\n");
+		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
+		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
+		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
+	}
+	ret = rk_isp_init(0, rkipc_iq_file_path_);
+	ret |= rk_isp_set_frame_rate_without_ini(0, fps);
+	ret |= rk_video_init();
+	return ret;
+}
+
 int rk_video_restart() {
 	int ret;
 	ret = rk_storage_deinit();
@@ -2727,4 +2749,27 @@ int rk_video_restart() {
 	ret |= rk_storage_init();
 
 	return ret;
+}
+
+int rk_video_start_record(void) {
+	VENC_RECV_PIC_PARAM_S stRecvParam;
+	if (g_start_record_)
+		return 0;
+	g_start_record_ = 1;
+	memset(&stRecvParam, 0, sizeof(VENC_RECV_PIC_PARAM_S));
+	stRecvParam.s32RecvPicNum = -1;
+	RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_0, &stRecvParam);
+	rk_storage_record_start();
+	pthread_create(&venc_thread_0, NULL, rkipc_get_venc_0, NULL);
+	return 0;
+}
+
+int rk_video_stop_record(void) {
+	if (!g_start_record_)
+		return 0;
+	g_start_record_ = 0;
+	RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_0);
+	pthread_join(venc_thread_0, NULL);
+	rk_storage_record_stop();
+	return 0;
 }
