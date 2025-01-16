@@ -210,11 +210,9 @@ int rkipc_storage_dev_mount_status_get();
 int rkipc_storage_get_capacity(void **ppHandle, int *total_size, int *free_size);
 
 int rkipc_storage_get_file_list(rkipc_filelist *list, void *pHandle, rkipc_sort_type sort);
+int rkipc_storage_free_file_list(rkipc_filelist *list);
 // num:The number of files to delete
 // namel_ist:The list of files to be deleted, the number of lists matches the num
 // char *rkipc_response_delete(int id, int num, char *name_list);
 
-#ifdef __cplusplus
-}
-#endif
 #endif
