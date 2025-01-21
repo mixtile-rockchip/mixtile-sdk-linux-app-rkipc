@@ -10,6 +10,9 @@
 #include <rk_mpi_ai.h>
 #include <rk_mpi_mb.h>
 #include <rk_mpi_sys.h>
+#include "mp3_enc_table1.h"
+#include "mp3_enc_table2.h"
+#include "mp3_enc_types.h"
 
 #ifdef LOG_TAG
 #undef LOG_TAG
@@ -187,6 +190,145 @@ int rkipc_ai_deinit() {
 	return 0;
 }
 
+// mp3
+static RK_S32 extCodecHandle = -1;
+
+typedef struct _RK_AENC_MP3_CTX_S {
+	mp3_enc *pMp3Enc;
+	int frameLength;
+} RK_AENC_MP3_CTX_S;
+
+int rkaudio_mp3_encoder_close(RK_VOID *pEncoder) {
+	RK_AENC_MP3_CTX_S *ctx = (RK_AENC_MP3_CTX_S *)pEncoder;
+	if (ctx == NULL)
+		return 0;
+
+	Mp3EncodeDeinit(ctx->pMp3Enc);
+	free(ctx);
+	ctx = NULL;
+	return 0;
+}
+
+int rkaudio_mp3_encoder_open(RK_VOID *pEncoderAttr, RK_VOID **ppEncoder) {
+	int bitrate = 0;
+	if (pEncoderAttr == NULL) {
+		LOG_ERROR("pEncoderAttr is NULL");
+		return RK_FAILURE;
+	}
+
+	AENC_ATTR_CODEC_S *attr = (AENC_ATTR_CODEC_S *)pEncoderAttr;
+	if (attr->enType != RK_AUDIO_ID_MP3) {
+		LOG_ERROR("Invalid enType[%d]", attr->enType);
+		return RK_FAILURE;
+	}
+
+	RK_AENC_MP3_CTX_S *ctx = (RK_AENC_MP3_CTX_S *)malloc(sizeof(RK_AENC_MP3_CTX_S));
+	if (!ctx) {
+		LOG_ERROR("malloc aenc mp3 ctx failed");
+		return RK_FAILURE;
+	}
+
+	memset(ctx, 0, sizeof(RK_AENC_MP3_CTX_S));
+	if (attr->u32Resv[0] > 1152) {
+		LOG_ERROR("error: MP3 FrameLength is too large, FrameLength = %d", attr->u32Resv[0]);
+		goto __FAILED;
+	}
+
+	ctx->frameLength = attr->u32Resv[0];
+	bitrate = attr->u32Resv[1] / 1000;
+	LOG_DEBUG("MP3Encode: sample_rate = %d, channel = %d, bitrate = %d.", attr->u32SampleRate,
+	          attr->u32Channels, bitrate);
+	ctx->pMp3Enc = Mp3EncodeVariableInit(attr->u32SampleRate, attr->u32Channels, bitrate);
+	if (ctx->pMp3Enc->frame_size <= 0) {
+		LOG_ERROR("MP3Encode init failed! r:%d c:%d\n", attr->u32SampleRate, attr->u32Channels);
+		goto __FAILED;
+	}
+
+	LOG_DEBUG("MP3Encode FrameSize = %d", ctx->pMp3Enc->frame_size);
+	*ppEncoder = (RK_VOID *)ctx;
+
+	return 0;
+
+__FAILED:
+	rkaudio_mp3_encoder_close((RK_VOID *)ctx);
+	*ppEncoder = RK_NULL;
+	return RK_FAILURE;
+}
+
+int rkaudio_mp3_encoder_encode(RK_VOID *pEncoder, RK_VOID *pEncParam) {
+	RK_AENC_MP3_CTX_S *ctx = (RK_AENC_MP3_CTX_S *)pEncoder;
+	AUDIO_ADENC_PARAM_S *pParam = (AUDIO_ADENC_PARAM_S *)pEncParam;
+
+	if (ctx == NULL || pParam == NULL) {
+		LOG_ERROR("Invalid ctx or pParam");
+		return AENC_ENCODER_ERROR;
+	}
+
+	RK_U32 u32EncSize = 0;
+	RK_U8 *inData = pParam->pu8InBuf;
+	RK_U64 inPts = pParam->u64InTimeStamp;
+	RK_U32 inbufSize = 0;
+	RK_U32 copySize = 0;
+
+	// if input buffer is NULL, this means eos(end of stream)
+	if (inData == NULL) {
+		pParam->u64OutTimeStamp = inPts;
+	}
+
+	inbufSize = 2 * ctx->pMp3Enc->frame_size;
+	copySize = (pParam->u32InLen > inbufSize) ? inbufSize : pParam->u32InLen;
+	memcpy(ctx->pMp3Enc->config.in_buf, inData, copySize);
+	pParam->u32InLen = pParam->u32InLen - copySize;
+
+	u32EncSize = L3_compress(ctx->pMp3Enc, 0, (unsigned char **)(&ctx->pMp3Enc->config.out_buf));
+
+	u32EncSize = (u32EncSize > pParam->u32OutLen) ? pParam->u32OutLen : u32EncSize;
+	memcpy(pParam->pu8OutBuf, ctx->pMp3Enc->config.out_buf, u32EncSize);
+	pParam->u64OutTimeStamp = inPts;
+	pParam->u32OutLen = u32EncSize;
+
+	return AENC_ENCODER_OK;
+}
+
+int register_aenc_mp3(void) {
+	int ret;
+	AENC_ENCODER_S aencCtx;
+	memset(&aencCtx, 0, sizeof(AENC_ENCODER_S));
+
+	extCodecHandle = -1;
+	aencCtx.enType = RK_AUDIO_ID_MP3;
+	snprintf((RK_CHAR *)(aencCtx.aszName), sizeof(aencCtx.aszName), "rkaudio");
+	aencCtx.u32MaxFrmLen = 2048;
+	aencCtx.pfnOpenEncoder = rkaudio_mp3_encoder_open;
+	aencCtx.pfnEncodeFrm = rkaudio_mp3_encoder_encode;
+	aencCtx.pfnCloseEncoder = rkaudio_mp3_encoder_close;
+
+	LOG_DEBUG("register external aenc(%s)", aencCtx.aszName);
+	ret = RK_MPI_AENC_RegisterEncoder(&extCodecHandle, &aencCtx);
+	if (ret != 0) {
+		LOG_ERROR("aenc %s register decoder fail %x", aencCtx.aszName, ret);
+		return RK_FAILURE;
+	}
+
+	return 0;
+}
+
+int unregister_aenc_mp3(void) {
+	if (extCodecHandle == -1) {
+		return 0;
+	}
+
+	LOG_DEBUG("unregister external aenc");
+	int ret = RK_MPI_AENC_UnRegisterEncoder(extCodecHandle);
+	if (ret != 0) {
+		LOG_ERROR("aenc unregister decoder fail %x", ret);
+		return RK_FAILURE;
+	}
+	extCodecHandle = -1;
+
+	return 0;
+}
+
 int rkipc_aenc_init() {
 	AENC_CHN_ATTR_S stAencAttr;
 	const char *encode_type = rk_param_get_string("audio.0:encode_type", NULL);
@@ -198,6 +340,12 @@ int rkipc_aenc_init() {
 	} else if (!strcmp(encode_type, "G711A")) {
 		stAencAttr.enType = RK_AUDIO_ID_PCM_ALAW;
 		stAencAttr.stCodecAttr.enType = RK_AUDIO_ID_PCM_ALAW;
+	} else if (!strcmp(encode_type, "MP3")) {
+		stAencAttr.enType = RK_AUDIO_ID_MP3;
+		stAencAttr.stCodecAttr.enType = RK_AUDIO_ID_MP3;
+		stAencAttr.stCodecAttr.u32Resv[0] = 1152;
+		stAencAttr.stCodecAttr.u32Resv[1] = 160000;
+		register_aenc_mp3();
 	} else {
 		LOG_ERROR("not support %s\n", encode_type);
 	}
@@ -268,6 +416,9 @@ int rkipc_audio_deinit() {
 	LOG_INFO("RK_MPI_SYS_UnBind success\n");
 	ret |= rkipc_aenc_deinit();
 	ret |= rkipc_ai_deinit();
+	const char *encode_type = rk_param_get_string("audio.0:encode_type", NULL);
+	if (!strcmp(encode_type, "MP3"))
+		unregister_aenc_mp3();
 
 	return ret;
 }
