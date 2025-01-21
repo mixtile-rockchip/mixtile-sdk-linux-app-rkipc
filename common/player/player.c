@@ -8,6 +8,7 @@
 
 #include "player.h"
 #include "common.h"
+#include <byteswap.h>
 #include <rk_debug.h>
 #include <rk_mpi_adec.h>
 #include <rk_mpi_ao.h>
@@ -18,12 +19,12 @@
 #include <rk_mpi_sys.h>
 #include <rk_mpi_tde.h>
 #include <rk_mpi_vdec.h>
-#include <rk_mpi_vpss.h>
 #include <rk_mpi_vo.h>
+#include <rk_mpi_vpss.h>
 #include <rkdemuxer.h>
-#include <byteswap.h>
-#include <unistd.h>
 #include <sys/stat.h>
+#include <unistd.h>
+#include <mp3dec.h>
 
 #define VDEC_CHN_ID 0
 #define ADEC_CHN_ID 0
@@ -64,6 +65,243 @@ typedef struct _rkPlayerCtx {
 	int64_t video_total_duraion;
 	int64_t audio_total_duraion;
 } PLAYER_CTX_S;
+
+#define MP3MAXFRAMESIZE 4608
+
+typedef struct _MP3DecInfo {
+	/* pointers to platform-specific data structures */
+	void *FrameHeaderPS;
+	void *SideInfoPS;
+	void *ScaleFactorInfoPS;
+	void *HuffmanInfoPS;
+	void *DequantInfoPS;
+	void *IMDCTInfoPS;
+	void *SubbandInfoPS;
+
+	/* buffer which must be large enough to hold largest possible main_data section */
+	unsigned char mainBuf[MAINBUF_SIZE];
+
+	/* special info for "free" bitrate files */
+	int freeBitrateFlag;
+	int freeBitrateSlots;
+
+	/* user-accessible info */
+	int bitrate;
+	int nChans;
+	int samprate;
+	int nGrans;     /* granules per frame */
+	int nGranSamps; /* samples per granule */
+	int nSlots;
+	int layer;
+	int vbr;         /* is vbr flag */
+	uint32_t fSize;  /* file length, no tags */
+	uint32_t fCount; /* frame count */
+	char TOC[100];   /* TOC */
+
+	MPEGVersion version;
+
+	int mainDataBegin;
+	int mainDataBytes;
+
+	int part23Length[MAX_NGRAN][MAX_NCHAN];
+} MP3DecInfo;
+
+typedef struct {
+	HMP3Decoder pMp3Dec;
+	MP3FrameInfo frameInfo;
+	RK_U8 decMp3buf[MP3MAXFRAMESIZE];
+	short int decPCMbuf[MP3MAXFRAMESIZE];
+	RK_U64 audioPts;
+} RK_ADEC_MP3_CTX_S;
+
+static int extCodecHandle = -1;
+static unsigned mp3DecInitCnt = 0;
+
+static int mp3_decoder_open(void *pDecoderAttr, void **ppDecoder) {
+	if (pDecoderAttr == NULL) {
+		RK_LOGE("pDecoderAttr is NULL");
+		return RK_FAILURE;
+	}
+
+	RK_ADEC_MP3_CTX_S *ctx = (RK_ADEC_MP3_CTX_S *)malloc(sizeof(RK_ADEC_MP3_CTX_S));
+	if (!ctx) {
+		RK_LOGE("malloc adec mp3 ctx failed");
+		return RK_FAILURE;
+	}
+
+	memset(ctx, 0, sizeof(RK_ADEC_MP3_CTX_S));
+	ctx->pMp3Dec = MP3InitDecoder();
+	if (!ctx->pMp3Dec) {
+		RK_LOGE("malloc adec pMp3Dec failed");
+		free(ctx);
+		ctx = NULL;
+		return RK_FAILURE;
+	}
+
+	memset(ctx->decMp3buf, 0, sizeof(ctx->decMp3buf));
+	memset(ctx->decPCMbuf, 0, sizeof(ctx->decPCMbuf));
+
+	*ppDecoder = (void *)ctx;
+	return RK_SUCCESS;
+}
+
+static int mp3_decoder_close(void *pDecoder) {
+	RK_ADEC_MP3_CTX_S *ctx = (RK_ADEC_MP3_CTX_S *)pDecoder;
+	if (ctx == NULL)
+		return RK_FAILURE;
+
+	if (ctx->pMp3Dec) {
+		MP3FreeDecoder(ctx->pMp3Dec);
+		ctx->pMp3Dec = NULL;
+	}
+
+	if (ctx)
+		free(ctx);
+
+	return RK_SUCCESS;
+}
+
+static int mp3_decoder_decode(void *pDecoder, void *pDecParam) {
+	RK_S32 ret = 0;
+	RK_ADEC_MP3_CTX_S *ctx = (RK_ADEC_MP3_CTX_S *)pDecoder;
+	RK_S32 skip = 0;
+
+	if (ctx == NULL || ctx->pMp3Dec == NULL || pDecParam == NULL)
+		return ADEC_DECODER_ERROR;
+
+	AUDIO_ADENC_PARAM_S *pParam = (AUDIO_ADENC_PARAM_S *)pDecParam;
+	RK_BOOL eos = RK_FALSE;
+	RK_U8 *pInput = NULL;
+	RK_S32 inLength = pParam->u32InLen;
+	RK_S32 copySize = 0;
+	RK_U64 calcPts = 0;
+
+	if ((pParam->pu8InBuf == NULL) || (inLength == 0))
+		eos = RK_TRUE;
+
+	copySize = (inLength <= MP3MAXFRAMESIZE) ? inLength : MP3MAXFRAMESIZE;
+	inLength -= copySize;
+	memcpy(ctx->decMp3buf, pParam->pu8InBuf, copySize);
+	pInput = (RK_U8 *)ctx->decMp3buf;
+	if (copySize && (skip = MP3FindSyncWord(pInput, copySize)) < 0) {
+		printf("mp3 decode don't find sync word\n");
+		pParam->u32InLen = 0;
+		return ADEC_DECODER_ERROR;
+	}
+
+	copySize -= skip;
+	pInput += skip;
+
+	ret = MP3Decode(ctx->pMp3Dec, &pInput, &copySize, ctx->decPCMbuf, 0);
+	pParam->u32InLen = inLength + copySize;
+
+	if (ret) {
+		if (eos)
+			return ADEC_DECODER_EOS;
+
+		pParam->u32InLen = inLength;
+		if (ret == ERR_MP3_INDATA_UNDERFLOW) {
+			RK_LOGE("mp3 decode input data underflow");
+			return ADEC_DECODER_ERROR;
+		}
+
+		if (ret == -2) {
+			RK_LOGW("mp3 encoded data does not start from the first frame");
+		} else {
+			RK_LOGE("mp3 decode error, ret = %d", ret);
+			return ADEC_DECODER_ERROR;
+		}
+	}
+
+	MP3GetLastFrameInfo(ctx->pMp3Dec, &ctx->frameInfo);
+
+	MP3DecInfo *mp3DecInfo = (MP3DecInfo *)ctx->pMp3Dec;
+	pParam->u32OutLen = mp3DecInfo->nGrans * mp3DecInfo->nGranSamps * ctx->frameInfo.nChans * 2;
+	memcpy(pParam->pu8OutBuf, (RK_U8 *)ctx->decPCMbuf, pParam->u32OutLen);
+
+	calcPts = (((RK_U64)pParam->u32OutLen / 2) * 1000000) / ctx->frameInfo.samprate;
+	if (pParam->u64InTimeStamp)
+		pParam->u64OutTimeStamp = pParam->u64InTimeStamp;
+	else if (ctx->audioPts)
+		pParam->u64OutTimeStamp = ctx->audioPts + calcPts;
+
+	if (pParam->u64OutTimeStamp)
+		ctx->audioPts = pParam->u64OutTimeStamp;
+	else {
+		ctx->audioPts += calcPts;
+	}
+
+	return ADEC_DECODER_OK;
+}
+
+static int mp3_decoder_get_frame_info(void *pDecoder, void *pInfo) {
+	ADEC_FRAME_INFO_S stFrameInfo;
+	RK_ADEC_MP3_CTX_S *ctx = (RK_ADEC_MP3_CTX_S *)pDecoder;
+
+	if (ctx == NULL || pInfo == NULL)
+		return RK_FAILURE;
+
+	MP3GetLastFrameInfo(ctx->pMp3Dec, &ctx->frameInfo);
+
+	if (!ctx->frameInfo.bitsPerSample) {
+		RK_LOGE("mp3 decode get info failed");
+		return RK_FAILURE;
+	}
+
+	memset(&stFrameInfo, 0, sizeof(ADEC_FRAME_INFO_S));
+	stFrameInfo.u32Channels = ctx->frameInfo.nChans;
+	stFrameInfo.u32SampleRate = ctx->frameInfo.samprate;
+	stFrameInfo.enBitWidth = AUDIO_BIT_WIDTH_16;
+	memcpy(pInfo, &stFrameInfo, sizeof(ADEC_FRAME_INFO_S));
+	return RK_SUCCESS;
+}
+
+static int register_adec_mp3() {
+	if (!mp3DecInitCnt) {
+		ADEC_DECODER_S adecCtx;
+		memset(&adecCtx, 0, sizeof(ADEC_DECODER_S));
+
+		extCodecHandle = -1;
+		adecCtx.enType = RK_AUDIO_ID_MP3;
+		snprintf((RK_CHAR *)(adecCtx.aszName), sizeof(adecCtx.aszName), "rkaudio1");
+		adecCtx.pfnOpenDecoder = mp3_decoder_open;
+		adecCtx.pfnDecodeFrm = mp3_decoder_decode;
+		adecCtx.pfnGetFrmInfo = mp3_decoder_get_frame_info;
+		adecCtx.pfnCloseDecoder = mp3_decoder_close;
+		adecCtx.pfnResetDecoder = RK_NULL;
+
+		RK_LOGD("register ext audio decoder");
+		RK_S32 ret = RK_MPI_ADEC_RegisterDecoder(&extCodecHandle, &adecCtx);
+		if (ret != RK_SUCCESS) {
+			RK_LOGE("adec register decoder fail, ret = 0x%x", ret);
+			return RK_FAILURE;
+		}
+	}
+
+	mp3DecInitCnt++;
+	return RK_SUCCESS;
+}
+
+static int unregister_adec_mp3() {
+	if (extCodecHandle == -1)
+		return RK_SUCCESS;
+
+	if (0 == mp3DecInitCnt) {
+		return 0;
+	} else if (1 == mp3DecInitCnt) {
+		RK_LOGD("unregister ext audio decoder");
+		int ret = RK_MPI_ADEC_UnRegisterDecoder(extCodecHandle);
+		if (ret != RK_SUCCESS) {
+			RK_LOGE("adec unregister decoder fail, ret = 0x%x", ret);
+			return RK_FAILURE;
+		}
+
+		extCodecHandle = -1;
+	}
+
+	mp3DecInitCnt--;
+	return RK_SUCCESS;
+}
 
 static int create_vo(void) {
 	int ret;
@@ -428,12 +666,20 @@ static int create_adec(void) {
 	ADEC_CHN_ATTR_S pstChnAttr;
 	memset(&pstChnAttr, 0, sizeof(ADEC_CHN_ATTR_S));
 
+	ret = register_adec_mp3();
+	if (ret != 0) {
+		LOG_ERROR("register_adec_mp3 failed %#X\n", ret);
+		return -1;
+	}
 	if (!strcmp(encode_type, "MP2")) {
 		pstChnAttr.enType = RK_AUDIO_ID_MP2;
 		pstChnAttr.stCodecAttr.enType = RK_AUDIO_ID_MP2;
 	} else if (!strcmp(encode_type, "G711A")) {
 		pstChnAttr.enType = RK_AUDIO_ID_PCM_ALAW;
 		pstChnAttr.stCodecAttr.enType = RK_AUDIO_ID_PCM_ALAW;
+	} else if (!strcmp(encode_type, "MP3")) {
+		pstChnAttr.enType = RK_AUDIO_ID_MP3;
+		pstChnAttr.stCodecAttr.enType = RK_AUDIO_ID_MP3;
 	} else {
 		LOG_ERROR("not support %s\n", encode_type);
 		return -1;
@@ -453,7 +699,11 @@ static int create_adec(void) {
 	return ret;
 }
 
-static int destroy_adec(void) { return RK_MPI_ADEC_DestroyChn(ADEC_CHN_ID); }
+static int destroy_adec(void) {
+	RK_MPI_ADEC_DestroyChn(ADEC_CHN_ID);
+	unregister_adec_mp3();
+	return 0;
+}
 
 static int bind_vdec_vo(void) {
 	int ret = 0;
@@ -550,21 +800,22 @@ static int get_jpeg_resolution(uint8_t *buf, uint32_t buf_size, uint32_t *width,
 
 		if (buf[cur + 1] == 0xC0 || buf[cur + 1] == 0xC2) {
 			cur += 5;
-			*height = bswap_16(*(uint16_t *) (buf + cur));
+			*height = bswap_16(*(uint16_t *)(buf + cur));
 			cur += 2;
-			*width = bswap_16(*(uint16_t *) (buf + cur));
+			*width = bswap_16(*(uint16_t *)(buf + cur));
 			LOG_INFO("w * h[%d, %d]\n", *width, *height);
 			return 0;
 		}
 		cur += 2;
-		cur += bswap_16(*(uint16_t *) (buf + cur));
+		cur += bswap_16(*(uint16_t *)(buf + cur));
 	}
 	LOG_ERROR("Can't get resolution\n");
 	return -1;
 }
 
 static bool validate_format(uint32_t format) {
-	if (format == RK_FMT_BGRA8888 || format == RK_FMT_RGBA8888 || format == RK_FMT_RGB565 || format == RK_FMT_YUV420SP)
+	if (format == RK_FMT_BGRA8888 || format == RK_FMT_RGBA8888 || format == RK_FMT_RGB565 ||
+	    format == RK_FMT_YUV420SP)
 		return true;
 	return false;
 };
@@ -572,18 +823,18 @@ static bool validate_format(uint32_t format) {
 static uint32_t cal_size_by_format(uint32_t width, uint32_t height, uint32_t format) {
 	uint32_t size = 0;
 	switch (format) {
-		case RK_FMT_YUV420SP:
-			size = width * height * 3 / 2;
-			break;
-		case RK_FMT_RGB565:
-			size = width * height * 2;
-			break;
-		case RK_FMT_RGBA8888:
-		case RK_FMT_BGRA8888:
-			size = width * height * 4;
-			break;
-		default:
-			break;
+	case RK_FMT_YUV420SP:
+		size = width * height * 3 / 2;
+		break;
+	case RK_FMT_RGB565:
+		size = width * height * 2;
+		break;
+	case RK_FMT_RGBA8888:
+	case RK_FMT_BGRA8888:
+		size = width * height * 4;
+		break;
+	default:
+		break;
 	}
 	return size;
 }
@@ -603,7 +854,7 @@ static int create_jpeg_vdec(const RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data) 
 
 	stAttr.enMode = VIDEO_MODE_FRAME;
 	stAttr.enType = RK_VIDEO_ID_JPEG;
-	stAttr.u32PicWidth = config->input_width; // width of jpeg
+	stAttr.u32PicWidth = config->input_width;   // width of jpeg
 	stAttr.u32PicHeight = config->input_height; // height of jpeg
 	stAttr.u32FrameBufCnt = 8;
 	stAttr.u32StreamBufCnt = 3;
@@ -729,18 +980,15 @@ static int send_jpeg_to_vdec(RK_PHOTO_DATA *data, MB_BLK input_mb, RK_U32 input_
 		RK_MPI_SYS_UnBind(&stSrcChn, &stDestChn);
 		return ret;
 	}
-	LOG_INFO("get frame width %d, height %d, format %X, size %d\n"
-			, output_frame.stVFrame.u32Width
-			, output_frame.stVFrame.u32Height
-			, output_frame.stVFrame.enPixelFormat
-			, cal_size_by_format(output_frame.stVFrame.u32Width
-				, output_frame.stVFrame.u32Height, output_frame.stVFrame.enPixelFormat)
-			);
+	LOG_INFO("get frame width %d, height %d, format %X, size %d\n", output_frame.stVFrame.u32Width,
+	         output_frame.stVFrame.u32Height, output_frame.stVFrame.enPixelFormat,
+	         cal_size_by_format(output_frame.stVFrame.u32Width, output_frame.stVFrame.u32Height,
+	                            output_frame.stVFrame.enPixelFormat));
 	data->width = output_frame.stVFrame.u32Width;
 	data->height = output_frame.stVFrame.u32Height;
 	data->format = output_frame.stVFrame.enPixelFormat;
-	data->size = cal_size_by_format(output_frame.stVFrame.u32Width
-				, output_frame.stVFrame.u32Height, output_frame.stVFrame.enPixelFormat);
+	data->size = cal_size_by_format(output_frame.stVFrame.u32Width, output_frame.stVFrame.u32Height,
+	                                output_frame.stVFrame.enPixelFormat);
 	data->data = malloc(data->size);
 	if (!data) {
 		LOG_ERROR("malloc failed\n");
@@ -754,7 +1002,8 @@ static int send_jpeg_to_vdec(RK_PHOTO_DATA *data, MB_BLK input_mb, RK_U32 input_
 	return 0;
 }
 
-static int decode_one_jpeg(RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data, MB_BLK input_mb, RK_U32 input_size) {
+static int decode_one_jpeg(RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data, MB_BLK input_mb,
+                           RK_U32 input_size) {
 	int ret = 0;
 	ret = create_jpeg_vdec(config, data);
 	if (ret != 0)
@@ -902,7 +1151,6 @@ static void *video_player_loop(void *p) {
 					ctx->video_status = PAUSE;
 					if (ctx->event_cb) {
 						ctx->event_cb(RK_PLAYER_EOF);
-						ctx->event_cb(RK_PLAYER_STOP);
 					}
 				}
 			}
@@ -1421,8 +1669,8 @@ int rk_player_get_photo(RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data) {
 			return -1;
 		}
 	}
-	LOG_INFO("read jpeg %s: width %u, height %u, jpeg size %u\n"
-			, config->file_path, config->input_width, config->input_height, buf_size);
+	LOG_INFO("read jpeg %s: width %u, height %u, jpeg size %u\n", config->file_path,
+	         config->input_width, config->input_height, buf_size);
 
 	// Prepare vdec input frame.
 	memset(&mb_ext_config, 0, sizeof(MB_EXT_CONFIG_S));
