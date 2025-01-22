@@ -41,6 +41,7 @@
 RK_MODE_E g_current_mode = RK_VIDEO_MODE;
 static int pipe_id_ = 0;
 static int g_vi_chn_id = 0;
+int g_vi_ext_chn_id = 4; // 3:vpss_scale_1 4:vpss_scale_0 5:vpss_scale_2 6:vpss_scale_3
 static int g_vi_for_vo_chn_id = 1;
 
 static int max_capture_num = 5;
@@ -71,6 +72,49 @@ static int lcd_vo_w = 240;
 static int lcd_vo_h = 320;
 static int gdc_display_w = 704;
 static int gdc_display_h = 384;
+
+/*
+static void *test_get_vi(void *arg) {
+	printf("#Start %s thread, arg:%p\n", __func__, arg);
+	VIDEO_FRAME_INFO_S stViFrame;
+	VI_CHN_STATUS_S stChnStatus;
+	int loopCount = 0;
+	int ret = 0;
+
+		// 5.get the frame
+		ret = RK_MPI_VI_GetChnFrame(pipe_id_, 0, &stViFrame, 1000);
+
+		void *data = RK_MPI_MB_Handle2VirAddr(stViFrame.stVFrame.pMbBlk);
+		FILE *fp = fopen("/tmp/vi_0.yuv", "wb");
+		fwrite(data, 1, 4032*2256*1.5, fp);
+		fflush(fp);
+		fclose(fp);
+		// 7.release the frame
+		ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, 0, &stViFrame);
+		if (ret != RK_SUCCESS) {
+			LOG_ERROR("RK_MPI_VI_ReleaseChnFrame fail %x\n", ret);
+		}
+
+		ret = RK_MPI_VI_GetChnFrame(pipe_id_, 1, &stViFrame, 1000);
+
+		data = RK_MPI_MB_Handle2VirAddr(stViFrame.stVFrame.pMbBlk);
+		fp = fopen("/tmp/vi_1.yuv", "wb");
+		fwrite(data, 1, 704*384*1.5, fp);
+		fflush(fp);
+		fclose(fp);
+		// 7.release the frame
+		ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, 1, &stViFrame);
+		if (ret != RK_SUCCESS) {
+			LOG_ERROR("RK_MPI_VI_ReleaseChnFrame fail %x\n", ret);
+		}
+
+		loopCount++;
+
+		usleep(10 * 1000);
+
+	return 0;
+}
+*/
 
 static void *rkipc_get_venc_0(void *arg) {
 	printf("#Start %s thread, arg:%p\n", __func__, arg);
@@ -334,6 +378,29 @@ static int rkipc_vi_dev_init() {
 	} else {
 		LOG_ERROR("RK_MPI_VI_EnableDev already\n");
 	}
+
+	VI_PARAM_MOD_S stModParam;
+	memset(&stModParam, 0, sizeof(stModParam));
+	stModParam.enViModType = VI_EXT_CHN_MODE;
+	stModParam.stExtChnParam.mirrorCmsc = 0; // 1 is for vpss, 0 is for vi ext
+	stModParam.stExtChnParam.extChn[0] = 0;
+	stModParam.stExtChnParam.extChn[1] = 0;
+	ret = RK_MPI_VI_SetModParam(&stModParam);
+	if (ret)
+		LOG_ERROR("RK_MPI_VI_SetModParam fail:%#X\n", ret);
+
+	memset(&stModParam, 0, sizeof(stModParam));
+	stModParam.enViModType = VI_EXT_CHN_MODE;
+	ret = RK_MPI_VI_GetModParam(&stModParam);
+	if (ret)
+		LOG_ERROR("RK_MPI_VI_GetModParam fail:%#X\n", ret);
+
+	LOG_INFO("vi mod:%d mirror:%d ext_chn_mode:%d ext_chn1_mode:%d"
+				"ext_chn2_mode:%d ext_chn3_mode:%d\n",
+				stModParam.enViModType, stModParam.stExtChnParam.mirrorCmsc,
+				stModParam.stExtChnParam.extChn[0], stModParam.stExtChnParam.extChn[1],
+				stModParam.stExtChnParam.extChn[2], stModParam.stExtChnParam.extChn[3]);
+
 	return 0;
 }
 
@@ -384,9 +451,8 @@ static int rkipc_vi_chn_init() {
 	vi_chn_attr.stIspOpt.bAttchFrmInfo = true;
 	vi_chn_attr.stFrameRate.s32SrcFrameRate = -1;
 	vi_chn_attr.stFrameRate.s32DstFrameRate = -1;
-	memcpy(vi_chn_attr.stIspOpt.aEntityName, "/dev/video21", strlen("/dev/video21"));
-	ret = RK_MPI_VI_SetChnAttr(pipe_id_, 1, &vi_chn_attr);
-	ret |= RK_MPI_VI_EnableChn(pipe_id_, 1);
+	ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_ext_chn_id, &vi_chn_attr);
+	ret |= RK_MPI_VI_EnableChn(pipe_id_, g_vi_ext_chn_id);
 	if (ret) {
 		LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
 		return ret;
@@ -406,6 +472,9 @@ static int rkipc_vi_chn_init() {
 int rkipc_vi_chn_deinit() {
 	int ret = 0;
 	ret = RK_MPI_VI_DisableChn(pipe_id_, g_vi_chn_id);
+	if (ret)
+		LOG_ERROR("ERROR: RK_MPI_VI_DisableChn VI error! ret=%x\n", ret);
+	ret = RK_MPI_VI_DisableChn(pipe_id_, g_vi_ext_chn_id);
 	if (ret)
 		LOG_ERROR("ERROR: RK_MPI_VI_DisableChn VI error! ret=%x\n", ret);
 
@@ -1112,10 +1181,13 @@ static int rkipc_venc_3_deinit() {
 
 static int rkipc_bind_init() {
 	int ret;
+	vi_chn[0].enModId = RK_ID_VI;
+	vi_chn[0].s32DevId = 0;
+	vi_chn[0].s32ChnId = g_vi_chn_id;
+	vi_chn[1].enModId = RK_ID_VI;
+	vi_chn[1].s32DevId = 0;
+	vi_chn[1].s32ChnId = g_vi_ext_chn_id;
 	for (int i = 0; i < 2; i++) {
-		vi_chn[i].enModId = RK_ID_VI;
-		vi_chn[i].s32DevId = 0;
-		vi_chn[i].s32ChnId = i;
 		gdc_chn[i].enModId = RK_ID_GDC;
 		gdc_chn[i].s32DevId = 0;
 		gdc_chn[i].s32ChnId = i;
@@ -2732,9 +2804,9 @@ int rk_video_deinit() {
 	g_video_run_ = 0;
 	int ret = 0;
 	rk_video_stop_record();
+	ret |= rkipc_bind_deinit();
 	if (g_enable_vo)
 		ret |= rkipc_vo_deinit();
-	ret |= rkipc_bind_deinit();
 	if (enable_venc_0) {
 		ret |= rkipc_venc_0_deinit();
 	}
