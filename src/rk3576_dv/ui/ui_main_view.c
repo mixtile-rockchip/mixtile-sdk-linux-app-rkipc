@@ -17,7 +17,7 @@
 #ifdef LOG_TAG
 #undef LOG_TAG
 #endif
-#define LOG_TAG "ui_view.c"
+#define LOG_TAG "ui_main_view.c"
 
 #include <linux/input.h>
 
@@ -27,7 +27,6 @@
 #include "storage.h"
 #include "ui_common.h"
 #include "ui_dialog_storage.h"
-#include "ui_languages.h"
 #include "ui_page_manager.h"
 #include "ui_player.h"
 #include "ui_resource_manage.h"
@@ -43,6 +42,12 @@ typedef enum {
 	MSG_PREVIEW_OPEN = 0,
 	MSG_PREVIEW_CLOSE,
 } UI_MAIN_VIEW_MSG_E;
+
+typedef enum {
+	CAPTURE_5P1S,
+	CAPTURE_10P1S,
+	CAPTURE_15P3S,
+} CAPTURE_MODE;
 
 typedef struct {
 	uint32_t disp_cnt;
@@ -62,7 +67,9 @@ typedef struct {
 	lv_obj_t *record_obj;
 	lv_obj_t *menu_bar;
 	lv_timer_t *timer;
+	lv_timer_t *capture_timer;
 	lv_obj_t *time_bar;
+	lv_obj_t* cap_obj;
 
 	lv_group_t *group;
 
@@ -76,6 +83,7 @@ static UI_VIEW_CONTROL_S main_view_ctrl;
 static int8_t mic_status = -1, p_status = -1, f_status = -1, r_status = -1;
 static time_t record_start_time;
 
+extern lv_ft_info_t ttf_info_28;
 extern lv_ft_info_t ttf_info_14;
 extern lv_ft_info_t ttf_info_12;
 extern lv_ft_info_t ttf_info_10;
@@ -96,7 +104,11 @@ static void record_event_handler(lv_event_t *e);
  **********************/
 static bool rk_record_is_active() {
 	int value = 0;
-	rk_storage_record_statue_get(&value);
+
+	if (rk_get_mode() == RK_VIDEO_MODE)
+		rk_storage_record_statue_get(0, &value);
+	else
+		rk_storage_record_statue_get(1, &value);
 	return (value == 1);
 }
 
@@ -119,6 +131,18 @@ static void timer_xcb(lv_timer_t *timer) {
 		                      1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday, p->tm_hour, p->tm_min,
 		                      p->tm_sec);
 		lv_img_set_src(main_view_ctrl.rec_obj, index_icon_record_nor);
+	}
+}
+
+static void capture_xcb(lv_timer_t *timer) {
+	int done_num = rk_photo_get_done_num();
+	int total_num = rk_photo_get_max_num();
+	if (done_num == total_num) {
+		lv_label_set_text_fmt(main_view_ctrl.cap_obj, "");
+		// safe ops, just set the flag.
+		lv_timer_pause(main_view_ctrl.capture_timer);
+	} else {
+		lv_label_set_text_fmt(main_view_ctrl.cap_obj, "capture %2d/%2d", done_num, total_num);
 	}
 }
 
@@ -147,6 +171,10 @@ static void main_view_layout_ctrl(void) {
 }
 
 static void main_view_destroy_ctrl(void) {
+	if (main_view_ctrl.capture_timer) {
+		lv_timer_del(main_view_ctrl.capture_timer);
+		main_view_ctrl.capture_timer = NULL;
+	}
 	if (main_view_ctrl.timer) {
 		lv_timer_del(main_view_ctrl.timer);
 		main_view_ctrl.timer = NULL;
@@ -167,6 +195,44 @@ static void main_view_destroy_ctrl(void) {
 		ui_common_remove_stype_all(main_view_ctrl.menu_bar);
 		lv_obj_del(main_view_ctrl.menu_bar);
 		main_view_ctrl.menu_bar = NULL;
+	}
+	if (main_view_ctrl.cap_obj) {
+		lv_obj_del(main_view_ctrl.cap_obj);
+		main_view_ctrl.cap_obj = NULL;
+	}
+}
+
+static void capture_event_handler(lv_event_t *e) {
+	lv_event_code_t code = lv_event_get_code(e);
+	lv_obj_t *obj = lv_event_get_target(e);
+
+	if (code == LV_EVENT_CLICKED) {
+		if (evdev_get_current_code() == KEY_POWER)
+			return;
+		switch (rkipc_storage_dev_mount_status_get()) {
+		case DISK_UNMOUNTED:
+			ui_nosdcard_dialog_create();
+			break;
+		case DISK_FORMAT_ERR:
+		case DISK_NOT_FORMATTED:
+			ui_noformat_dialog_create();
+			break;
+		case DISK_SCANNING:
+			ui_scansdcard_dialog_create();
+			break;
+		case DISK_MOUNTED:
+			lv_timer_resume(main_view_ctrl.capture_timer);
+			rk_take_photo();
+			break;
+		default:
+			break;
+		}
+	} else if (code == LV_EVENT_FOCUSED) {
+		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_photo_p, NULL);
+		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_PRESSED, NULL, index_icon_photo_p, NULL);
+	} else if (code == LV_EVENT_DEFOCUSED) {
+		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_photo_r, NULL);
+		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_PRESSED, NULL, index_icon_photo_p, NULL);
 	}
 }
 
@@ -242,8 +308,7 @@ static void media_event_handler(lv_event_t *e) {
 			ui_scansdcard_dialog_create();
 			break;
 		case DISK_MOUNTED:
-			ui_page_push_page("playlist", (void *)PLAYER_TYPE_VIDEO);
-			break;
+			ui_page_push_page("playlist", NULL);
 		default:
 			break;
 		}
@@ -300,15 +365,25 @@ static void main_view_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_add_event_cb(main_view_ctrl.media_obj, media_event_handler, LV_EVENT_DEFOCUSED, NULL);
 
 	main_view_ctrl.record_obj = lv_imgbtn_create(main_view_ctrl.menu_bar);
-	lv_imgbtn_set_src(main_view_ctrl.record_obj, LV_IMGBTN_STATE_RELEASED, NULL, icon_record_stop_r,
-	                  NULL);
-	lv_imgbtn_set_src(main_view_ctrl.record_obj, LV_IMGBTN_STATE_PRESSED, NULL, icon_record_stop_p,
-	                  NULL);
+	if (rk_get_mode() == RK_PHOTO_MODE) {
+		lv_imgbtn_set_src(main_view_ctrl.record_obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_photo_r,
+						NULL);
+		lv_imgbtn_set_src(main_view_ctrl.record_obj, LV_IMGBTN_STATE_PRESSED, NULL, index_icon_photo_p,
+						NULL);
+		lv_obj_add_event_cb(main_view_ctrl.record_obj, capture_event_handler, LV_EVENT_CLICKED, NULL);
+		lv_obj_add_event_cb(main_view_ctrl.record_obj, capture_event_handler, LV_EVENT_FOCUSED, NULL);
+		lv_obj_add_event_cb(main_view_ctrl.record_obj, capture_event_handler, LV_EVENT_DEFOCUSED, NULL);
+	} else {
+		lv_imgbtn_set_src(main_view_ctrl.record_obj, LV_IMGBTN_STATE_RELEASED, NULL, icon_record_stop_r,
+						NULL);
+		lv_imgbtn_set_src(main_view_ctrl.record_obj, LV_IMGBTN_STATE_PRESSED, NULL, icon_record_stop_p,
+						NULL);
+		lv_obj_add_event_cb(main_view_ctrl.record_obj, record_event_handler, LV_EVENT_CLICKED, NULL);
+		lv_obj_add_event_cb(main_view_ctrl.record_obj, record_event_handler, LV_EVENT_FOCUSED, NULL);
+		lv_obj_add_event_cb(main_view_ctrl.record_obj, record_event_handler, LV_EVENT_DEFOCUSED, NULL);
+	}
 	lv_obj_set_size(main_view_ctrl.record_obj, icon_record_stop_r->header.w,
 	                icon_record_stop_r->header.h);
-	lv_obj_add_event_cb(main_view_ctrl.record_obj, record_event_handler, LV_EVENT_CLICKED, NULL);
-	lv_obj_add_event_cb(main_view_ctrl.record_obj, record_event_handler, LV_EVENT_FOCUSED, NULL);
-	lv_obj_add_event_cb(main_view_ctrl.record_obj, record_event_handler, LV_EVENT_DEFOCUSED, NULL);
 
 	main_view_ctrl.setting_obj = lv_imgbtn_create(main_view_ctrl.menu_bar);
 	lv_imgbtn_set_src(main_view_ctrl.setting_obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_set_r,
@@ -326,8 +401,20 @@ static void main_view_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_text_color(main_view_ctrl.time_bar, lv_color_hex(0xffffff), 0);
 	lv_obj_set_style_width(main_view_ctrl.time_bar, lv_pct(60), 0);
 
+	main_view_ctrl.cap_obj = lv_label_create(page_obj);
+	lv_obj_set_style_text_font(main_view_ctrl.cap_obj, ttf_info_28.font, 0);
+	lv_obj_set_style_text_color(main_view_ctrl.cap_obj, lv_color_hex(0xffffff), 0);
+	lv_obj_set_style_width(main_view_ctrl.cap_obj, lv_pct(60), 0);
+	lv_obj_align(main_view_ctrl.cap_obj, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_set_style_bg_opa(main_view_ctrl.cap_obj, LV_OPA_TRANSP, 0);
+	lv_label_set_text_fmt(main_view_ctrl.cap_obj, "");
+
 	main_view_ctrl.timer = lv_timer_create(timer_xcb, 500, NULL);
 	lv_timer_ready(main_view_ctrl.timer);
+
+	main_view_ctrl.capture_timer = lv_timer_create(capture_xcb, 100, NULL);
+	lv_timer_ready(main_view_ctrl.capture_timer);
+	lv_timer_pause(main_view_ctrl.capture_timer);
 }
 
 static void main_view_page_create(lv_obj_t *page_obj) {
@@ -345,8 +432,8 @@ static void main_view_add_indev(void) {
 		return;
 
 	lv_group_add_obj(group, main_view_ctrl.media_obj);
-	lv_group_add_obj(group, main_view_ctrl.setting_obj);
 	lv_group_add_obj(group, main_view_ctrl.record_obj);
+	lv_group_add_obj(group, main_view_ctrl.setting_obj);
 	lv_group_focus_obj(main_view_ctrl.record_obj);
 
 	main_view_ctrl.group = group;

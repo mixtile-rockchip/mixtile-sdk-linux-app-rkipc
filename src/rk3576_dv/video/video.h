@@ -25,13 +25,27 @@
 #include <rk_mpi_vo.h>
 #include <rk_mpi_vpss.h>
 
+typedef enum {
+	RK_VIDEO_MODE = 0,
+	RK_PHOTO_MODE,
+	RK_SLOW_MOTION_MODE,
+} RK_MODE_E;
+
+int rk_set_mode(RK_MODE_E mode);
+RK_MODE_E rk_get_mode(void);
+
 int rk_video_init();
 int rk_video_deinit();
 int rk_video_restart();
-int rk_media_init(void);
-int rk_media_deinit(void);
 int rk_video_start_record(void);
 int rk_video_stop_record(void);
+int rk_video_get_fps(void);
+int rk_video_set_fps(int new_fps);
+
+int rk_photo_set_max_num(int num);
+int rk_photo_get_max_num(void);
+int rk_photo_get_done_num(void);
+
 int rk_video_get_gop(int stream_id, int *value);
 int rk_video_set_gop(int stream_id, int value);
 int rk_video_get_max_rate(int stream_id, int *value);
@@ -69,3 +83,4 @@ int rk_video_set_snapshot_interval_ms(int value);
 int rk_video_get_jpeg_resolution(char **value);
 int rk_video_set_jpeg_resolution(const char *value);
 int rk_take_photo();
+int rk_get_photo_task_num();

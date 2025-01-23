@@ -24,8 +24,8 @@
 #include "lvgl/porting/lv_port_indev.h"
 #include "storage.h"
 #include "evdev.h"
+#include "video.h"
 #include "ui_common.h"
-#include "ui_languages.h"
 #include "ui_page_manager.h"
 #include "ui_player.h"
 #include "ui_resource_manage.h"
@@ -147,7 +147,7 @@ static void list_btn_check_prev() {
 static void btn_click_event_cb(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
-	uint32_t track_id = (uint32_t)lv_obj_get_user_data(obj);
+	uint32_t track_id = (uint64_t)lv_obj_get_user_data(obj);
 
 	if (code == LV_EVENT_CLICKED) {
 		player_file_info_t file_info;
@@ -156,7 +156,10 @@ static void btn_click_event_cb(lv_event_t *e) {
 		if (track_id < playlist_ctx.list.file_num) {
 			snprintf(file_info.path, sizeof(file_info.path), "%s/%s", playlist_ctx.list.path,
 			         playlist_ctx.list.file[track_id].filename);
-			ui_page_push_page("video_player", &file_info);
+			if (rk_get_mode() == RK_VIDEO_MODE || rk_get_mode() == RK_SLOW_MOTION_MODE)
+				ui_page_push_page("video_player", &file_info);
+			else
+				ui_page_push_page("photo_player", (void *)((uint64_t)track_id));
 			switch_from_player = true;
 		}
 	}
@@ -166,18 +169,29 @@ static lv_obj_t *add_list_btn(lv_obj_t *parent, uint32_t track_id) {
 	const char *title = playlist_ctx.list.file[track_id].filename;
 	const char *lable = playlist_ctx.lable;
 
+	lv_color_t text_color = lv_color_make(0xff, 0xff, 0xff);
+	static lv_style_t symbol_style;
+	lv_style_reset(&symbol_style);
+	lv_style_init(&symbol_style);
+	lv_style_set_text_font(&symbol_style, &lv_font_montserrat_20);
+	lv_style_set_text_color(&symbol_style, text_color);
+	lv_style_set_text_align(&symbol_style, LV_TEXT_ALIGN_CENTER);
+
 	lv_obj_t *btn = lv_obj_create(parent);
 	lv_obj_remove_style_all(btn);
 	lv_obj_set_size(btn, lv_pct(100), LIST_ITEM_HEIGHT);
 	lv_obj_set_pos(btn, 0, LIST_ITEM_HEIGHT * track_id);
-	lv_obj_set_user_data(btn, (void *)track_id);
+	lv_obj_set_user_data(btn, (void *)((uint64_t)track_id));
 	lv_obj_add_style(btn, &style_btn, 0);
 	lv_obj_add_event_cb(btn, btn_click_event_cb, LV_EVENT_CLICKED, NULL);
 
-	lv_obj_t *icon = lv_img_create(btn);
+	lv_obj_t *icon = lv_label_create(btn);
 	lv_obj_set_style_pad_hor(icon, 10, 0);
-	if (NULL != index_icon_player_play)
-		lv_img_set_src(icon, index_icon_player_play);
+	if (rk_get_mode() == RK_PHOTO_MODE)
+		lv_label_set_text(icon, LV_SYMBOL_IMAGE);
+	else
+		lv_label_set_text(icon, LV_SYMBOL_VIDEO);
+	lv_obj_add_style(icon, &symbol_style, 0);
 	lv_obj_set_grid_cell(icon, LV_GRID_ALIGN_CENTER, 0, 1, LV_GRID_ALIGN_CENTER, 0, 2);
 
 	lv_obj_t *title_obj = lv_label_create(btn);
@@ -214,7 +228,7 @@ static void scroll_event_cb(lv_event_t *e) {
 		uint32_t track_id = 0;
 
 		child = lv_obj_get_child(obj, -1);
-		track_id = (uint32_t)lv_obj_get_user_data(child);
+		track_id = (uint64_t)lv_obj_get_user_data(child);
 		while (++track_id < playlist_ctx.list.file_num && actual_step_size < step_size) {
 			actual_step_size++;
 			add_list_btn(playlist_ctx.list_obj, track_id);
@@ -235,7 +249,7 @@ static void scroll_event_cb(lv_event_t *e) {
 		uint32_t track_id = 0;
 
 		child = lv_obj_get_child(obj, 0);
-		track_id = (uint32_t)lv_obj_get_user_data(child);
+		track_id = (uint64_t)lv_obj_get_user_data(child);
 
 		while (--track_id >= 0 && actual_step_size > step_size) {
 			actual_step_size--;
@@ -421,28 +435,29 @@ static void playlist_destroy_ctrl(lv_obj_t *page_obj) {
 }
 
 static int32_t playlist_param_init(lv_obj_t *page_obj) {
-	int32_t ret;
 	uint32_t index = 0;
 
-	const char *lable[] = {RES_STR_MEDIA_LIB_VIDEO_F, RES_STR_MEDIA_LIB_VIDEO_P,
-	                       RES_STR_MEDIA_LIB_PHOTO, RES_STR_MEDIA_LIB_VIDEO_U};
-
+	const char *folder_name = NULL;
 	playlist_ctx.cur_btn = NULL;
-	playlist_ctx.lable = lable[index];
 
 	orig_pos = (LINE_NUM >> 1);
 
-	snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s", "/mnt/sdcard/video0");
+	if (rk_get_mode() == RK_VIDEO_MODE) {
+		folder_name = rk_param_get_string("storage.0:folder_name", "video0");
+		playlist_ctx.lable = "录像回放";
+		snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s/%s", "/mnt/sdcard", folder_name);
+	} else if (rk_get_mode() == RK_PHOTO_MODE) {
+		folder_name = rk_param_get_string("storage.3:folder_name", "photo");
+		playlist_ctx.lable = "照片";
+		snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s/%s", "/mnt/sdcard", folder_name);
+	} else {
+		folder_name = rk_param_get_string("storage.1:folder_name", "video1");
+		playlist_ctx.lable = "慢动作回放";
+		snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s/%s", "/mnt/sdcard", folder_name);
+	}
 	if (rkipc_storage_get_file_list(&playlist_ctx.list, g_sd_phandle, LIST_DESCENDING) != 0) {
 		LOG_WARN("File list not obtained.\n");
 		return 0;
-	}
-
-	// ret = mpu_storage_get_file_list(&playlist_ctx.list, LIST_DESCENDING, NULL);
-
-	if (0 != ret) {
-		LOG_ERROR("Failed to get playlist!\n");
-		return -1;
 	}
 
 	return 0;

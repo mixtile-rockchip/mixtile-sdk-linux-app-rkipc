@@ -96,11 +96,9 @@ install(PROGRAMS RkLunch.sh DESTINATION bin)
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/image.bmp DESTINATION share)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/simsun_cn.ttc DESTINATION share)
+install(FILES res/font/PuHuiTi.ttf DESTINATION share)
 install(FILES ${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1031-linux-gnu/libwpa_client.so DESTINATION lib)
 install(FILES ${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1031-linux-gnu/libRkEis.so DESTINATION lib)
-
-file(GLOB STRING_FILES res/string/*)
-install(FILES ${STRING_FILES} DESTINATION share/res/string/)
 
 file(GLOB ICON_FILES res/ui/*)
 install(FILES ${ICON_FILES} DESTINATION share/res/ui/)

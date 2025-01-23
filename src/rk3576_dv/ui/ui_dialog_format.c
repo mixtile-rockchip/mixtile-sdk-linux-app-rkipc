@@ -14,12 +14,12 @@
  *  limitations under the License.
  */
 
+#include "ui_dialog.h"
 #include "ui_dialog_format.h"
 #include "lvgl/common/lv_msg.h"
 #include "lvgl/porting/lv_port_indev.h"
 #include "storage.h"
 #include "ui_common.h"
-#include "ui_languages.h"
 #include "ui_resource_manage.h"
 
 /**********************
@@ -69,9 +69,10 @@ static void format_dialog_destroy_event_cb(lv_event_t *e) {
 }
 
 static bool start_formatting_handler(int32_t msg, void *wparam, void *lparam) {
+	int ret = 0;
 	rk_storage_deinit();
-	rk_storage_format();
-	rk_storage_init();
+	ret = rk_storage_format();
+	ret |= rk_storage_init();
 
 	lv_anim_t a;
 	lv_anim_init(&a);
@@ -83,6 +84,11 @@ static bool start_formatting_handler(int32_t msg, void *wparam, void *lparam) {
 
 	if (g_exit_cb)
 		g_exit_cb();
+
+	if (ret != 0)
+		ui_dialog_create("WARNING", "格式化失败!");
+	else
+		ui_dialog_create("WARNING", "格式化成功!");
 
 	return true;
 }
@@ -184,7 +190,7 @@ void ui_format_dialog_create(FORMAT_DIALOG_CB extry_cb, FORMAT_DIALOG_CB exit_cb
 	lv_obj_set_style_text_color(obj, text_color, 0);
 	lv_obj_set_size(obj, lv_pct(100), LV_SIZE_CONTENT);
 	lv_obj_set_style_text_align(obj, LV_TEXT_ALIGN_CENTER, 0);
-	lv_label_set_text(obj, RES_STR_SETTINGS_FORMAT);
+	lv_label_set_text(obj, "确认格式化?");
 	lv_label_set_long_mode(obj, LV_LABEL_LONG_SCROLL_CIRCULAR);
 
 	context_obj = obj = lv_obj_create(obj_bg);
@@ -207,10 +213,9 @@ void ui_format_dialog_create(FORMAT_DIALOG_CB extry_cb, FORMAT_DIALOG_CB exit_cb
 
 	text_color = lv_color_make(0X31, 0X31, 0X31);
 	obj = lv_label_create(obj);
-	lv_obj_set_style_text_font(obj, ttf_info_12.font, 0);
+	lv_label_set_text(obj, LV_SYMBOL_CLOSE);
 	lv_obj_set_style_text_color(obj, text_color, 0);
 	lv_obj_align(obj, LV_ALIGN_CENTER, 0, 0);
-	lv_label_set_text(obj, RES_STR_SETTINGS_BOX_FORMAT_CANCEL);
 
 	obj = lv_imgbtn_create(context_obj);
 	lv_group_add_obj(format_group, obj);
@@ -224,10 +229,9 @@ void ui_format_dialog_create(FORMAT_DIALOG_CB extry_cb, FORMAT_DIALOG_CB exit_cb
 
 	text_color = lv_color_make(0X31, 0X31, 0X31);
 	obj = lv_label_create(obj);
-	lv_obj_set_style_text_font(obj, ttf_info_12.font, 0);
+	lv_label_set_text(obj, LV_SYMBOL_OK);
 	lv_obj_set_style_text_color(obj, text_color, 0);
 	lv_obj_align(obj, LV_ALIGN_CENTER, 0, 0);
-	lv_label_set_text(obj, RES_STR_SETTINGS_BOX_FORMAT_OK);
 
 	g_extry_cb = exit_cb, g_exit_cb = exit_cb;
 	if (NULL == g_format_handler)

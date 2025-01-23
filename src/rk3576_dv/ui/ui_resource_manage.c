@@ -16,7 +16,6 @@
 
 #include <limits.h>
 
-#include "ui_languages.h"
 #include "ui_resource_manage.h"
 
 /**********************
@@ -44,6 +43,7 @@
 lv_ft_info_t ttf_info_10;
 lv_ft_info_t ttf_info_12;
 lv_ft_info_t ttf_info_14;
+lv_ft_info_t ttf_info_28;
 
 lv_img_dsc_t *index_bg = NULL;
 lv_img_dsc_t *index_icon_photo_p = NULL;
@@ -54,41 +54,29 @@ lv_img_dsc_t *index_icon_media_p = NULL;
 lv_img_dsc_t *index_icon_media_r = NULL;
 lv_img_dsc_t *index_icon_record_nor = NULL;
 lv_img_dsc_t *index_icon_record = NULL;
-lv_img_dsc_t *index_icon_play = NULL;
+lv_img_dsc_t *index_icon_sw_p = NULL;
+lv_img_dsc_t *index_icon_sw_r = NULL;
 
-lv_img_dsc_t *index_icon_return_r = NULL;
-lv_img_dsc_t *index_icon_return_p = NULL;
 lv_img_dsc_t *index_icon_boxbg_r = NULL;
 lv_img_dsc_t *index_icon_boxbg_p = NULL;
-lv_img_dsc_t *index_icon_movie_1 = NULL;
-lv_img_dsc_t *index_icon_movie_3 = NULL;
-lv_img_dsc_t *index_icon_movie_5 = NULL;
-lv_img_dsc_t *index_icon_res_4k = NULL;
-lv_img_dsc_t *index_icon_res_2k = NULL;
-lv_img_dsc_t *index_icon_res_1k = NULL;
 lv_img_dsc_t *index_icon_fps_60 = NULL;
 lv_img_dsc_t *index_icon_fps_30 = NULL;
-lv_img_dsc_t *index_icon_vol_01 = NULL;
-lv_img_dsc_t *index_icon_vol_02 = NULL;
-lv_img_dsc_t *index_icon_vol_03 = NULL;
-lv_img_dsc_t *index_icon_vol_04 = NULL;
+lv_img_dsc_t *index_icon_5p1s = NULL;
+lv_img_dsc_t *index_icon_10p2s = NULL;
+lv_img_dsc_t *index_icon_20p3s = NULL;
 lv_img_dsc_t *index_icon_mic_01 = NULL;
 lv_img_dsc_t *index_icon_mic_02 = NULL;
 lv_img_dsc_t *index_icon_lang_01 = NULL;
 lv_img_dsc_t *index_icon_store_01 = NULL;
 lv_img_dsc_t *index_icon_format_01 = NULL;
+lv_img_dsc_t *index_icon_video = NULL;
+lv_img_dsc_t *index_icon_capture = NULL;
+lv_img_dsc_t *index_icon_slow_motion = NULL;
 
 lv_img_dsc_t *index_icon_bg_r = NULL;
 lv_img_dsc_t *index_icon_bg_p = NULL;
-lv_img_dsc_t *index_icon_video_f_01 = NULL;
-lv_img_dsc_t *index_icon_video_p_01 = NULL;
-lv_img_dsc_t *index_icon_video_u_01 = NULL;
-lv_img_dsc_t *index_icon_photo_01 = NULL;
 
 lv_img_dsc_t *index_icon_player_play = NULL;
-lv_img_dsc_t *index_icon_player_play_p = NULL;
-lv_img_dsc_t *index_icon_player_stop = NULL;
-lv_img_dsc_t *index_icon_player_stop_p = NULL;
 
 lv_img_dsc_t *index_icon_set_btn_01 = NULL;
 lv_img_dsc_t *index_icon_set_btn_02 = NULL;
@@ -121,7 +109,7 @@ static int32_t ui_font_init(lv_ft_info_t *info, uint32_t weight) {
 		return -1;
 	}
 
-	info->name = "/usr/share/simsun_cn.ttc";
+	info->name = "/usr/share/PuHuiTi.ttf";
 	info->weight = weight;
 	info->style = FT_FONT_STYLE_NORMAL;
 
@@ -134,53 +122,41 @@ static int32_t ui_font_init(lv_ft_info_t *info, uint32_t weight) {
 }
 
 static void setting_release_res(void) {
-	ICON_RELEASE(index_icon_return_r);
-	ICON_RELEASE(index_icon_return_p);
 	ICON_RELEASE(index_icon_boxbg_r);
 	ICON_RELEASE(index_icon_boxbg_p);
-	ICON_RELEASE(index_icon_movie_1);
-	ICON_RELEASE(index_icon_movie_3);
-	ICON_RELEASE(index_icon_movie_5);
-	ICON_RELEASE(index_icon_res_4k);
-	ICON_RELEASE(index_icon_res_2k);
-	ICON_RELEASE(index_icon_res_1k);
 	ICON_RELEASE(index_icon_fps_60);
 	ICON_RELEASE(index_icon_fps_30);
-	ICON_RELEASE(index_icon_vol_01);
-	ICON_RELEASE(index_icon_vol_02);
-	ICON_RELEASE(index_icon_vol_03);
-	ICON_RELEASE(index_icon_vol_04);
+	ICON_RELEASE(index_icon_5p1s);
+	ICON_RELEASE(index_icon_10p2s);
+	ICON_RELEASE(index_icon_20p3s);
 	ICON_RELEASE(index_icon_mic_01);
 	ICON_RELEASE(index_icon_mic_02);
 	ICON_RELEASE(index_icon_lang_01);
 	ICON_RELEASE(index_icon_store_01);
 	ICON_RELEASE(index_icon_format_01);
+	ICON_RELEASE(index_icon_video);
+	ICON_RELEASE(index_icon_capture);
+	ICON_RELEASE(index_icon_slow_motion);
 }
 
 static void setting_load_res(void) {
 	setting_release_res();
 
-	index_icon_return_r = ui_dec_icon("icon_return_01.png");
-	index_icon_return_p = ui_dec_icon("icon_return_02.png");
 	index_icon_boxbg_r = ui_dec_icon("set_boxbg_01.png");
 	index_icon_boxbg_p = ui_dec_icon("set_boxbg_02.png");
-	index_icon_movie_1 = ui_dec_icon("set_icon_movie_01.png");
-	index_icon_movie_3 = ui_dec_icon("set_icon_movie_02.png");
-	index_icon_movie_5 = ui_dec_icon("set_icon_movie_03.png");
-	index_icon_res_4k = ui_dec_icon("set_icon_res_01.png");
-	index_icon_res_2k = ui_dec_icon("set_icon_res_02.png");
-	index_icon_res_1k = ui_dec_icon("set_icon_res_03.png");
 	index_icon_fps_60 = ui_dec_icon("set_icon_fps_60.png");
 	index_icon_fps_30 = ui_dec_icon("set_icon_fps_30.png");
-	index_icon_vol_01 = ui_dec_icon("set_icon_vol_01.png");
-	index_icon_vol_02 = ui_dec_icon("set_icon_vol_02.png");
-	index_icon_vol_03 = ui_dec_icon("set_icon_vol_03.png");
-	index_icon_vol_04 = ui_dec_icon("set_icon_vol_04.png");
+	index_icon_5p1s = ui_dec_icon("set_icon_5p1s.png");
+	index_icon_10p2s = ui_dec_icon("set_icon_10p2s.png");
+	index_icon_20p3s = ui_dec_icon("set_icon_20p3s.png");
 	index_icon_mic_01 = ui_dec_icon("set_icon_mic_01.png");
 	index_icon_mic_02 = ui_dec_icon("set_icon_mic_02.png");
 	index_icon_lang_01 = ui_dec_icon("set_icon_lang_01.png");
 	index_icon_store_01 = ui_dec_icon("set_icon_store_01.png");
 	index_icon_format_01 = ui_dec_icon("set_icon_format_01.png");
+	index_icon_video = ui_dec_icon("set_icon_video.png");
+	index_icon_capture = ui_dec_icon("set_icon_capture.png");
+	index_icon_slow_motion = ui_dec_icon("set_icon_slow_motion.png");
 }
 
 static void view_release_res(void) {
@@ -197,7 +173,8 @@ static void view_release_res(void) {
 	ICON_RELEASE(index_icon_media_r);
 	ICON_RELEASE(index_icon_record_nor);
 	ICON_RELEASE(index_icon_record);
-	ICON_RELEASE(index_icon_play);
+	ICON_RELEASE(index_icon_sw_p);
+	ICON_RELEASE(index_icon_sw_r);
 }
 
 static void view_load_res(void) {
@@ -216,16 +193,13 @@ static void view_load_res(void) {
 	index_icon_media_r = ui_dec_icon("index_icon_media_r.png");
 	index_icon_record_nor = ui_dec_icon("index_icon_record_nor.png");
 	index_icon_record = ui_dec_icon("index_icon_record.png");
-	index_icon_play = ui_dec_icon("list_icon_play.png");
+	index_icon_sw_p = ui_dec_icon("index_icon_sw_p.png");
+	index_icon_sw_r = ui_dec_icon("index_icon_sw_r.png");
 }
 
 static void media_release_res(void) {
 	ICON_RELEASE(index_icon_bg_r);
 	ICON_RELEASE(index_icon_bg_p);
-	ICON_RELEASE(index_icon_video_f_01);
-	ICON_RELEASE(index_icon_video_p_01);
-	ICON_RELEASE(index_icon_video_u_01);
-	ICON_RELEASE(index_icon_photo_01);
 }
 
 static void media_load_res(void) {
@@ -233,26 +207,16 @@ static void media_load_res(void) {
 
 	index_icon_bg_r = ui_dec_icon("media_icon_bg_01.png");
 	index_icon_bg_p = ui_dec_icon("media_icon_bg_02.png");
-	index_icon_video_f_01 = ui_dec_icon("icon_video_f_01.png");
-	index_icon_video_p_01 = ui_dec_icon("icon_video_p_01.png");
-	index_icon_video_u_01 = ui_dec_icon("icon_video_u_01.png");
-	index_icon_photo_01 = ui_dec_icon("icon_photo_01.png");
 }
 
 static void player_release_res(void) {
 	ICON_RELEASE(index_icon_player_play);
-	ICON_RELEASE(index_icon_player_play_p);
-	ICON_RELEASE(index_icon_player_stop);
-	ICON_RELEASE(index_icon_player_stop_p);
 }
 
 static void player_load_res(void) {
 	player_release_res();
 
 	index_icon_player_play = ui_dec_icon("player_icon_play.png");
-	index_icon_player_play_p = ui_dec_icon("player_icon_play_p.png");
-	index_icon_player_stop = ui_dec_icon("player_icon_stop.png");
-	index_icon_player_stop_p = ui_dec_icon("player_icon_stop_p.png");
 }
 
 static void dialog_release_res(void) {
@@ -285,6 +249,11 @@ static void ui_font_release(void) {
 		lv_ft_font_destroy(ttf_info_14.font);
 		ttf_info_14.font = NULL;
 	}
+
+	if (NULL != ttf_info_28.font) {
+		lv_ft_font_destroy(ttf_info_28.font);
+		ttf_info_28.font = NULL;
+	}
 }
 
 static int32_t ui_font_load(void) {
@@ -297,6 +266,9 @@ static int32_t ui_font_load(void) {
 		LV_LOG_ERROR("Content font initialization failed.");
 
 	if (0 != ui_font_init(&ttf_info_14, 14))
+		LV_LOG_ERROR("Content font initialization failed.");
+
+	if (0 != ui_font_init(&ttf_info_28, 28))
 		LV_LOG_ERROR("Content font initialization failed.");
 
 	return 0;
@@ -315,13 +287,9 @@ void ui_resource_release(void) {
 
 	ui_font_release();
 
-	ui_language_release();
 }
 
 void ui_resource_load(void) {
-	/* load text resource */
-	ui_language_load();
-
 	ui_font_load();
 
 	setting_load_res();

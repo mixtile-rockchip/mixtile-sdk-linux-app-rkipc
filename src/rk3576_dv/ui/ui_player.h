@@ -29,10 +29,7 @@
 extern "C" {
 #endif
 
-typedef enum { PLAYER_TYPE_PHOTO = 0, PLAYER_TYPE_VIDEO, PLAYER_TYPE_BUTT } PLAYER_TYPE_E;
-
 typedef struct {
-	PLAYER_TYPE_E type;
 	char path[PATH_MAX];
 } player_file_info_t;
 

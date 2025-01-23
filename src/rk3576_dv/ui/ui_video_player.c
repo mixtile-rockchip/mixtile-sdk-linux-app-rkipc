@@ -16,16 +16,16 @@
 #ifdef LOG_TAG
 #undef LOG_TAG
 #endif
-#define LOG_TAG "ui_video.c"
+#define LOG_TAG "ui_video_player.c"
 
 #include "lvgl/porting/lv_port_indev.h"
 #include "ui_common.h"
-#include "ui_languages.h"
 #include "ui_page_manager.h"
 #include "ui_player.h"
 #include "ui_resource_manage.h"
 
 #include "common.h"
+#include "video.h"
 #include "player.h"
 #include "storage.h"
 
@@ -60,13 +60,16 @@ typedef struct {
 	lv_group_t *group;
 
 	lv_obj_t *top_bar_obj;
+
 	lv_obj_t *esc_obj;
+	lv_obj_t *esc_label_obj;
 
 	lv_timer_t *timer;
 	lv_obj_t *slider_obj;
 	lv_obj_t *cur_time_obj;
 	lv_obj_t *total_time_obj;
 	lv_obj_t *play_obj;
+	lv_obj_t *play_label_obj;
 
 	player_file_info_t file_info;
 	RK_PLAYER_EVENT event;
@@ -122,20 +125,17 @@ static void player_event_handler(RK_PLAYER_EVENT enEvent) {
 		LOG_INFO("+++++ RK_PLAYER_EVENT_EOF +++++\n");
 		update_play_progress();
 		rk_player_pause(&g_player_handler);
-		if (NULL != index_icon_player_play)
-			lv_img_set_src(player_ctx.play_obj, index_icon_player_play);
+		lv_label_set_text(player_ctx.play_label_obj, LV_SYMBOL_PLAY);
 		break;
 	case RK_PLAYER_PLAY:
 		player_ctx.state = UI_PLAYER_STATE_PLAY;
 		LOG_INFO("+++++ RK_PLAYER_EVENT_PLAY +++++\n");
-		if (NULL != index_icon_player_stop)
-			lv_img_set_src(player_ctx.play_obj, index_icon_player_stop);
+		lv_label_set_text(player_ctx.play_label_obj, LV_SYMBOL_PAUSE);
 		break;
 	case RK_PLAYER_PAUSE:
 		player_ctx.state = UI_PLAYER_STATE_PAUSE;
 		LOG_INFO("+++++ RK_PLAYER_EVENT_PAUSED +++++\n");
-		if (NULL != index_icon_player_play)
-			lv_img_set_src(player_ctx.play_obj, index_icon_player_play);
+		lv_label_set_text(player_ctx.play_label_obj, LV_SYMBOL_PLAY);
 		break;
 	default:
 		LOG_INFO("+++++ Unknown event(%d) +++++\n", enEvent);
@@ -189,6 +189,16 @@ static int32_t video_player_create(void) {
 	memset(&g_player_handler, 0, sizeof(&g_player_handler));
 	g_player_handler.enable_video = true;
 	g_player_handler.enable_audio = true;
+
+	if (rk_get_mode() == RK_SLOW_MOTION_MODE) {
+		g_player_handler.enable_audio = false;
+		g_player_handler.enable_slow_motion = true;
+		g_player_handler.input_width = rk_param_get_int("video.1:width", -1);;
+		g_player_handler.input_height = rk_param_get_int("video.1:height", -1);;
+	} else {
+		g_player_handler.input_width = rk_param_get_int("video.0:width", -1);;
+		g_player_handler.input_height = rk_param_get_int("video.0:height", -1);;
+	}
 	g_player_handler.event_cb = player_event_cb;
 	ret = rk_player_create(&g_player_handler);
 	if (ret) {
@@ -264,27 +274,38 @@ static void video_player_create_ctrl(lv_obj_t *page_obj) {
 	lv_style_set_outline_width(&style, 1);
 	lv_style_set_outline_opa(&style, LV_OPA_TRANSP);
 
+	static lv_style_t symbol_style;
+	lv_style_reset(&symbol_style);
+	lv_style_init(&symbol_style);
+	lv_style_set_text_font(&symbol_style, &lv_font_montserrat_24);
+	lv_style_set_text_color(&symbol_style, text_color);
+	lv_style_set_text_align(&symbol_style, LV_TEXT_ALIGN_CENTER);
+
 	player_ctx.top_bar_obj = obj = lv_obj_create(page_obj);
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(100));
 	lv_obj_set_style_radius(obj, 0, 0);
 	lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);
 	lv_obj_set_style_border_opa(obj, LV_OPA_TRANSP, 0);
 
-	player_ctx.esc_obj = obj = lv_img_create(player_ctx.top_bar_obj);
-	if (NULL != index_icon_return_r)
-		lv_img_set_src(obj, index_icon_return_r);
+	player_ctx.esc_obj = obj = lv_btn_create(player_ctx.top_bar_obj);
 	lv_obj_add_style(obj, &style, 0);
+	lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);
 	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_FOCUSED, (void *)UI_CTRL_ESC);
 	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_DEFOCUSED, (void *)UI_CTRL_ESC);
 	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_CLICKED, (void *)UI_CTRL_ESC);
+	player_ctx.esc_label_obj = lv_label_create(player_ctx.esc_obj);
+	lv_label_set_text(player_ctx.esc_label_obj, LV_SYMBOL_CLOSE);
+	lv_obj_add_style(player_ctx.esc_label_obj, &symbol_style, 0);
 
-	player_ctx.play_obj = obj = lv_img_create(page_obj);
-	if (NULL != index_icon_player_play)
-		lv_img_set_src(obj, index_icon_player_play);
+	player_ctx.play_obj = obj = lv_btn_create(page_obj);
 	lv_obj_add_style(obj, &style, 0);
+	lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);
 	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_FOCUSED, (void *)UI_CTRL_PLAY);
 	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_DEFOCUSED, (void *)UI_CTRL_PLAY);
 	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_CLICKED, (void *)UI_CTRL_PLAY);
+	player_ctx.play_label_obj = lv_label_create(player_ctx.play_obj);
+	lv_label_set_text(player_ctx.play_label_obj, LV_SYMBOL_PLAY);
+	lv_obj_add_style(player_ctx.play_label_obj, &symbol_style, 0);
 
 	static const lv_style_prop_t props[] = {LV_STYLE_BG_COLOR, 0};
 	static lv_style_transition_dsc_t transition_dsc;

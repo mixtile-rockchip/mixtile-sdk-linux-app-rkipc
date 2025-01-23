@@ -1,0 +1,299 @@
+/*
+ * Copyright (c) 2023 Rockchip, Inc. All Rights Reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+#ifdef LOG_TAG
+#undef LOG_TAG
+#endif
+#define LOG_TAG "ui_photo_player.c"
+
+#include <linux/input.h>
+#include "lvgl/porting/lv_port_indev.h"
+#include "ui/common/ui_common.h"
+#include "ui/common/ui_page_manager.h"
+#include "ui_resource_manage.h"
+#include "ui_player.h"
+#include "evdev.h"
+
+#include <rk_comm_video.h>
+#include "common.h"
+#include "storage.h"
+#include "player.h"
+
+#include <stdio.h>
+#include <time.h>
+#include <limits.h>
+
+/**********************
+ *  STATIC PROTOTYPES
+ **********************/
+
+typedef struct {
+    player_file_info_t file_info;
+    lv_img_dsc_t img_data;
+
+    lv_obj_t *page_obj;
+
+    lv_obj_t *top_bar_obj;
+    lv_obj_t *esc_obj;
+    lv_obj_t *esc_label_obj;
+    lv_obj_t *name_obj;
+
+    lv_group_t *group;
+	int cur_file_index;
+	rkipc_filelist list;
+} ui_photo_player_context_t;
+
+extern void *g_sd_phandle;
+extern lv_ft_info_t ttf_info_14;
+extern lv_ft_info_t ttf_info_12;
+extern lv_ft_info_t ttf_info_10;
+/**********************
+ *  STATIC VARIABLES
+ **********************/
+static ui_photo_player_context_t photo_player_ctx;
+
+/**********************
+ *      MACROS
+ **********************/
+
+/**********************
+ *   GLOBAL FUNCTIONS
+ **********************/
+
+/**********************
+ *   STATIC FUNCTIONS
+ **********************/
+
+static int32_t photo_play(void) {
+	int ret = 0;
+    const char *ptr = NULL;
+    lv_img_dsc_t *img_data = &photo_player_ctx.img_data;
+	if (img_data->data) {
+		free((void *)img_data->data);
+		img_data->data = NULL;
+	}
+
+    do {
+		RK_PHOTO_CONFIG config;
+		RK_PHOTO_DATA data;
+		memset(&config, 0, sizeof(config));
+		memset(&data, 0, sizeof(data));
+		config.file_path = photo_player_ctx.file_info.path;
+		config.output_width = 320;
+		config.output_height = 192;
+		config.output_format = RK_FMT_BGRA8888;
+		ret = rk_player_get_photo(&config, &data);
+		if (ret == 0) {
+			img_data->header.always_zero = 0;
+			img_data->header.w = data.width;
+			img_data->header.h = data.height;
+			img_data->data_size = data.size;
+			img_data->header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA;
+			img_data->data = malloc(data.size);
+			memcpy((void *)img_data->data, data.data, data.size);
+			rk_player_release_photo(&data);
+			lv_obj_set_style_bg_img_src(photo_player_ctx.page_obj, img_data, 0);
+		}
+
+    } while (0);
+
+    ptr = strrchr(photo_player_ctx.file_info.path, '/');
+    if (NULL != ptr)
+        lv_label_set_text(photo_player_ctx.name_obj, ptr + 1);
+
+    return 0;
+}
+
+static void menu_event_cb(lv_event_t * e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t * obj = lv_event_get_target(e);
+	uint32_t file_num = photo_player_ctx.list.file_num;
+	uint32_t cur_index = photo_player_ctx.cur_file_index;
+
+	switch (evdev_get_current_code()) {
+	case KEY_VOLUMEUP:
+		if (cur_index > 0)
+			photo_player_ctx.cur_file_index = cur_index - 1;
+		else
+			photo_player_ctx.cur_file_index = file_num - 1;
+		snprintf(photo_player_ctx.file_info.path, sizeof(photo_player_ctx.file_info.path), "%s/%s", photo_player_ctx.list.path,
+			         photo_player_ctx.list.file[photo_player_ctx.cur_file_index].filename);
+		photo_play();
+		break;
+	case KEY_VOLUMEDOWN:
+		photo_player_ctx.cur_file_index = (cur_index + 1) % file_num;
+		snprintf(photo_player_ctx.file_info.path, sizeof(photo_player_ctx.file_info.path), "%s/%s", photo_player_ctx.list.path,
+			         photo_player_ctx.list.file[photo_player_ctx.cur_file_index].filename);
+		photo_play();
+		break;
+	case KEY_POWER:
+		ui_page_pop_page();
+		break;
+
+	defalut:
+		break;
+	}
+}
+
+static void photo_player_layout_ctrl(lv_obj_t *page_obj) {
+    static lv_coord_t col_dsc[] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
+    static lv_coord_t row_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
+
+    lv_obj_t *top_bar_obj = photo_player_ctx.top_bar_obj;
+    lv_obj_t *name_obj = photo_player_ctx.name_obj;
+
+    lv_obj_align(top_bar_obj, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_set_layout(top_bar_obj, LV_LAYOUT_GRID);
+    lv_obj_set_style_grid_column_dsc_array(top_bar_obj, col_dsc, 0);
+    lv_obj_set_style_grid_row_dsc_array(top_bar_obj, row_dsc, 0);
+    lv_obj_set_grid_cell(name_obj, LV_GRID_ALIGN_CENTER, 1, 1,
+                         LV_GRID_ALIGN_CENTER, 0, 1);
+}
+
+static void photo_player_create_ctrl(lv_obj_t *page_obj) {
+    lv_obj_t *obj = NULL;
+    lv_color_t text_color = lv_color_make(0xff, 0xff, 0xff);
+    lv_color_t bg_color = lv_color_make(0x04, 0x17, 0x1D);
+
+    static lv_style_t style;
+    lv_style_reset(&style);
+    lv_style_init(&style);
+    lv_style_set_pad_all(&style, 5);
+    lv_style_set_outline_width(&style, 1);
+    lv_style_set_outline_opa(&style, LV_OPA_TRANSP);
+
+	static lv_style_t symbol_style;
+	lv_style_reset(&symbol_style);
+	lv_style_init(&symbol_style);
+	lv_style_set_text_font(&symbol_style, &lv_font_montserrat_24);
+	lv_style_set_text_color(&symbol_style, text_color);
+	lv_style_set_text_align(&symbol_style, LV_TEXT_ALIGN_CENTER);
+
+    lv_obj_set_style_bg_color(page_obj, bg_color, 0);
+
+    photo_player_ctx.top_bar_obj = obj = lv_obj_create(page_obj);
+    lv_obj_set_size(obj, lv_pct(100), lv_pct(100));
+    lv_obj_set_style_radius(obj, 0, 0);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(obj, LV_OPA_TRANSP, 0);
+
+    photo_player_ctx.name_obj = obj = lv_label_create(photo_player_ctx.top_bar_obj);
+	lv_obj_set_style_text_font(obj, ttf_info_14.font, 0);
+    lv_obj_set_style_text_color(obj, text_color, 0);
+    lv_obj_set_style_text_align(obj, LV_TEXT_ALIGN_CENTER, 0);
+
+	photo_player_ctx.esc_obj = obj = lv_btn_create(photo_player_ctx.top_bar_obj);
+	lv_obj_add_style(obj, &style, 0);
+	lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);
+	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_FOCUSED, NULL);
+	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_DEFOCUSED, NULL);
+	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_CLICKED, NULL);
+	photo_player_ctx.esc_label_obj = lv_label_create(photo_player_ctx.esc_obj);
+	lv_label_set_text(photo_player_ctx.esc_label_obj, LV_SYMBOL_CLOSE);
+	lv_obj_add_style(photo_player_ctx.esc_label_obj, &symbol_style, 0);
+}
+
+static void photo_player_destroy_ctrl(void) {
+    if (photo_player_ctx.esc_obj) {
+        ui_common_remove_stype_all(photo_player_ctx.esc_obj);
+        lv_obj_del(photo_player_ctx.esc_obj);
+        photo_player_ctx.esc_obj = NULL;
+    }
+    if (photo_player_ctx.top_bar_obj) {
+        ui_common_remove_stype_all(photo_player_ctx.top_bar_obj);
+        lv_obj_del(photo_player_ctx.top_bar_obj);
+        photo_player_ctx.top_bar_obj = NULL;
+    }
+
+    if (photo_player_ctx.img_data.data) {
+        free((void*)photo_player_ctx.img_data.data);
+        photo_player_ctx.img_data.data = NULL;
+    }
+}
+
+static void photo_player_param_init(lv_obj_t *page_obj) {
+	const char *mount_path = rk_param_get_string("storage:mount_path", "/mnt/sdcard");
+	const char *photo_folder_name = rk_param_get_string("storage.3:folder_name", "photo");
+    memset(&photo_player_ctx, 0, sizeof(photo_player_ctx));
+
+    photo_player_ctx.page_obj = page_obj;
+
+	snprintf(photo_player_ctx.list.path, sizeof(photo_player_ctx.list.path), "%s/%s", mount_path, photo_folder_name);
+	if (rkipc_storage_get_file_list(&photo_player_ctx.list, g_sd_phandle, LIST_DESCENDING) != 0) {
+		LOG_WARN("File list not obtained.\n");
+		return ;
+	}
+    photo_player_ctx.cur_file_index = (uint64_t)lv_obj_get_user_data(page_obj);
+
+	if (photo_player_ctx.cur_file_index < photo_player_ctx.list.file_num) {
+		LOG_INFO("load file index %d\n", photo_player_ctx.cur_file_index);
+		snprintf(photo_player_ctx.file_info.path, sizeof(photo_player_ctx.file_info.path), "%s/%s", photo_player_ctx.list.path,
+			         photo_player_ctx.list.file[photo_player_ctx.cur_file_index].filename);
+	}
+}
+
+static void photo_player_add_indev(void) {
+    lv_group_t *group = lv_port_indev_group_create();
+    if (NULL == group)
+        return;
+
+	evdev_force_translate_to_click(true);
+    lv_group_add_obj(group, photo_player_ctx.esc_obj);
+
+    photo_player_ctx.group = group;
+}
+
+static void photo_player_param_deinit(void) {
+	rkipc_storage_free_file_list(&photo_player_ctx.list);
+}
+
+static void photo_player_delete_indev(void) {
+	evdev_force_translate_to_click(false);
+    if (NULL != photo_player_ctx.group) {
+        lv_port_indev_group_destroy(photo_player_ctx.group);
+        photo_player_ctx.group = NULL;
+    }
+}
+
+static void photo_player_page_create(lv_obj_t *page_obj) {
+    photo_player_param_init(page_obj);
+    photo_player_create_ctrl(page_obj);
+    photo_player_layout_ctrl(page_obj);
+}
+
+static void photo_player_page_enter(lv_obj_t *page_obj) {
+    photo_player_add_indev();
+    photo_play();
+}
+
+static void photo_player_page_exit(lv_obj_t *page_obj) {
+    photo_player_delete_indev();
+}
+
+static void photo_player_page_destroy(lv_obj_t *page_obj) {
+    photo_player_destroy_ctrl();
+    photo_player_param_deinit();
+}
+
+static UI_PAGE_HANDLER_T photo_player_page = {
+    .name = "photo_player",
+    .init = NULL,
+    .create = photo_player_page_create,
+    .enter = photo_player_page_enter,
+    .destroy = photo_player_page_destroy,
+    .exit = photo_player_page_exit
+};
+
+UI_PAGE_REGISTER(photo_player_page)

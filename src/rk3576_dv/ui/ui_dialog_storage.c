@@ -18,7 +18,6 @@
 #include "storage.h"
 #include "ui_common.h"
 #include "ui_dialog.h"
-#include "ui_languages.h"
 
 /**********************
  *  STATIC PROTOTYPES
@@ -51,15 +50,15 @@ void ui_noformat_dialog_destroy(void) { ui_dialog_destroy(); }
 void ui_scansdcard_dialog_destroy(void) { ui_dialog_destroy(); }
 
 void ui_nosdcard_dialog_create(void) {
-	ui_dialog_create(RES_STR_SETTINGS_STORE, RES_STR_SETTINGS_BOX_NOSDCARD);
+	ui_dialog_create("存储状态", "没有SD卡");
 }
 
 void ui_noformat_dialog_create(void) {
-	ui_dialog_create(RES_STR_SETTINGS_STORE, RES_STR_SETTINGS_BOX_NOFORMAT);
+	ui_dialog_create("存储状态", "SD卡未格式化");
 }
 
 void ui_scansdcard_dialog_create(void) {
-	ui_dialog_create(RES_STR_SETTINGS_STORE, RES_STR_SETTINGS_BOX_SCAN);
+	ui_dialog_create("存储状态", "SD卡扫描进行中");
 }
 
 void ui_storage_status_dialog_destroy(void) {
@@ -129,7 +128,7 @@ void ui_storage_status_dialog_create(void) {
 	lv_obj_set_style_text_color(obj, text_color, 0);
 	lv_obj_set_size(obj, lv_pct(100), LV_SIZE_CONTENT);
 	lv_obj_set_style_text_align(obj, LV_TEXT_ALIGN_CENTER, 0);
-	lv_label_set_text(obj, RES_STR_SETTINGS_BOX_STORE_TOTAL);
+	lv_label_set_text(obj, "存储状态");
 	lv_label_set_long_mode(obj, LV_LABEL_LONG_SCROLL_CIRCULAR);
 
 	obj = lv_label_create(obj_bg);
@@ -167,8 +166,8 @@ void ui_storage_status_dialog_create(void) {
 		progress = sto_use * 100 / sto_total;
 	if (progress > 100)
 		progress = 100;
-	sprintf(info, "%s %dGB/%s %dGB", RES_STR_SETTINGS_BOX_STORE_INFO, sto_use,
-	        RES_STR_SETTINGS_BOX_STORE_TOTAL, sto_total);
+	sprintf(info, "%s %dGB/%s %dGB", "已使用", sto_use,
+	        "总共", sto_total);
 	if (storage_string_obj)
 		lv_label_set_text(storage_string_obj, info);
 	if (storage_progress_bar_obj)

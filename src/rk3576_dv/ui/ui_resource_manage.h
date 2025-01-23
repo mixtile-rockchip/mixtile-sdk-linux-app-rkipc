@@ -25,6 +25,8 @@ extern "C" {
 #endif
 
 extern lv_img_dsc_t *index_bg;
+extern lv_img_dsc_t *index_icon_sw_p;
+extern lv_img_dsc_t *index_icon_sw_r;
 extern lv_img_dsc_t *index_icon_photo_p;
 extern lv_img_dsc_t *index_icon_photo_r;
 extern lv_img_dsc_t *index_icon_set_p;
@@ -33,24 +35,17 @@ extern lv_img_dsc_t *index_icon_media_p;
 extern lv_img_dsc_t *index_icon_media_r;
 extern lv_img_dsc_t *index_icon_record_nor;
 extern lv_img_dsc_t *index_icon_record;
-extern lv_img_dsc_t *index_icon_play;
+extern lv_img_dsc_t *index_icon_slow_motion;
 
-extern lv_img_dsc_t *index_icon_return_r;
-extern lv_img_dsc_t *index_icon_return_p;
 extern lv_img_dsc_t *index_icon_boxbg_r;
 extern lv_img_dsc_t *index_icon_boxbg_p;
-extern lv_img_dsc_t *index_icon_movie_1;
-extern lv_img_dsc_t *index_icon_movie_3;
-extern lv_img_dsc_t *index_icon_movie_5;
-extern lv_img_dsc_t *index_icon_res_4k;
-extern lv_img_dsc_t *index_icon_res_2k;
-extern lv_img_dsc_t *index_icon_res_1k;
+extern lv_img_dsc_t *index_icon_video;
+extern lv_img_dsc_t *index_icon_capture;
 extern lv_img_dsc_t *index_icon_fps_60;
 extern lv_img_dsc_t *index_icon_fps_30;
-extern lv_img_dsc_t *index_icon_vol_01;
-extern lv_img_dsc_t *index_icon_vol_02;
-extern lv_img_dsc_t *index_icon_vol_03;
-extern lv_img_dsc_t *index_icon_vol_04;
+extern lv_img_dsc_t *index_icon_5p1s;
+extern lv_img_dsc_t *index_icon_10p2s;
+extern lv_img_dsc_t *index_icon_20p3s;
 extern lv_img_dsc_t *index_icon_mic_01;
 extern lv_img_dsc_t *index_icon_mic_02;
 extern lv_img_dsc_t *index_icon_lang_01;
@@ -64,15 +59,8 @@ extern lv_img_dsc_t *icon_record_start_p;
 
 extern lv_img_dsc_t *index_icon_bg_r;
 extern lv_img_dsc_t *index_icon_bg_p;
-extern lv_img_dsc_t *index_icon_video_f_01;
-extern lv_img_dsc_t *index_icon_video_p_01;
-extern lv_img_dsc_t *index_icon_video_u_01;
-extern lv_img_dsc_t *index_icon_photo_01;
 
 extern lv_img_dsc_t *index_icon_player_play;
-extern lv_img_dsc_t *index_icon_player_play_p;
-extern lv_img_dsc_t *index_icon_player_stop;
-extern lv_img_dsc_t *index_icon_player_stop_p;
 
 extern lv_img_dsc_t *index_icon_set_btn_01;
 extern lv_img_dsc_t *index_icon_set_btn_02;
