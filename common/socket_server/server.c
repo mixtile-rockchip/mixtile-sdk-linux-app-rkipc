@@ -4397,7 +4397,7 @@ int ser_rk_storage_record_start(int fd) {
 	int err = 0;
 
 	LOG_DEBUG("begin\n");
-	err = rk_storage_record_start();
+	err = rk_storage_record_start(0);
 	if (sock_write(fd, &err, sizeof(int)) == SOCKERR_CLOSED)
 		return -1;
 	LOG_DEBUG("end\n");
@@ -4409,7 +4409,7 @@ int ser_rk_storage_record_stop(int fd) {
 	int err = 0;
 
 	LOG_DEBUG("begin\n");
-	err = rk_storage_record_stop();
+	err = rk_storage_record_stop(0);
 	if (sock_write(fd, &err, sizeof(int)) == SOCKERR_CLOSED)
 		return -1;
 	LOG_DEBUG("end\n");
@@ -4421,7 +4421,7 @@ int ser_rk_storage_record_statue_get(int fd) {
 	int err = 0;
 	int value;
 
-	err = rk_storage_record_statue_get(&value);
+	err = rk_storage_record_statue_get(0, &value);
 	LOG_DEBUG("value is %d\n", value);
 	if (sock_write(fd, &value, sizeof(value)) == SOCKERR_CLOSED)
 		return -1;

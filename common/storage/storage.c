@@ -15,7 +15,7 @@
 #endif
 #define LOG_TAG "storage.c"
 
-#define STORAGE_NUM 3
+#define STORAGE_NUM 4
 
 static int record_flag[STORAGE_NUM] = {-1};
 void *g_sd_phandle = NULL;
@@ -23,7 +23,7 @@ static void *g_file_scan_signal = NULL;
 static rkipc_str_dev_attr g_sd_dev_attr;
 static pthread_mutex_t g_rkmuxer_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t g_mkdir_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int g_storage_record_flag[3]; // only for recording thread
+static int g_storage_record_flag[4]; // only for recording thread
 static int rk_storage_muxer_init_by_id(int id);
 static int rk_storage_muxer_deinit_by_id(int id);
 
@@ -128,20 +128,28 @@ int rkipc_storage_set_dev_attr(rkipc_str_dev_attr *pstDevAttr) {
 	pstDevAttr->folder_attr[2].sort_cond = SORT_FILE_NAME;
 	sprintf(pstDevAttr->folder_attr[2].folder_path, folder_name);
 
+	folder_name = rk_param_get_string("storage.3:folder_name", "capture");
+	pstDevAttr->folder_attr[3].sort_cond = SORT_FILE_NAME;
+	sprintf(pstDevAttr->folder_attr[3].folder_path, folder_name);
+
 	if (rk_param_get_int("storage:num_limit_enable", 0)) {
 		pstDevAttr->folder_attr[0].num_limit = true;
 		pstDevAttr->folder_attr[1].num_limit = true;
 		pstDevAttr->folder_attr[2].num_limit = true;
+		pstDevAttr->folder_attr[3].num_limit = true;
 		pstDevAttr->folder_attr[0].limit = rk_param_get_int("storage.0:file_max_num", 300);
 		pstDevAttr->folder_attr[1].limit = rk_param_get_int("storage.1:file_max_num", 300);
 		pstDevAttr->folder_attr[2].limit = rk_param_get_int("storage.2:file_max_num", 300);
+		pstDevAttr->folder_attr[3].limit = rk_param_get_int("storage.3:file_max_num", 300);
 	} else {
 		pstDevAttr->folder_attr[0].num_limit = false;
 		pstDevAttr->folder_attr[1].num_limit = false;
 		pstDevAttr->folder_attr[2].num_limit = false;
+		pstDevAttr->folder_attr[3].num_limit = false;
 		pstDevAttr->folder_attr[0].limit = rk_param_get_int("storage.0:video_quota", 30);
 		pstDevAttr->folder_attr[1].limit = rk_param_get_int("storage.1:video_quota", 30);
 		pstDevAttr->folder_attr[2].limit = rk_param_get_int("storage.2:video_quota", 30);
+		pstDevAttr->folder_attr[3].limit = rk_param_get_int("storage.3:video_quota", 30);
 	}
 
 	return 0;
@@ -1852,42 +1860,42 @@ int rk_storage_write_audio_frame(int id, unsigned char *buffer, unsigned int buf
 	return 0;
 }
 
-int rk_storage_record_start() {
+int rk_storage_record_start(int id) {
 	// only main stream, id default is 0
 	LOG_INFO("start\n");
 	time_t t = time(NULL);
 	struct tm tm = *localtime(&t);
 
-	snprintf(rk_storage_muxer_group[0].file_name, 512, "%s/%d%02d%02d%02d%02d%02d.%s",
-	         rk_storage_muxer_group[0].record_path, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-	         tm.tm_hour, tm.tm_min, tm.tm_sec, rk_storage_muxer_group[0].file_format);
-	LOG_INFO("file_name is %s\n", rk_storage_muxer_group[0].file_name);
+	snprintf(rk_storage_muxer_group[id].file_name, 512, "%s/%d%02d%02d%02d%02d%02d.%s",
+	         rk_storage_muxer_group[id].record_path, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+	         tm.tm_hour, tm.tm_min, tm.tm_sec, rk_storage_muxer_group[id].file_format);
+	LOG_INFO("file_name is %s\n", rk_storage_muxer_group[id].file_name);
 	pthread_mutex_lock(&g_rkmuxer_mutex);
-	rk_storage_muxer_group[0].g_record_run_ = 0;
-	rkmuxer_deinit(0);
-	rkmuxer_init(0, NULL, rk_storage_muxer_group[0].file_name,
-	             &rk_storage_muxer_group[0].g_video_param,
-	             &rk_storage_muxer_group[0].g_audio_param);
-	rk_storage_muxer_group[0].g_record_run_ = 1;
+	rk_storage_muxer_group[id].g_record_run_ = 0;
+	rkmuxer_deinit(id);
+	rkmuxer_init(id, NULL, rk_storage_muxer_group[id].file_name,
+	             &rk_storage_muxer_group[id].g_video_param,
+	             &rk_storage_muxer_group[id].g_audio_param);
+	rk_storage_muxer_group[id].g_record_run_ = 1;
 	pthread_mutex_unlock(&g_rkmuxer_mutex);
 	LOG_INFO("end\n");
 
 	return 0;
 }
 
-int rk_storage_record_stop() {
+int rk_storage_record_stop(int id) {
 	// only main stream, id default is 0
 	LOG_INFO("start\n");
 	pthread_mutex_lock(&g_rkmuxer_mutex);
-	rk_storage_muxer_group[0].g_record_run_ = 0;
-	rkmuxer_deinit(0);
+	rk_storage_muxer_group[id].g_record_run_ = 0;
+	rkmuxer_deinit(id);
 	pthread_mutex_unlock(&g_rkmuxer_mutex);
 	LOG_INFO("end\n");
 	return 0;
 }
 
-int rk_storage_record_statue_get(int *value) {
-	*value = rk_storage_muxer_group[0].g_record_run_;
+int rk_storage_record_statue_get(int id, int *value) {
+	*value = rk_storage_muxer_group[id].g_record_run_;
 	return 0;
 }
 
@@ -1903,7 +1911,7 @@ int rk_storage_format() {
 		LOG_ERROR("unmount failed %s\n", strerror(errno));
 		return ret;
 	}
-	ret = rkfsmk_format(dev_path, NULL);
+	ret = rkfsmk_format((char *)dev_path, NULL);
 	if (ret != 0) {
 		LOG_ERROR("rkfsmk_format failed %d\n", ret);
 		return ret;

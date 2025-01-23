@@ -189,9 +189,9 @@ int rk_storage_write_video_frame(int id, unsigned char *buffer, unsigned int buf
                                  int64_t present_time, int key_frame);
 int rk_storage_write_audio_frame(int id, unsigned char *buffer, unsigned int buffer_size,
                                  int64_t present_time);
-int rk_storage_record_start();
-int rk_storage_record_stop();
-int rk_storage_record_statue_get(int *value);
+int rk_storage_record_start(int id);
+int rk_storage_record_stop(int id);
+int rk_storage_record_statue_get(int id, int *value);
 
 #ifdef RKFSMK
 int rk_storage_format();
