@@ -49,6 +49,7 @@ int evdev_get_current_code(void) {
 
 void evdev_force_translate_to_click(bool enable) {
 	translate_all_key_to_click = enable;
+	current_key_value = 0;
 }
 
 /**
@@ -172,8 +173,8 @@ void evdev_read(EVDEV_ATTR_S *evdev_attr, lv_indev_drv_t *drv, lv_indev_data_t *
 					}
 					break;
 				case KEY_VOLUMEUP:
-					printf("%s: vol up to next\n", __func__);
-					data->key = LV_KEY_NEXT;
+					printf("%s: vol up to prev\n", __func__);
+					data->key = LV_KEY_PREV;
 					current_key_value = in.code;
 					if (translate_all_key_to_click) {
 						data->key = LV_KEY_ENTER;
@@ -181,8 +182,8 @@ void evdev_read(EVDEV_ATTR_S *evdev_attr, lv_indev_drv_t *drv, lv_indev_data_t *
 					}
 					break;
 				case KEY_VOLUMEDOWN:
-					printf("%s: vol up to prev\n", __func__);
-					data->key = LV_KEY_PREV;
+					printf("%s: vol down to next\n", __func__);
+					data->key = LV_KEY_NEXT;
 					current_key_value = in.code;
 					if (translate_all_key_to_click) {
 						data->key = LV_KEY_ENTER;
