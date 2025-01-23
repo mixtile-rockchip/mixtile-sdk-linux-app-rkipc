@@ -20,7 +20,10 @@ typedef void (*rk_player_event_cb)(RK_PLAYER_EVENT);
 typedef struct _rkPlayerConfig {
 	bool enable_audio;
 	bool enable_video;
+	bool enable_slow_motion;
 	bool read_mode;
+	uint32_t input_width;
+	uint32_t input_height;
 	rk_player_event_cb event_cb;
 	void *ctx;
 } RK_PLAYER_CONFIG_S;
