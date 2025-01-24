@@ -2731,6 +2731,7 @@ int rk_video_deinit() {
 
 	g_video_run_ = 0;
 	int ret = 0;
+	rk_video_stop_record();
 	if (g_enable_vo)
 		ret |= rkipc_vo_deinit();
 	ret |= rkipc_bind_deinit();
@@ -2738,7 +2739,6 @@ int rk_video_deinit() {
 		ret |= rkipc_venc_0_deinit();
 	}
 	if (enable_venc_1) {
-		pthread_join(venc_thread_1, NULL);
 		ret |= rkipc_venc_1_deinit();
 	}
 	if (enable_venc_2) {
