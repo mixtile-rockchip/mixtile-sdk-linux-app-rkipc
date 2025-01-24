@@ -206,7 +206,7 @@ static int mp3_decoder_decode(void *pDecoder, void *pDecParam) {
 
 		pParam->u32InLen = inLength;
 		if (ret == ERR_MP3_INDATA_UNDERFLOW) {
-			LOG_ERROR("mp3 decode input data underflow");
+			LOG_WARN("mp3 decode input data underflow");
 			return ADEC_DECODER_ERROR;
 		}
 
@@ -1121,7 +1121,7 @@ static void *video_player_loop(void *p) {
 	uint32_t fps = ctx->demuxer_param.s32VideoAvgFrameRate;
 	uint64_t frame_interval_time = 0, cost_time = 0, delay_time = 0;
 	DemuxerPacket packet;
-	struct timespec start_time, end_time; // milliseconds
+	struct timespec start_time, end_time;
 
 	prctl(PR_SET_NAME, "video_player_loop", 0, 0, 0);
 
@@ -1173,7 +1173,7 @@ static void *video_player_loop(void *p) {
 				if (ctx->enable_slow_motion)
 					delay_time += ((SLOW_MOTION_RATE - 1) * frame_interval_time);
 				usleep(delay_time);
-				LOG_DEBUG("frame interval %u ms, decode cost %u ms, delay %u ms\n"
+				LOG_DEBUG("frame interval %llu ms, decode cost %llu ms, delay %llu ms\n"
 						, frame_interval_time / 1000
 						, cost_time / 1000
 						, delay_time / 1000
@@ -1189,11 +1189,28 @@ static void *video_player_loop(void *p) {
 static void *audio_player_loop(void *p) {
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)p;
 	int ret = 0;
+	int sample_rate = rk_param_get_int("audio.0:sample_rate", 16000);
+	int channels = rk_param_get_int("audio.0:channels", 2);
+	int frame_size = rk_param_get_int("audio.0:frame_size", 1024);
+	const char *format = rk_param_get_string("audio.0:format", NULL);
 	bool quit = false;
+	uint64_t frame_interval_time = 0, cost_time = 0, delay_time = 0;
 	DemuxerPacket packet;
+	struct timespec start_time, end_time;
 
 	prctl(PR_SET_NAME, "audio_player_loop", 0, 0, 0);
 	LOG_INFO("enter thread\n");
+
+	if (!strcmp(format, "S16")) {
+		frame_interval_time = ((uint64_t)frame_size * 1000 * 1000) / sample_rate / channels / 2;
+	} else if (!strcmp(format, "U8")) {
+		frame_interval_time = ((uint64_t)frame_size * 1000 * 1000) / sample_rate / channels;
+	} else {
+		LOG_ERROR("not support %s\n", format);
+		return NULL;
+	}
+	LOG_INFO("sample_rate %d, channels %d, frame_size %d, frame interval %llu\n"
+			, sample_rate, channels, frame_size, frame_interval_time);
 	while (!quit) {
 		switch (ctx->audio_status) {
 		case UNINITIALIZED:
@@ -1204,6 +1221,7 @@ static void *audio_player_loop(void *p) {
 			usleep(300 * 1000);
 			break;
 		case RUNNING:
+			clock_gettime(CLOCK_MONOTONIC, &start_time);
 			pthread_mutex_lock(&ctx->mutex);
 			// Packet malloc by rkdemuxer, free by user. So this critial zone is safe.
 			ret = rkdemuxer_read_one_audio_packet(ctx->demuxer_handle, &packet);
@@ -1222,7 +1240,20 @@ static void *audio_player_loop(void *p) {
 			pthread_mutex_unlock(&ctx->mutex);
 			if (!ret)
 				read_audio_packet_cb(&packet);
-			//usleep(10 * 1000);
+			clock_gettime(CLOCK_MONOTONIC, &end_time);
+			cost_time = end_time.tv_sec * 1000000LL + end_time.tv_nsec / 1000LL
+				- (start_time.tv_sec * 1000000LL + start_time.tv_nsec / 1000LL);
+			if (cost_time < frame_interval_time) {
+				delay_time = frame_interval_time - cost_time;
+				usleep(delay_time);
+				LOG_DEBUG("frame interval %llu ms, decode cost %llu ms, delay %llu ms\n"
+						, frame_interval_time / 1000
+						, cost_time / 1000
+						, delay_time / 1000
+						);
+			} else {
+				LOG_ERROR("decode one frame cost too much time %u ms\n", cost_time / 1000);
+			}
 		}
 	}
 	return NULL;
