@@ -47,7 +47,7 @@ static int g_vi_for_vo_chn_id = 1;
 static int max_capture_num = 5;
 static int remain_capture_num = 0;
 static int enable_jpeg, enable_venc_0, enable_venc_1, enable_venc_2, enable_npu, enable_gdc,
-    enable_dp, enable_lcd;
+    enable_dp, enable_lcd, enable_eis_debug;
 static int g_enable_vo;
 static int dp_vo_dev_id = RK3576_VO_DEV_DP;
 static int lcd_vo_dev_id = RK3576_VO_DEV_LCD;
@@ -66,12 +66,17 @@ static pthread_t venc_thread_0, venc_thread_1, venc_thread_2, jpeg_venc_thread_i
 static MPP_CHN_S vi_chn[2], gdc_chn[2], vpss_in_chn, vi_for_vo_chn, vo_chn[2], vpss_out_chn[4],
     venc_chn[4];
 static VO_DEV dp_vo_layer, lcd_vo_layer;
+static GDC_INFO_CB_S gdc_info_cb;
 static int dp_vo_w = 1920;
 static int dp_vo_h = 1080;
 static int lcd_vo_w = 240;
 static int lcd_vo_h = 320;
 static int gdc_display_w = 704;
 static int gdc_display_h = 384;
+static FILE *vi_info_file;
+static FILE *imu_info_file;
+static char gdc_info_buffer[256];
+static int gdc_debug_cnt = 0;
 
 /*
 static void *test_get_vi(void *arg) {
@@ -81,36 +86,29 @@ static void *test_get_vi(void *arg) {
 	int loopCount = 0;
 	int ret = 0;
 
-		// 5.get the frame
-		ret = RK_MPI_VI_GetChnFrame(pipe_id_, 0, &stViFrame, 1000);
+	ret = RK_MPI_VI_GetChnFrame(pipe_id_, 0, &stViFrame, 1000);
+	void *data = RK_MPI_MB_Handle2VirAddr(stViFrame.stVFrame.pMbBlk);
+	FILE *fp = fopen("/tmp/vi_0.yuv", "wb");
+	fwrite(data, 1, 4032*2256*1.5, fp);
+	fflush(fp);
+	fclose(fp);
+	ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, 0, &stViFrame);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_VI_ReleaseChnFrame fail %x\n", ret);
+	}
 
-		void *data = RK_MPI_MB_Handle2VirAddr(stViFrame.stVFrame.pMbBlk);
-		FILE *fp = fopen("/tmp/vi_0.yuv", "wb");
-		fwrite(data, 1, 4032*2256*1.5, fp);
-		fflush(fp);
-		fclose(fp);
-		// 7.release the frame
-		ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, 0, &stViFrame);
-		if (ret != RK_SUCCESS) {
-			LOG_ERROR("RK_MPI_VI_ReleaseChnFrame fail %x\n", ret);
-		}
-
-		ret = RK_MPI_VI_GetChnFrame(pipe_id_, 1, &stViFrame, 1000);
-
-		data = RK_MPI_MB_Handle2VirAddr(stViFrame.stVFrame.pMbBlk);
-		fp = fopen("/tmp/vi_1.yuv", "wb");
-		fwrite(data, 1, 704*384*1.5, fp);
-		fflush(fp);
-		fclose(fp);
-		// 7.release the frame
-		ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, 1, &stViFrame);
-		if (ret != RK_SUCCESS) {
-			LOG_ERROR("RK_MPI_VI_ReleaseChnFrame fail %x\n", ret);
-		}
-
-		loopCount++;
-
-		usleep(10 * 1000);
+	ret = RK_MPI_VI_GetChnFrame(pipe_id_, 1, &stViFrame, 1000);
+	data = RK_MPI_MB_Handle2VirAddr(stViFrame.stVFrame.pMbBlk);
+	fp = fopen("/tmp/vi_1.yuv", "wb");
+	fwrite(data, 1, 704*384*1.5, fp);
+	fflush(fp);
+	fclose(fp);
+	ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, 1, &stViFrame);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_VI_ReleaseChnFrame fail %x\n", ret);
+	}
+	loopCount++;
+	usleep(10 * 1000);
 
 	return 0;
 }
@@ -132,8 +130,10 @@ static void *rkipc_get_venc_0(void *arg) {
 		if (ret == RK_SUCCESS) {
 			before_time = rkipc_get_curren_time_ms();
 			void *data = RK_MPI_MB_Handle2VirAddr(stFrame.pstPack->pMbBlk);
-			// fwrite(data, 1, stFrame.pstPack->u32Len, fp);
-			// fflush(fp);
+			if (enable_eis_debug) {
+				fwrite(data, 1, stFrame.pstPack->u32Len, fp);
+				fflush(fp);
+			}
 			// LOG_INFO("seq:%d, Len:%d, PTS is %" PRId64", enH264EType is %d\n", stFrame.u32Seq,
 			// stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
 			// stFrame.pstPack->DataType.enH264EType);
@@ -1210,10 +1210,11 @@ static int rkipc_bind_init() {
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("vi 0 bind gdc 0 fail:%x", ret);
 		}
-
-		ret = RK_MPI_SYS_Bind(&gdc_chn[0], &venc_chn[0]);
-		if (ret != RK_SUCCESS) {
-			LOG_ERROR("gdc bind venc fail:%x", ret);
+		if (!enable_eis_debug) {
+			ret = RK_MPI_SYS_Bind(&gdc_chn[0], &venc_chn[0]);
+			if (ret != RK_SUCCESS) {
+				LOG_ERROR("gdc bind venc fail:%x", ret);
+			}
 		}
 	} else if (enable_jpeg) {
 		ret = RK_MPI_SYS_Bind(&vi_chn[0], &venc_chn[3]);
@@ -2708,7 +2709,63 @@ static void *gdc_thread(void *arg) {
 	return 0;
 }
 
-static int rkipc_gdc_init() {
+RK_S32 RKGdcSensorCB(RK_VOID *pUsr, GDC_SENSOR_INFO_S *pInfo) {
+    // LOG_INFO("time stamp = %lld, temp is %lf,"
+	// "gyro data is %lf %lf %lf, acc data is %lf %lf %lf\n",
+	// pInfo->s64Timestamp, pInfo->dTemp,
+	// pInfo->dGyroData[0], pInfo->dGyroData[1], pInfo->dGyroData[2],
+	// pInfo->dAccData[0], pInfo->dAccData[1], pInfo->dAccData[2]);
+	sprintf(gdc_info_buffer, "%lf %lf %lf %lf %lf %lf %lf %lld\n",
+			pInfo->dAccData[0], pInfo->dAccData[1], pInfo->dAccData[2],
+			pInfo->dGyroData[0], pInfo->dGyroData[1], pInfo->dGyroData[2],
+			pInfo->dTemp, pInfo->s64Timestamp);
+
+	fwrite(gdc_info_buffer, sizeof(char), strlen(gdc_info_buffer), imu_info_file);
+	fflush(imu_info_file);
+
+	return GDC_INFO_CB_SUCCESS;
+}
+
+
+RK_S32 RKGdcVframeCB(RK_VOID *pUsr, GDC_VFAME_INFO_S *pInfo) {
+	VIDEO_FRAME_INFO_S gdc_frame;
+	// void *data = RK_MPI_MB_Handle2VirAddr(pInfo->pMbBlk);
+	// RK_U64 len = RK_MPI_MB_GetSize(pInfo->pMbBlk);
+	// LOG_INFO("vframe seq = %d, data = %p, len = %lld, time stamp = %llu\n",
+	//		pInfo->u32Seq, data, len, pInfo->u64PTS);
+	// LOG_INFO("u64ExtraPts = %llu, u32RsSkew = %d, u32ExpTime = %d,"
+	//		"u32Again = %d, u32Dgain = %d, u32Ispgain = %d, u32Ispgain = %lf\n",
+	// 		pInfo->u64ExtraPts, pInfo->u32RsSkew, pInfo->u32ExpTime, pInfo->u32Again,
+	//		pInfo->u32Dgain, pInfo->u32Ispgain, pInfo->dIso);
+
+	// 为保证imu数据记录早于vi数据，丢弃vi的前30帧
+	gdc_debug_cnt++;
+	if (gdc_debug_cnt < 30) {
+		RK_MPI_MB_ReleaseMB(pInfo->pMbBlk);
+		return GDC_INFO_CB_SUCCESS;
+	}
+
+	sprintf(gdc_info_buffer, "%lld %d %d %d %d %d %lf\n", pInfo->u64ExtraPts, pInfo->u32RsSkew, pInfo->u32ExpTime,
+			pInfo->u32Again, pInfo->u32Dgain, pInfo->u32Ispgain, pInfo->dIso);
+	fwrite(gdc_info_buffer, sizeof(char), strlen(gdc_info_buffer), vi_info_file);
+	fflush(vi_info_file);
+	memset(&gdc_frame, 0, sizeof(VIDEO_FRAME_INFO_S));
+	gdc_frame.stVFrame.pMbBlk = pInfo->pMbBlk;
+	gdc_frame.stVFrame.u32Width = pInfo->u32Width;
+	gdc_frame.stVFrame.u32Height = pInfo->u32Height;
+	gdc_frame.stVFrame.u32VirWidth = pInfo->u32VirWidth;
+	gdc_frame.stVFrame.u32VirHeight = pInfo->u32VirHeight;
+	gdc_frame.stVFrame.enPixelFormat = pInfo->enPixelFormat;
+	gdc_frame.stVFrame.enCompressMode = pInfo->enCompressMode;
+	gdc_frame.stVFrame.u32TimeRef = pInfo->u32Seq;
+	gdc_frame.stVFrame.u64PTS = pInfo->u64PTS;
+	RK_MPI_VENC_SendFrame(VIDEO_PIPE_0, &gdc_frame, 1000);
+	RK_MPI_MB_ReleaseMB(pInfo->pMbBlk);
+
+	return GDC_INFO_CB_SUCCESS;
+}
+
+int rkipc_gdc_init() {
 	RK_S32 ret = RK_SUCCESS;
 	GDC_CHN_ATTR_S stAttr = {0};
 	if (enable_venc_0) {
@@ -2721,6 +2778,13 @@ static int rkipc_gdc_init() {
 		stAttr.enPixelFormat = RK_FMT_YUV420SP;
 		stAttr.enCompMode = COMPRESS_MODE_NONE;
 		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config.json", strlen("/usr/share/rkeis_config.json"));
+		if (enable_eis_debug) {
+			vi_info_file = fopen("/tmp/vi_info.txt", "w");
+			imu_info_file = fopen("/tmp/imu_info.txt", "w");
+			gdc_info_cb.pfnSensorCB = RKGdcSensorCB;
+			gdc_info_cb.pfnVframeCB = RKGdcVframeCB;
+			RK_MPI_GDC_Register_InfoCB(0, NULL, &gdc_info_cb);
+		}
 		ret = RK_MPI_GDC_CreateChn(0, &stAttr);
 	}
 
@@ -2750,6 +2814,10 @@ static int rkipc_gdc_deinit() {
 		ret = RK_MPI_GDC_DestroyChn(0);
 	if (enable_lcd)
 		ret |= RK_MPI_GDC_DestroyChn(1);
+	if (enable_eis_debug) {
+		fclose(vi_info_file);
+		fclose(imu_info_file);
+	}
 
 	return ret;
 }
@@ -2772,6 +2840,7 @@ int rk_video_init() {
 	dp_vo_dev_id = rk_param_get_int("video.source:vo_dev_id", 3);
 	enable_lcd = rk_param_get_int("video.source:enable_lcd", 0);
 	enable_dp = rk_param_get_int("video.source:enable_dp", 0);
+	enable_eis_debug  = rk_param_get_int("video.source:enable_eis_debug", 0);
 	LOG_INFO("g_vi_chn_id is %d, g_enable_vo is %d, dp_vo_dev_id is %d\n", g_vi_chn_id, g_enable_vo,
 	         dp_vo_dev_id);
 	g_video_run_ = 1;
