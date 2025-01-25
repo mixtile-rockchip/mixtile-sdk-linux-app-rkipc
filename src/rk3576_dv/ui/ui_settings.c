@@ -97,17 +97,17 @@ static void setting_set_text(void);
 static void mode_update(void) {
 	if (rk_get_mode() == RK_VIDEO_MODE) {
 		rk_set_mode(RK_PHOTO_MODE);
-		lv_img_set_src(settings_ctrl.fps_img_obj, index_icon_fps_30);
+		lv_label_set_text(settings_ctrl.fps_img_obj, "4K30");
 		lv_img_set_src(settings_ctrl.mode_img_obj, index_icon_capture);
 		lv_label_set_text(settings_ctrl.mode_label_obj, "拍照模式");
 	} else if (rk_get_mode() == RK_PHOTO_MODE) {
 		rk_set_mode(RK_SLOW_MOTION_MODE);
-		lv_img_set_src(settings_ctrl.fps_img_obj, index_icon_fps_30);
+		lv_label_set_text(settings_ctrl.fps_img_obj, "4K30");
 		lv_img_set_src(settings_ctrl.mode_img_obj, index_icon_slow_motion);
 		lv_label_set_text(settings_ctrl.mode_label_obj, "慢动作");
 	} else {
 		rk_set_mode(RK_VIDEO_MODE);
-		lv_img_set_src(settings_ctrl.fps_img_obj, index_icon_fps_30);
+		lv_label_set_text(settings_ctrl.fps_img_obj, "4K30");
 		lv_img_set_src(settings_ctrl.mode_img_obj, index_icon_video);
 		lv_label_set_text(settings_ctrl.mode_label_obj, "录像模式");
 	}
@@ -118,21 +118,21 @@ static void fps_update(void) {
 	fps = rk_video_get_fps();
 	if (fps == 30) {
 		rk_video_set_fps(58);
-		lv_img_set_src(settings_ctrl.fps_img_obj, index_icon_fps_60);
+		lv_label_set_text(settings_ctrl.fps_img_obj, "4K60");
 	} else {
 		rk_video_set_fps(30);
-		lv_img_set_src(settings_ctrl.fps_img_obj, index_icon_fps_30);
+		lv_label_set_text(settings_ctrl.fps_img_obj, "4K30");
 	}
 	return;
 }
 
 static void capture_update(void) {
 	if (rk_photo_get_max_num() == 5) {
-		lv_img_set_src(settings_ctrl.cap_img_obj, index_icon_5p1s);
+		lv_label_set_text(settings_ctrl.cap_img_obj, "5P1S");
 	} else if (rk_photo_get_max_num() == 10) {
-		lv_img_set_src(settings_ctrl.cap_img_obj, index_icon_10p2s);
+		lv_label_set_text(settings_ctrl.cap_img_obj, "10P2S");
 	} else {
-		lv_img_set_src(settings_ctrl.cap_img_obj, index_icon_20p3s);
+		lv_label_set_text(settings_ctrl.cap_img_obj, "20P3S");
 	}
 }
 
@@ -418,16 +418,12 @@ static void setting_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_add_event_cb(imgbtn_obj, fps_event_handler, LV_EVENT_FOCUSED, NULL);
 	lv_obj_add_event_cb(imgbtn_obj, fps_event_handler, LV_EVENT_DEFOCUSED, NULL);
 	lv_obj_set_size(imgbtn_obj, index_icon_boxbg_r->header.w, index_icon_boxbg_r->header.h);
-	settings_ctrl.fps_img_obj = img_obj = lv_img_create(imgbtn_obj);
-	int fps = rk_param_get_int("isp.0.adjustment:fps", 30);
-	if (fps == 30)
-		lv_img_set_src(settings_ctrl.fps_img_obj, index_icon_fps_30);
-	else
-		lv_img_set_src(settings_ctrl.fps_img_obj, index_icon_fps_60);
+	settings_ctrl.fps_img_obj = img_obj = lv_label_create(imgbtn_obj);
+	lv_obj_set_size(settings_ctrl.fps_img_obj, lv_pct(60), lv_pct(50));
 	lv_obj_align(img_obj, LV_ALIGN_CENTER, 0, 0);
 	settings_ctrl.fps_label_obj = label_obj = lv_label_create(imgbtn_obj);
 	lv_obj_set_width(label_obj, lv_pct(100));
-	lv_obj_align_to(label_obj, img_obj, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
+	lv_obj_align(label_obj, LV_ALIGN_BOTTOM_MID, 0, 0);
 
 	settings_ctrl.cap_imgbtn_obj = imgbtn_obj = lv_imgbtn_create(cont_obj);
 	lv_imgbtn_set_src(imgbtn_obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_boxbg_r, NULL);
@@ -436,12 +432,13 @@ static void setting_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_add_event_cb(imgbtn_obj, capture_event_handler, LV_EVENT_FOCUSED, NULL);
 	lv_obj_add_event_cb(imgbtn_obj, capture_event_handler, LV_EVENT_DEFOCUSED, NULL);
 	lv_obj_set_size(imgbtn_obj, index_icon_boxbg_r->header.w, index_icon_boxbg_r->header.h);
-	settings_ctrl.cap_img_obj = img_obj = lv_img_create(imgbtn_obj);
+	settings_ctrl.cap_img_obj = img_obj = lv_label_create(imgbtn_obj);
+	lv_obj_set_size(settings_ctrl.cap_img_obj, lv_pct(60), lv_pct(50));
 	lv_obj_align(img_obj, LV_ALIGN_CENTER, 0, 0);
 	capture_update();
 	settings_ctrl.cap_label_obj = label_obj = lv_label_create(imgbtn_obj);
 	lv_obj_set_width(label_obj, lv_pct(100));
-	lv_obj_align_to(label_obj, img_obj, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
+	lv_obj_align(label_obj, LV_ALIGN_BOTTOM_MID, 0, 0);
 
 	settings_ctrl.mic_imgbtn_obj = imgbtn_obj = lv_imgbtn_create(cont_obj);
 	lv_imgbtn_set_src(imgbtn_obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_boxbg_r, NULL);
@@ -487,7 +484,7 @@ static void setting_create_ctrl(lv_obj_t *page_obj) {
 }
 
 static void setting_set_text() {
-	static lv_style_t style, symbol_style;
+	static lv_style_t style, symbol_style, icon_style;
 	lv_color_t text_color = lv_color_hex(0xFFFFFF);
 
 	lv_style_reset(&style);
@@ -501,6 +498,19 @@ static void setting_set_text() {
 	lv_style_set_text_font(&symbol_style, &lv_font_montserrat_20);
 	lv_style_set_text_color(&symbol_style, text_color);
 	lv_style_set_text_align(&symbol_style, LV_TEXT_ALIGN_CENTER);
+
+	lv_style_reset(&icon_style);
+	lv_style_init(&icon_style);
+	lv_style_set_radius(&icon_style, 5);
+	lv_style_set_text_font(&icon_style, &lv_font_montserrat_14);
+	lv_style_set_text_color(&icon_style, text_color);
+	lv_style_set_text_align(&icon_style, LV_TEXT_ALIGN_CENTER);
+	lv_style_set_border_opa(&icon_style, LV_OPA_COVER);
+	lv_style_set_border_side(&icon_style, LV_BORDER_SIDE_FULL);
+	lv_style_set_border_width(&icon_style, 2);
+	lv_style_set_border_color(&icon_style, text_color);
+	lv_style_set_pad_top(&icon_style, 7);
+	lv_style_set_pad_bottom(&icon_style, 7);
 
 	if (rk_get_mode() == RK_VIDEO_MODE)
 		lv_label_set_text(settings_ctrl.mode_label_obj, "录像模式");
@@ -528,6 +538,16 @@ static void setting_set_text() {
 
 	lv_label_set_text(settings_ctrl.exit_label_obj, LV_SYMBOL_CLOSE);
 	lv_obj_add_style(settings_ctrl.exit_label_obj, &symbol_style, 0);
+
+	lv_label_set_text(settings_ctrl.cap_img_obj, "5P1S");
+	lv_obj_add_style(settings_ctrl.cap_img_obj, &icon_style, 0);
+
+	lv_obj_add_style(settings_ctrl.fps_img_obj, &icon_style, 0);
+	int fps = rk_param_get_int("isp.0.adjustment:fps", 30);
+	if (fps == 30)
+		lv_label_set_text(settings_ctrl.fps_img_obj, "4K30");
+	else
+		lv_label_set_text(settings_ctrl.fps_img_obj, "4K60");
 }
 
 static void setting_destroy_ctrl(void) {

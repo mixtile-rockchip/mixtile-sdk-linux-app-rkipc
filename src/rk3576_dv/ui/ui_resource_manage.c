@@ -59,11 +59,6 @@ lv_img_dsc_t *index_icon_sw_r = NULL;
 
 lv_img_dsc_t *index_icon_boxbg_r = NULL;
 lv_img_dsc_t *index_icon_boxbg_p = NULL;
-lv_img_dsc_t *index_icon_fps_60 = NULL;
-lv_img_dsc_t *index_icon_fps_30 = NULL;
-lv_img_dsc_t *index_icon_5p1s = NULL;
-lv_img_dsc_t *index_icon_10p2s = NULL;
-lv_img_dsc_t *index_icon_20p3s = NULL;
 lv_img_dsc_t *index_icon_mic_01 = NULL;
 lv_img_dsc_t *index_icon_mic_02 = NULL;
 lv_img_dsc_t *index_icon_lang_01 = NULL;
@@ -124,11 +119,6 @@ static int32_t ui_font_init(lv_ft_info_t *info, uint32_t weight) {
 static void setting_release_res(void) {
 	ICON_RELEASE(index_icon_boxbg_r);
 	ICON_RELEASE(index_icon_boxbg_p);
-	ICON_RELEASE(index_icon_fps_60);
-	ICON_RELEASE(index_icon_fps_30);
-	ICON_RELEASE(index_icon_5p1s);
-	ICON_RELEASE(index_icon_10p2s);
-	ICON_RELEASE(index_icon_20p3s);
 	ICON_RELEASE(index_icon_mic_01);
 	ICON_RELEASE(index_icon_mic_02);
 	ICON_RELEASE(index_icon_lang_01);
@@ -144,11 +134,6 @@ static void setting_load_res(void) {
 
 	index_icon_boxbg_r = ui_dec_icon("set_boxbg_01.png");
 	index_icon_boxbg_p = ui_dec_icon("set_boxbg_02.png");
-	index_icon_fps_60 = ui_dec_icon("set_icon_fps_60.png");
-	index_icon_fps_30 = ui_dec_icon("set_icon_fps_30.png");
-	index_icon_5p1s = ui_dec_icon("set_icon_5p1s.png");
-	index_icon_10p2s = ui_dec_icon("set_icon_10p2s.png");
-	index_icon_20p3s = ui_dec_icon("set_icon_20p3s.png");
 	index_icon_mic_01 = ui_dec_icon("set_icon_mic_01.png");
 	index_icon_mic_02 = ui_dec_icon("set_icon_mic_02.png");
 	index_icon_lang_01 = ui_dec_icon("set_icon_lang_01.png");
