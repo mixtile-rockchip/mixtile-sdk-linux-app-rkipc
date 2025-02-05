@@ -57,7 +57,6 @@ typedef struct _rkPlayerCtx {
 	DemuxerParam demuxer_param;
 	bool enable_audio;
 	bool enable_video;
-	bool enable_slow_motion;
 	void *demuxer_handle;
 	rk_player_event_cb event_cb;
 	pthread_mutex_t mutex; // protect rkdemuxer
@@ -1170,8 +1169,6 @@ static void *video_player_loop(void *p) {
 				- (start_time.tv_sec * 1000000LL + start_time.tv_nsec / 1000LL);
 			if (cost_time < frame_interval_time) {
 				delay_time = frame_interval_time - cost_time;
-				if (ctx->enable_slow_motion)
-					delay_time += ((SLOW_MOTION_RATE - 1) * frame_interval_time);
 				usleep(delay_time);
 				LOG_DEBUG("frame interval %llu ms, decode cost %llu ms, delay %llu ms\n"
 						, frame_interval_time / 1000
@@ -1454,7 +1451,6 @@ int rk_player_create(RK_PLAYER_CONFIG_S *config) {
 	memset(ctx, 0, sizeof(PLAYER_CTX_S));
 	ctx->enable_video = config->enable_video;
 	ctx->enable_audio = config->enable_audio;
-	ctx->enable_slow_motion = config->enable_slow_motion;
 	ctx->event_cb = config->event_cb;
 	ctx->vdec_ctx.u32Width = config->input_width;
 	ctx->vdec_ctx.u32Height = config->input_height;
@@ -1636,8 +1632,6 @@ int rk_player_get_video_duration(RK_PLAYER_CONFIG_S *config, uint32_t *duration)
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
 	RKIPC_CHECK_POINTER(ctx, -1);
 	*duration = (uint32_t)ctx->video_total_duraion / 1000;
-	if (ctx->enable_slow_motion)
-		*duration = (*duration) * SLOW_MOTION_RATE;
 	return 0;
 }
 
@@ -1663,8 +1657,6 @@ int rk_player_get_video_position(RK_PLAYER_CONFIG_S *config, uint32_t *position)
 	pthread_mutex_lock(&ctx->mutex);
 	if (ctx->enable_video)
 		*position = (ctx->video_current_pts / 1000);
-	if (ctx->enable_slow_motion)
-		*position = (*position) * SLOW_MOTION_RATE;
 	pthread_mutex_unlock(&ctx->mutex);
 	return 0;
 }
