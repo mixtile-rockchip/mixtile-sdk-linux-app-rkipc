@@ -73,12 +73,6 @@ lv_img_dsc_t *index_icon_bg_p = NULL;
 
 lv_img_dsc_t *index_icon_player_play = NULL;
 
-lv_img_dsc_t *index_icon_set_btn_01 = NULL;
-lv_img_dsc_t *index_icon_set_btn_02 = NULL;
-
-lv_img_dsc_t *index_icon_set_btn_s_01 = NULL;
-lv_img_dsc_t *index_icon_set_btn_s_02 = NULL;
-
 lv_img_dsc_t *icon_record_stop_r = NULL;
 lv_img_dsc_t *icon_record_stop_p = NULL;
 lv_img_dsc_t *icon_record_start_r = NULL;
@@ -204,21 +198,6 @@ static void player_load_res(void) {
 	index_icon_player_play = ui_dec_icon("player_icon_play.png");
 }
 
-static void dialog_release_res(void) {
-	ICON_RELEASE(index_icon_set_btn_01);
-	ICON_RELEASE(index_icon_set_btn_02);
-	ICON_RELEASE(index_icon_set_btn_s_01);
-	ICON_RELEASE(index_icon_set_btn_s_02);
-}
-
-static void dialog_load_res(void) {
-	dialog_release_res();
-	index_icon_set_btn_01 = ui_dec_icon("set_btn_l_01.png");
-	index_icon_set_btn_02 = ui_dec_icon("set_btn_l_02.png");
-	index_icon_set_btn_s_01 = ui_dec_icon("set_btn_s_01.png");
-	index_icon_set_btn_s_02 = ui_dec_icon("set_btn_s_02.png");
-}
-
 static void ui_font_release(void) {
 	if (NULL != ttf_info_10.font) {
 		lv_ft_font_destroy(ttf_info_10.font);
@@ -268,7 +247,6 @@ void ui_resource_release(void) {
 	view_release_res();
 	media_release_res();
 	player_release_res();
-	dialog_release_res();
 
 	ui_font_release();
 
@@ -281,5 +259,4 @@ void ui_resource_load(void) {
 	view_load_res();
 	media_load_res();
 	player_load_res();
-	dialog_load_res();
 }

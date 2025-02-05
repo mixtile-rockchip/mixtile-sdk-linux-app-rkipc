@@ -18,6 +18,7 @@
 #endif
 #define LOG_TAG "ui_video_player.c"
 
+#include <linux/input.h>
 #include "lvgl/porting/lv_port_indev.h"
 #include "ui_common.h"
 #include "ui_page_manager.h"
@@ -25,6 +26,7 @@
 #include "ui_resource_manage.h"
 
 #include "common.h"
+#include "evdev.h"
 #include "video.h"
 #include "player.h"
 #include "storage.h"
@@ -215,6 +217,10 @@ static void menu_event_cb(lv_event_t *e) {
 	UI_CTRL_ID_E ctrl_id = (UI_CTRL_ID_E)lv_event_get_user_data(e);
 
 	if (code == LV_EVENT_CLICKED) {
+		if (evdev_get_current_code() == KEY_POWER) {
+			ui_page_pop_page();
+			return ;
+		}
 		switch (ctrl_id) {
 		case UI_CTRL_ESC:
 			ui_page_pop_page();

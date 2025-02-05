@@ -14,10 +14,12 @@
  *  limitations under the License.
  */
 
+#include <linux/input.h>
 #include "ui_dialog.h"
 #include "ui_dialog_format.h"
 #include "lvgl/common/lv_msg.h"
 #include "lvgl/porting/lv_port_indev.h"
+#include "evdev.h"
 #include "storage.h"
 #include "ui_common.h"
 #include "ui_resource_manage.h"
@@ -55,17 +57,8 @@ extern lv_ft_info_t ttf_info_10;
 static void format_dialog_destroy_event_cb(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
-	printf("%s: code %d\n", __func__, code);
-
-	if (code == LV_EVENT_CLICKED) {
+	if (code == LV_EVENT_CLICKED)
 		ui_format_dialog_destory();
-	} else if (code == LV_EVENT_FOCUSED) {
-		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_set_btn_s_02, NULL);
-		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_PRESSED, NULL, index_icon_set_btn_s_02, NULL);
-	} else if (code == LV_EVENT_DEFOCUSED) {
-		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_set_btn_s_01, NULL);
-		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_PRESSED, NULL, index_icon_set_btn_s_01, NULL);
-	}
 }
 
 static bool start_formatting_handler(int32_t msg, void *wparam, void *lparam) {
@@ -119,17 +112,11 @@ static void auto_del(void) {
 static void format_start_event_cb(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
-	printf("%s: code %d\n", __func__, code);
-
 	if (code == LV_EVENT_CLICKED) {
 		ui_format_dialog_destory();
+		if (evdev_get_current_code() == KEY_POWER)
+			return ;
 		auto_del();
-	} else if (code == LV_EVENT_FOCUSED) {
-		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_set_btn_s_02, NULL);
-		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_PRESSED, NULL, index_icon_set_btn_s_02, NULL);
-	} else if (code == LV_EVENT_DEFOCUSED) {
-		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_set_btn_s_01, NULL);
-		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_PRESSED, NULL, index_icon_set_btn_s_01, NULL);
 	}
 }
 
@@ -142,21 +129,36 @@ void ui_format_dialog_create(FORMAT_DIALOG_CB extry_cb, FORMAT_DIALOG_CB exit_cb
 	lv_obj_t *context_obj;
 	lv_color_t color;
 	lv_color_t text_color;
-	static lv_style_t style1, style2;
+	static lv_style_t dialog_style, btn_style, btn_style_focused, symbol_style;
 
-	lv_style_reset(&style1);
-	lv_style_init(&style1);
-	lv_style_set_layout(&style1, LV_LAYOUT_FLEX);
-	lv_style_set_flex_flow(&style1, LV_FLEX_FLOW_COLUMN_WRAP);
-	lv_style_set_flex_main_place(&style1, LV_FLEX_ALIGN_SPACE_EVENLY);
-	lv_style_set_flex_cross_place(&style1, LV_FLEX_ALIGN_CENTER);
+	lv_style_reset(&dialog_style);
+	lv_style_init(&dialog_style);
+	lv_style_set_layout(&dialog_style, LV_LAYOUT_FLEX);
+	lv_style_set_flex_flow(&dialog_style, LV_FLEX_FLOW_COLUMN_WRAP);
+	lv_style_set_flex_main_place(&dialog_style, LV_FLEX_ALIGN_SPACE_EVENLY);
+	lv_style_set_flex_cross_place(&dialog_style, LV_FLEX_ALIGN_CENTER);
 
-	lv_style_reset(&style2);
-	lv_style_init(&style2);
-	lv_style_set_layout(&style2, LV_LAYOUT_FLEX);
-	lv_style_set_flex_flow(&style2, LV_FLEX_FLOW_ROW_WRAP);
-	lv_style_set_flex_main_place(&style2, LV_FLEX_ALIGN_CENTER);
-	lv_style_set_flex_cross_place(&style2, LV_FLEX_ALIGN_CENTER);
+	lv_style_reset(&btn_style);
+	lv_style_init(&btn_style);
+	lv_style_set_bg_color(&btn_style, lv_color_hex(0xFFFFFF));
+	lv_style_set_text_color(&btn_style, lv_color_hex(0x000000));
+	lv_style_set_bg_opa(&btn_style, LV_OPA_COVER);
+	lv_style_set_pad_top(&btn_style, 0);
+	lv_style_set_pad_bottom(&btn_style, 0);
+
+	lv_style_reset(&btn_style_focused);
+	lv_style_init(&btn_style_focused);
+	lv_style_set_bg_color(&btn_style_focused, lv_palette_lighten(LV_PALETTE_BLUE, 3));
+	lv_style_set_text_color(&btn_style_focused, lv_color_hex(0x000000));
+	lv_style_set_bg_opa(&btn_style_focused, LV_OPA_COVER);
+	lv_style_set_pad_top(&btn_style_focused, 0);
+	lv_style_set_pad_bottom(&btn_style_focused, 0);
+
+	lv_style_reset(&symbol_style);
+	lv_style_init(&symbol_style);
+	lv_style_set_text_font(&symbol_style, &lv_font_montserrat_14);
+	lv_style_set_text_color(&symbol_style, lv_palette_darken(LV_PALETTE_GREY, 3));
+	lv_style_set_text_align(&symbol_style, LV_TEXT_ALIGN_CENTER);
 
 	format_group = lv_port_indev_group_create();
 	if (format_group == NULL)
@@ -174,7 +176,7 @@ void ui_format_dialog_create(FORMAT_DIALOG_CB extry_cb, FORMAT_DIALOG_CB exit_cb
 	lv_obj_add_event_cb(obj, format_dialog_destroy_event_cb, LV_EVENT_FOCUSED, NULL);
 	lv_obj_add_event_cb(obj, format_dialog_destroy_event_cb, LV_EVENT_DEFOCUSED, NULL);
 
-	color = lv_color_make(0X22, 0X2D, 0X30);
+	color = lv_palette_darken(LV_PALETTE_GREY, 4);
 	obj_bg = obj = lv_obj_create(obj);
 	lv_obj_set_size(obj, lv_pct(50), lv_pct(50));
 	lv_obj_set_style_bg_color(obj, color, 0);
@@ -182,7 +184,7 @@ void ui_format_dialog_create(FORMAT_DIALOG_CB extry_cb, FORMAT_DIALOG_CB exit_cb
 	lv_obj_set_style_radius(obj, 0, 0);
 	lv_obj_set_style_bg_opa(obj, LV_OPA_80, 0);
 	lv_obj_align(obj, LV_ALIGN_CENTER, 0, 0);
-	lv_obj_add_style(obj, &style1, 0);
+	lv_obj_add_style(obj, &dialog_style, 0);
 
 	text_color = lv_color_make(0XFF, 0XFF, 0XFF);
 	obj = lv_label_create(obj_bg);
@@ -201,37 +203,33 @@ void ui_format_dialog_create(FORMAT_DIALOG_CB extry_cb, FORMAT_DIALOG_CB exit_cb
 	lv_obj_add_event_cb(obj, format_dialog_destroy_event_cb, LV_EVENT_CLICKED, NULL);
 	lv_obj_set_flex_grow(obj, 1);
 
-	obj = lv_imgbtn_create(context_obj);
+	obj = lv_btn_create(context_obj);
+	lv_obj_add_style(obj, &btn_style, 0);
+	lv_obj_add_style(obj, &btn_style_focused, LV_STATE_FOCUSED);
 	lv_group_add_obj(format_group, obj);
-	lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_set_btn_s_01, NULL);
-	lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_PRESSED, NULL, index_icon_set_btn_s_02, NULL);
 	lv_obj_add_event_cb(obj, format_dialog_destroy_event_cb, LV_EVENT_CLICKED, (void *)0);
 	lv_obj_add_event_cb(obj, format_dialog_destroy_event_cb, LV_EVENT_FOCUSED, NULL);
 	lv_obj_add_event_cb(obj, format_dialog_destroy_event_cb, LV_EVENT_DEFOCUSED, NULL);
-	lv_obj_set_size(obj, index_icon_set_btn_s_01->header.w, index_icon_set_btn_s_01->header.h);
+	lv_obj_set_size(obj, lv_pct(40), lv_pct(80));
 	lv_obj_align(obj, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 
-	text_color = lv_color_make(0X31, 0X31, 0X31);
 	obj = lv_label_create(obj);
+	lv_obj_add_style(obj, &symbol_style, 0);
 	lv_label_set_text(obj, LV_SYMBOL_CLOSE);
-	lv_obj_set_style_text_color(obj, text_color, 0);
-	lv_obj_align(obj, LV_ALIGN_CENTER, 0, 0);
 
-	obj = lv_imgbtn_create(context_obj);
+	obj = lv_btn_create(context_obj);
 	lv_group_add_obj(format_group, obj);
-	lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_set_btn_s_01, NULL);
-	lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_PRESSED, NULL, index_icon_set_btn_s_02, NULL);
+	lv_obj_add_style(obj, &btn_style, 0);
+	lv_obj_add_style(obj, &btn_style_focused, LV_STATE_FOCUSED);
 	lv_obj_add_event_cb(obj, format_start_event_cb, LV_EVENT_CLICKED, (void *)0);
 	lv_obj_add_event_cb(obj, format_start_event_cb, LV_EVENT_FOCUSED, NULL);
 	lv_obj_add_event_cb(obj, format_start_event_cb, LV_EVENT_DEFOCUSED, NULL);
-	lv_obj_set_size(obj, index_icon_set_btn_s_01->header.w, index_icon_set_btn_s_01->header.h);
+	lv_obj_set_size(obj, lv_pct(40), lv_pct(80));
 	lv_obj_align(obj, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 
-	text_color = lv_color_make(0X31, 0X31, 0X31);
 	obj = lv_label_create(obj);
+	lv_obj_add_style(obj, &symbol_style, 0);
 	lv_label_set_text(obj, LV_SYMBOL_OK);
-	lv_obj_set_style_text_color(obj, text_color, 0);
-	lv_obj_align(obj, LV_ALIGN_CENTER, 0, 0);
 
 	g_extry_cb = exit_cb, g_exit_cb = exit_cb;
 	if (NULL == g_format_handler)

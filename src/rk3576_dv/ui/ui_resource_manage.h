@@ -57,11 +57,6 @@ extern lv_img_dsc_t *index_icon_bg_p;
 
 extern lv_img_dsc_t *index_icon_player_play;
 
-extern lv_img_dsc_t *index_icon_set_btn_01;
-extern lv_img_dsc_t *index_icon_set_btn_02;
-extern lv_img_dsc_t *index_icon_set_btn_s_01;
-extern lv_img_dsc_t *index_icon_set_btn_s_02;
-
 void ui_resource_release(void);
 void ui_resource_load(void);
 
