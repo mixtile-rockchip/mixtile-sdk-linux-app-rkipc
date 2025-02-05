@@ -106,10 +106,14 @@ static void mode_update(void) {
 		lv_label_set_text(settings_ctrl.fps_img_obj, "4K30");
 		lv_img_set_src(settings_ctrl.mode_img_obj, index_icon_slow_motion);
 		lv_label_set_text(settings_ctrl.mode_label_obj, "慢动作");
-	} else {
+	} else if (rk_get_mode() == RK_VIDEO_MODE) {
 		lv_label_set_text(settings_ctrl.fps_img_obj, "4K30");
 		lv_img_set_src(settings_ctrl.mode_img_obj, index_icon_video);
 		lv_label_set_text(settings_ctrl.mode_label_obj, "录像模式");
+	} else {
+		lv_label_set_text(settings_ctrl.fps_img_obj, "4K30");
+		lv_img_set_src(settings_ctrl.mode_img_obj, index_icon_slow_motion);
+		lv_label_set_text(settings_ctrl.mode_label_obj, "延时摄影");
 	}
 }
 
@@ -234,6 +238,7 @@ static void create_radio_buttons(lv_obj_t *parent, lv_group_t *g) {
 	    [RK_VIDEO_MODE] = "录像模式",
 	    [RK_PHOTO_MODE] = "拍照模式",
 	    [RK_SLOW_MOTION_MODE] = "慢动作",
+	    [RK_TIME_LAPSE_MODE] = "延时摄影",
 	};
 	int select_btn_idx = 0;
 	lv_obj_t *btn = NULL, *label = NULL;
@@ -253,7 +258,7 @@ static void create_radio_buttons(lv_obj_t *parent, lv_group_t *g) {
 	lv_style_set_bg_opa(&checked_style, LV_OPA_COVER);
 	lv_style_set_radius(&checked_style, 10);
 
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 4; i++) {
 		btn = lv_btn_create(parent);
 		lv_obj_set_size(btn, lv_pct(80), lv_pct(25));
 		lv_obj_add_flag(btn, LV_OBJ_FLAG_CHECKABLE);
@@ -279,7 +284,7 @@ static void create_radio_buttons(lv_obj_t *parent, lv_group_t *g) {
 static void create_mode_select_box(void) {
 	settings_ctrl.select_group = lv_port_indev_group_create();
 	if (settings_ctrl.select_group == NULL)
-		return NULL;
+		return ;
 	settings_ctrl.select_dialog = create_radio_dialog(lv_scr_act());
 
 	create_radio_buttons(settings_ctrl.select_dialog, settings_ctrl.select_group);
@@ -640,8 +645,10 @@ static void setting_set_text() {
 		lv_label_set_text(settings_ctrl.mode_label_obj, "录像模式");
 	else if (rk_get_mode() == RK_PHOTO_MODE)
 		lv_label_set_text(settings_ctrl.mode_label_obj, "拍照模式");
-	else
+	else if (rk_get_mode() == RK_SLOW_MOTION_MODE)
 		lv_label_set_text(settings_ctrl.mode_label_obj, "慢动作");
+	else
+		lv_label_set_text(settings_ctrl.mode_label_obj, "延时摄影");
 
 	lv_obj_add_style(settings_ctrl.mode_label_obj, &style, 0);
 

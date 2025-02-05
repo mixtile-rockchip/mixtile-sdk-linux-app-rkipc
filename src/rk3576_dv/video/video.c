@@ -2,9 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "list.h"
 #include "video.h"
 #include "libRkEisApi.h"
 #include "rk_mpi_gdc.h"
+#include <rk_mpi_vdec.h>
 #ifdef LOG_TAG
 #undef LOG_TAG
 #endif
@@ -13,9 +15,11 @@
 #define RKISP_MAINPATH 0
 #define RKISP_SELFPATH 1
 #define RKISP_FBCPATH 2
-#define VIDEO_PIPE_0 0
-#define VIDEO_PIPE_1 1
-#define VIDEO_PIPE_2 2
+#define VIDEO_PIPE_NORMAL 0
+#define VIDEO_PIPE_SLOWMOTION 1
+#define VIDEO_PIPE_TIMELAPSE 2
+#define VIDEO_RECODING_ENC 3
+#define VIDEO_RECODING_DEC 3
 #define JPEG_VENC_CHN 3
 #define VPSS_ROTATE 6
 #define VPSS_GRP_ID VPSS_MAX_CHN_NUM
@@ -46,7 +50,7 @@ static int g_vi_for_vo_chn_id = 1;
 
 static int max_capture_num = 5;
 static int remain_capture_num = 0;
-static int enable_jpeg, enable_venc_0, enable_venc_1, enable_venc_2, enable_npu, enable_gdc,
+static int enable_jpeg, enable_video, enable_slowmotion, enable_timelapse, enable_npu, enable_gdc,
     enable_dp, enable_lcd, enable_eis_debug;
 static int g_enable_vo;
 static int dp_vo_dev_id = RK3576_VO_DEV_DP;
@@ -60,7 +64,7 @@ static const char *tmp_h264_profile;
 static const char *tmp_smart;
 static const char *tmp_gop_mode;
 static const char *tmp_rc_quality;
-static pthread_t venc_thread_0, venc_thread_1, venc_thread_2, jpeg_venc_thread_id,
+static pthread_t venc_thread_normal, venc_thread_slowmotion, venc_thread_timelapse, jpeg_venc_thread_id,
     get_vpss_2_send_npu_thread, get_nn_update_osd_thread_id;
 
 static MPP_CHN_S vi_chn[2], gdc_chn[2], vpss_in_chn, vi_for_vo_chn, vo_chn[2], vpss_out_chn[4],
@@ -114,7 +118,7 @@ static void *test_get_vi(void *arg) {
 }
 */
 
-static void *rkipc_get_venc_0(void *arg) {
+static void *rkipc_video_loop(void *arg) {
 	printf("#Start %s thread, arg:%p\n", __func__, arg);
 	VENC_STREAM_S stFrame;
 	VI_CHN_STATUS_S stChnStatus;
@@ -126,7 +130,7 @@ static void *rkipc_get_venc_0(void *arg) {
 
 	while (g_start_record_) {
 		// 5.get the frame
-		ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_0, &stFrame, 1000);
+		ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_NORMAL, &stFrame, 1000);
 		if (ret == RK_SUCCESS) {
 			before_time = rkipc_get_curren_time_ms();
 			void *data = RK_MPI_MB_Handle2VirAddr(stFrame.pstPack->pMbBlk);
@@ -157,9 +161,12 @@ static void *rkipc_get_venc_0(void *arg) {
 			}
 			if (rkipc_get_curren_time_ms() - before_time > 100)
 				LOG_INFO("write cost time is %lldms\n", rkipc_get_curren_time_ms() - before_time);
+			LOG_DEBUG("Count:%d, Len:%d, PTS is %" PRId64", enH264EType is %d, ref type %d\n", loopCount,
+				stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
+				stFrame.pstPack->DataType.enH265EType, stFrame.stH265Info.enRefType);
 
 			// 7.release the frame
-			ret = RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_0, &stFrame);
+			ret = RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_NORMAL, &stFrame);
 			if (ret != RK_SUCCESS) {
 				LOG_ERROR("RK_MPI_VENC_ReleaseStream fail %x\n", ret);
 			}
@@ -176,7 +183,7 @@ static void *rkipc_get_venc_0(void *arg) {
 	return 0;
 }
 
-static void *rkipc_get_venc_1(void *arg) {
+static void *rkipc_slowmotion_loop(void *arg) {
 	printf("#Start %s thread, arg:%p\n", __func__, arg);
 	VENC_STREAM_S stFrame;
 	VI_CHN_STATUS_S stChnStatus;
@@ -188,7 +195,7 @@ static void *rkipc_get_venc_1(void *arg) {
 
 	while (g_start_record_) {
 		// 5.get the frame
-		ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_1, &stFrame, 1000);
+		ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_SLOWMOTION, &stFrame, 1000);
 		if (ret == RK_SUCCESS) {
 			if (modified_pts)
 				modified_pts += step;
@@ -210,7 +217,7 @@ static void *rkipc_get_venc_1(void *arg) {
 				                             stFrame.pstPack->u64PTS, 0);
 			}
 			// 7.release the frame
-			ret = RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_1, &stFrame);
+			ret = RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_SLOWMOTION, &stFrame);
 			if (ret != RK_SUCCESS)
 				LOG_ERROR("RK_MPI_VENC_ReleaseStream fail %x\n", ret);
 			loopCount++;
@@ -224,39 +231,129 @@ static void *rkipc_get_venc_1(void *arg) {
 	return 0;
 }
 
-static void *rkipc_get_venc_2(void *arg) {
+#define MAX_STREAM_CACHE_LEN (512 * 1024 * 1024)
+
+struct stream_cache_packet {
+	uint32_t offset;
+	uint32_t size;
+	struct list_head list;
+};
+
+struct stream_cache {
+	void *data;
+	uint32_t used_size;
+	uint32_t total_size;
+	uint32_t packet_num;
+	struct list_head packet_list;
+};
+
+static bool need_save_stream(VENC_STREAM_S *frame) {
+	if (!frame)
+		return false;
+	if ((frame->pstPack->DataType.enH264EType == H264E_NALU_IDRSLICE) ||
+	    (frame->pstPack->DataType.enH264EType == H264E_NALU_ISLICE) ||
+	    (frame->pstPack->DataType.enH265EType == H265E_NALU_IDRSLICE) ||
+	    (frame->pstPack->DataType.enH265EType == H265E_NALU_ISLICE))
+		return true;
+	if ((!strcmp(tmp_gop_mode, "smartP")) &&
+		((frame->stH264Info.enRefType == BASE_PSLICE_REFTOIDR) ||
+		(frame->stH265Info.enRefType == BASE_PSLICE_REFTOIDR)))
+		return true;
+	return false;
+}
+
+static void drop_stream_cache(struct stream_cache *cache) {
+	struct stream_cache_packet *packet = NULL;
+	struct list_head *cur = NULL, *tmp = NULL;
+	int step = 0, ret = 0, i = 0;
+	int gop = rk_param_get_int("video.2:gop", 15);
+	int fps = rk_param_get_int("isp.0.adjustment:fps", 30);
+	RK_U64 pts = 0;
+
+	LOG_INFO("enter\n");
+	if ((1.0 / fps * gop) * cache->packet_num >= 30 * 60) // 30min
+		step = 4;
+	else if ((1.0 / fps * gop) * cache->packet_num >= 10 * 60) // 10min
+		step = 2;
+	else
+		step = 1;
+	list_for_each_safe(cur, tmp, &cache->packet_list) {
+		packet = container_of(cur, struct stream_cache_packet, list);
+		if ((i % step) == 0) {
+			pts += 33333; // force 30fps output
+			rk_storage_write_video_frame(2, cache->data + packet->offset, packet->size,
+				                             pts, 1);
+			LOG_DEBUG("send frame pts %lld, len %d, index %d to vdec\n", pts, packet->size, i);
+		}
+		list_del(cur);
+		free(packet);
+	}
+	free(cache->data);
+	free(cache);
+	LOG_INFO("exit\n");
+}
+
+static void* create_new_stream_cache(void) {
+	struct stream_cache *cache = NULL;
+	cache = malloc(sizeof(*cache));
+	memset(cache, 0, sizeof(*cache));
+	cache->data = malloc(MAX_STREAM_CACHE_LEN);
+	cache->total_size = MAX_STREAM_CACHE_LEN;
+	INIT_LIST_HEAD(&cache->packet_list);
+	return cache;
+}
+
+static void *rkipc_timelapse_loop(void *arg) {
 	printf("#Start %s thread, arg:%p\n", __func__, arg);
 	VENC_STREAM_S stFrame;
-	VI_CHN_STATUS_S stChnStatus;
+	struct stream_cache *cache;
+	struct stream_cache_packet *packet = NULL;
 	int loopCount = 0;
 	int ret = 0;
-	stFrame.pstPack = malloc(sizeof(VENC_PACK_S));
+	int enable_stream_cache = rk_param_get_int("video.2:enable_stream_cache", 1);
+	long long before_time = 0, cost_time = 0;
+	RK_U64 pts = 0;
 
-	while (g_video_run_) {
+	before_time = rkipc_get_curren_time_ms();
+	stFrame.pstPack = malloc(sizeof(VENC_PACK_S));
+	if (enable_stream_cache)
+		cache = create_new_stream_cache();
+	while (g_start_record_) {
 		// 5.get the frame
-		ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_2, &stFrame, 2500);
+		ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_TIMELAPSE, &stFrame, 1000);
 		if (ret == RK_SUCCESS) {
 			void *data = RK_MPI_MB_Handle2VirAddr(stFrame.pstPack->pMbBlk);
-			// LOG_INFO("Count:%d, Len:%d, PTS is %" PRId64", enH264EType is %d\n", loopCount,
-			// stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-			// stFrame.pstPack->DataType.enH264EType);
-			rkipc_rtsp_write_video_frame(2, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS);
-			if ((stFrame.pstPack->DataType.enH264EType == H264E_NALU_IDRSLICE) ||
-			    (stFrame.pstPack->DataType.enH264EType == H264E_NALU_ISLICE) ||
-			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_IDRSLICE) ||
-			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_ISLICE)) {
-				rk_storage_write_video_frame(2, data, stFrame.pstPack->u32Len,
+			if (need_save_stream(&stFrame)) {
+				if (enable_stream_cache) {
+					if (cache->total_size - cache->used_size < stFrame.pstPack->u32Len) {
+						LOG_WARN("cache is full\n");
+						drop_stream_cache(cache);
+						cache = create_new_stream_cache();
+					}
+					packet = malloc(sizeof(*packet));
+					memset(packet, 0, sizeof(*packet));
+					packet->size = stFrame.pstPack->u32Len;
+					packet->offset = cache->used_size;
+					INIT_LIST_HEAD(&packet->list);
+
+					memcpy(cache->data + packet->offset, data, packet->size);
+					list_add_tail(&packet->list, &cache->packet_list);
+					cache->packet_num += 1;
+					cache->used_size += packet->size;
+				} else {
+					if (!pts)
+						pts = stFrame.pstPack->u64PTS;
+					else
+						pts += 33333;
+					rk_storage_write_video_frame(2, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 1);
-				rk_rtmp_write_video_frame(2, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-				                          1);
-			} else {
-				rk_storage_write_video_frame(2, data, stFrame.pstPack->u32Len,
-				                             stFrame.pstPack->u64PTS, 0);
-				rk_rtmp_write_video_frame(2, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-				                          0);
+				}
 			}
+			LOG_DEBUG("Count:%d, Len:%d, PTS is %" PRId64", enH264EType is %d, ref type %d\n", loopCount,
+				stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
+				stFrame.pstPack->DataType.enH265EType, stFrame.stH265Info.enRefType);
 			// 7.release the frame
-			ret = RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_2, &stFrame);
+			ret = RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_TIMELAPSE, &stFrame);
 			if (ret != RK_SUCCESS)
 				LOG_ERROR("RK_MPI_VENC_ReleaseStream fail %x\n", ret);
 			loopCount++;
@@ -266,7 +363,10 @@ static void *rkipc_get_venc_2(void *arg) {
 	}
 	if (stFrame.pstPack)
 		free(stFrame.pstPack);
-
+	cost_time = rkipc_get_curren_time_ms() - before_time;
+	LOG_INFO("total record time %lld ms\n", cost_time);
+	if (enable_stream_cache)
+		drop_stream_cache(cache);
 	return 0;
 }
 
@@ -418,7 +518,7 @@ static int rkipc_vi_chn_init() {
 	int video_height = 0;
 	int buf_cnt = rk_param_get_int("video.0:buf_cnt", 32);
 
-	if (enable_venc_0 || enable_jpeg) {
+	if (enable_video || enable_jpeg || enable_timelapse) {
 		video_width = rk_param_get_int("video.source:width", -1);
 		video_height = rk_param_get_int("video.source:height", -1);
 	} else {
@@ -434,10 +534,8 @@ static int rkipc_vi_chn_init() {
 	vi_chn_attr.stSize.u32Height = video_height;
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.u32Depth = rk_param_get_int("video.0:depth", 16);
-	if (enable_venc_0)
+	if (enable_video)
 		vi_chn_attr.stIspOpt.bAttchFrmInfo = true;
-	vi_chn_attr.stFrameRate.s32SrcFrameRate = -1;
-	vi_chn_attr.stFrameRate.s32DstFrameRate = -1;
 	ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_chn_id, &vi_chn_attr);
 	ret |= RK_MPI_VI_EnableChn(pipe_id_, g_vi_chn_id);
 	if (ret) {
@@ -558,11 +656,11 @@ int rkipc_vpss_deinit() {
 	VPSS_CHN VpssChn[VPSS_MAX_CHN_NUM] = {VPSS_CHN0, VPSS_CHN1, VPSS_CHN2, VPSS_CHN3};
 	VPSS_GRP VpssGrp = 0;
 	ret |= RK_MPI_VPSS_StopGrp(VpssGrp);
-	if (enable_venc_0)
+	if (enable_video)
 		ret |= RK_MPI_VPSS_DisableChn(VpssGrp, VpssChn[0]);
-	if (enable_venc_1)
+	if (enable_slowmotion)
 		ret |= RK_MPI_VPSS_DisableChn(VpssGrp, VpssChn[1]);
-	if (enable_venc_2)
+	if (enable_timelapse)
 		ret |= RK_MPI_VPSS_DisableChn(VpssGrp, VpssChn[2]);
 	if (enable_jpeg)
 		ret |= RK_MPI_VPSS_DisableChn(VpssGrp, VpssChn[3]);
@@ -572,7 +670,7 @@ int rkipc_vpss_deinit() {
 	return ret;
 }
 
-static int rkipc_venc_0_init() {
+static int rkipc_venc_normal_init() {
 	int ret = 0;
 	int video_width = rk_param_get_int("video.0:width", -1);
 	int video_height = rk_param_get_int("video.0:height", -1);
@@ -677,7 +775,7 @@ static int rkipc_venc_0_init() {
 	venc_chn_attr.stVencAttr.u32StreamBufCnt = 60 * 3;              // 3s
 	venc_chn_attr.stVencAttr.u32BufSize = 65 * 1024 * 1024 * 3 / 8; // 3s * 65Mbps, 24MB
 	// venc_chn_attr.stVencAttr.u32Depth = 1;
-	ret = RK_MPI_VENC_CreateChn(VIDEO_PIPE_0, &venc_chn_attr);
+	ret = RK_MPI_VENC_CreateChn(VIDEO_PIPE_NORMAL, &venc_chn_attr);
 	if (ret) {
 		LOG_ERROR("ERROR: create VENC error! ret=%d\n", ret);
 		return -1;
@@ -685,7 +783,7 @@ static int rkipc_venc_0_init() {
 
 	tmp_rc_quality = rk_param_get_string("video.0:rc_quality", NULL);
 	VENC_RC_PARAM_S venc_rc_param;
-	RK_MPI_VENC_GetRcParam(VIDEO_PIPE_0, &venc_rc_param);
+	RK_MPI_VENC_GetRcParam(VIDEO_PIPE_NORMAL, &venc_rc_param);
 	if (!strcmp(tmp_output_data_type, "H.264")) {
 		if (!strcmp(tmp_rc_quality, "highest")) {
 			venc_rc_param.stParamH264.u32MinQp = 10;
@@ -722,22 +820,22 @@ static int rkipc_venc_0_init() {
 		LOG_ERROR("tmp_output_data_type is %s, not support\n", tmp_output_data_type);
 		return -1;
 	}
-	RK_MPI_VENC_SetRcParam(VIDEO_PIPE_0, &venc_rc_param);
+	RK_MPI_VENC_SetRcParam(VIDEO_PIPE_NORMAL, &venc_rc_param);
 
 	int rotation = rk_param_get_int("video.source:rotation", 0);
 	if (rotation == 0) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_0, ROTATION_0);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_NORMAL, ROTATION_0);
 	} else if (rotation == 90) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_0, ROTATION_90);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_NORMAL, ROTATION_90);
 	} else if (rotation == 180) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_0, ROTATION_180);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_NORMAL, ROTATION_180);
 	} else if (rotation == 270) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_0, ROTATION_270);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_NORMAL, ROTATION_270);
 	}
 
 	int fps = rk_param_get_int("isp.0.adjustment:fps", 30);
 	if (fps == 58) {
-		ret = RK_MPI_VENC_RequestPskip(VIDEO_PIPE_0, 1, 29);
+		ret = RK_MPI_VENC_RequestPskip(VIDEO_PIPE_NORMAL, 1, 29);
 		if (ret)
 			LOG_ERROR("RK_MPI_VENC_RequestPskip failed %#X\n", ret);
 		else
@@ -747,9 +845,9 @@ static int rkipc_venc_0_init() {
 	return ret;
 }
 
-int rkipc_venc_0_deinit() {
+int rkipc_venc_normal_deinit() {
 	int ret = 0;
-	ret |= RK_MPI_VENC_DestroyChn(VIDEO_PIPE_0);
+	ret |= RK_MPI_VENC_DestroyChn(VIDEO_PIPE_NORMAL);
 	if (ret)
 		LOG_ERROR("ERROR: Destroy VENC error! ret=%#x\n", ret);
 	else
@@ -758,7 +856,7 @@ int rkipc_venc_0_deinit() {
 	return ret;
 }
 
-static int rkipc_venc_1_init() {
+static int rkipc_venc_slowmotion_init() {
 	int ret = 0;
 	int video_width = rk_param_get_int("video.1:width", -1);
 	int video_height = rk_param_get_int("video.1:height", -1);
@@ -863,7 +961,7 @@ static int rkipc_venc_1_init() {
 	venc_chn_attr.stVencAttr.u32StreamBufCnt = 60 * 3;              // 3s
 	venc_chn_attr.stVencAttr.u32BufSize = 65 * 1024 * 1024 * 3 / 8; // 3s * 65Mbps, 24MB
 	// venc_chn_attr.stVencAttr.u32Depth = 1;
-	ret = RK_MPI_VENC_CreateChn(VIDEO_PIPE_1, &venc_chn_attr);
+	ret = RK_MPI_VENC_CreateChn(VIDEO_PIPE_SLOWMOTION, &venc_chn_attr);
 	if (ret) {
 		LOG_ERROR("ERROR: create VENC error! ret=%d\n", ret);
 		return -1;
@@ -871,7 +969,7 @@ static int rkipc_venc_1_init() {
 
 	tmp_rc_quality = rk_param_get_string("video.1:rc_quality", NULL);
 	VENC_RC_PARAM_S venc_rc_param;
-	RK_MPI_VENC_GetRcParam(VIDEO_PIPE_1, &venc_rc_param);
+	RK_MPI_VENC_GetRcParam(VIDEO_PIPE_SLOWMOTION, &venc_rc_param);
 	if (!strcmp(tmp_output_data_type, "H.264")) {
 		if (!strcmp(tmp_rc_quality, "highest")) {
 			venc_rc_param.stParamH264.u32MinQp = 10;
@@ -908,26 +1006,26 @@ static int rkipc_venc_1_init() {
 		LOG_ERROR("tmp_output_data_type is %s, not support\n", tmp_output_data_type);
 		return -1;
 	}
-	RK_MPI_VENC_SetRcParam(VIDEO_PIPE_1, &venc_rc_param);
+	RK_MPI_VENC_SetRcParam(VIDEO_PIPE_SLOWMOTION, &venc_rc_param);
 
 	int rotation = rk_param_get_int("video.source:rotation", 0);
 	if (rotation == 0) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_1, ROTATION_0);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_SLOWMOTION, ROTATION_0);
 	} else if (rotation == 90) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_1, ROTATION_90);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_SLOWMOTION, ROTATION_90);
 	} else if (rotation == 180) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_1, ROTATION_180);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_SLOWMOTION, ROTATION_180);
 	} else if (rotation == 270) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_1, ROTATION_270);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_SLOWMOTION, ROTATION_270);
 	}
 
 	return ret;
 }
 
-static int rkipc_venc_1_deinit() {
+static int rkipc_venc_slowmotion_deinit() {
 	int ret = 0;
-	ret = RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_1);
-	ret |= RK_MPI_VENC_DestroyChn(VIDEO_PIPE_1);
+	ret = RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_SLOWMOTION);
+	ret |= RK_MPI_VENC_DestroyChn(VIDEO_PIPE_SLOWMOTION);
 	if (ret)
 		LOG_ERROR("ERROR: Destroy VENC error! ret=%#x\n", ret);
 	else
@@ -936,7 +1034,7 @@ static int rkipc_venc_1_deinit() {
 	return ret;
 }
 
-static int rkipc_venc_2_init() {
+static int rkipc_venc_timelapse_init() {
 	int ret = 0;
 	int video_width = rk_param_get_int("video.2:width", -1);
 	int video_height = rk_param_get_int("video.2:height", -1);
@@ -1038,10 +1136,10 @@ static int rkipc_venc_2_init() {
 	venc_chn_attr.stVencAttr.u32PicHeight = video_height;
 	venc_chn_attr.stVencAttr.u32VirWidth = video_width;
 	venc_chn_attr.stVencAttr.u32VirHeight = video_height;
-	venc_chn_attr.stVencAttr.u32StreamBufCnt = 5;
-	venc_chn_attr.stVencAttr.u32BufSize = video_width * video_height * 3 / 2;
+	venc_chn_attr.stVencAttr.u32StreamBufCnt = 60 * 3;              // 3s
+	venc_chn_attr.stVencAttr.u32BufSize = 65 * 1024 * 1024 * 3 / 8; // 3s * 65Mbps, 24MB
 	// venc_chn_attr.stVencAttr.u32Depth = 1;
-	ret = RK_MPI_VENC_CreateChn(VIDEO_PIPE_2, &venc_chn_attr);
+	ret = RK_MPI_VENC_CreateChn(VIDEO_PIPE_TIMELAPSE, &venc_chn_attr);
 	if (ret) {
 		LOG_ERROR("ERROR: create VENC error! ret=%d\n", ret);
 		return -1;
@@ -1049,7 +1147,7 @@ static int rkipc_venc_2_init() {
 
 	tmp_rc_quality = rk_param_get_string("video.2:rc_quality", NULL);
 	VENC_RC_PARAM_S venc_rc_param;
-	RK_MPI_VENC_GetRcParam(VIDEO_PIPE_2, &venc_rc_param);
+	RK_MPI_VENC_GetRcParam(VIDEO_PIPE_TIMELAPSE, &venc_rc_param);
 	if (!strcmp(tmp_output_data_type, "H.264")) {
 		if (!strcmp(tmp_rc_quality, "highest")) {
 			venc_rc_param.stParamH264.u32MinQp = 10;
@@ -1086,32 +1184,26 @@ static int rkipc_venc_2_init() {
 		LOG_ERROR("tmp_output_data_type is %s, not support\n", tmp_output_data_type);
 		return -1;
 	}
-	RK_MPI_VENC_SetRcParam(VIDEO_PIPE_2, &venc_rc_param);
+	RK_MPI_VENC_SetRcParam(VIDEO_PIPE_TIMELAPSE, &venc_rc_param);
 
 	int rotation = rk_param_get_int("video.source:rotation", 0);
 	if (rotation == 0) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_2, ROTATION_0);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_TIMELAPSE, ROTATION_0);
 	} else if (rotation == 90) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_2, ROTATION_90);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_TIMELAPSE, ROTATION_90);
 	} else if (rotation == 180) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_2, ROTATION_180);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_TIMELAPSE, ROTATION_180);
 	} else if (rotation == 270) {
-		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_2, ROTATION_270);
+		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_TIMELAPSE, ROTATION_270);
 	}
-
-	VENC_RECV_PIC_PARAM_S stRecvParam;
-	memset(&stRecvParam, 0, sizeof(VENC_RECV_PIC_PARAM_S));
-	stRecvParam.s32RecvPicNum = -1;
-	RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_2, &stRecvParam);
-	pthread_create(&venc_thread_2, NULL, rkipc_get_venc_2, NULL);
 
 	return ret;
 }
 
-static int rkipc_venc_2_deinit() {
+static int rkipc_venc_timelapse_deinit() {
 	int ret = 0;
-	ret = RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_2);
-	ret |= RK_MPI_VENC_DestroyChn(VIDEO_PIPE_2);
+	ret = RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_TIMELAPSE);
+	ret |= RK_MPI_VENC_DestroyChn(VIDEO_PIPE_TIMELAPSE);
 	if (ret)
 		LOG_ERROR("ERROR: Destroy VENC error! ret=%#x\n", ret);
 	else
@@ -1120,7 +1212,7 @@ static int rkipc_venc_2_deinit() {
 	return ret;
 }
 
-static int rkipc_venc_3_init() {
+static int rkipc_jpeg_init() {
 	// jpeg resolution same to video.0
 	int ret;
 	int video_width = rk_param_get_int("video.0:width", -1);
@@ -1169,7 +1261,7 @@ static int rkipc_venc_3_init() {
 	return ret;
 }
 
-static int rkipc_venc_3_deinit() {
+static int rkipc_jpeg_deinit() {
 	int ret = 0;
 	ret = RK_MPI_VENC_StopRecvFrame(JPEG_VENC_CHN);
 	ret |= RK_MPI_VENC_DestroyChn(JPEG_VENC_CHN);
@@ -1207,7 +1299,7 @@ static int rkipc_bind_init() {
 	vo_chn[1].s32DevId = lcd_vo_layer;
 	vo_chn[1].s32ChnId = 0;
 
-	if (enable_venc_0) {
+	if (enable_video) {
 		ret = RK_MPI_SYS_Bind(&vi_chn[0], &gdc_chn[0]);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("vi 0 bind gdc 0 fail:%x", ret);
@@ -1223,8 +1315,13 @@ static int rkipc_bind_init() {
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("vi 0 bind venc 3 fail:%x", ret);
 		}
-	} else if (enable_venc_1) {
+	} else if (enable_slowmotion) {
 		ret = RK_MPI_SYS_Bind(&vi_chn[0], &venc_chn[1]);
+		if (ret != RK_SUCCESS) {
+			LOG_ERROR("vi 0 bind venc 3 fail:%x", ret);
+		}
+	} else if (enable_timelapse) {
+		ret = RK_MPI_SYS_Bind(&vi_chn[0], &venc_chn[2]);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("vi 0 bind venc 3 fail:%x", ret);
 		}
@@ -1246,25 +1343,35 @@ static int rkipc_bind_init() {
 		// TODO
 	}
 
-	if (enable_venc_0) {
+	if (enable_video) {
 		// HACK: avoid rockit error
 		VENC_RECV_PIC_PARAM_S stRecvParam;
 		VENC_STREAM_S stFrame;
 		memset(&stRecvParam, 0, sizeof(stRecvParam));
 		stRecvParam.s32RecvPicNum = 1;
-		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_0, &stRecvParam);
-		//RK_MPI_VENC_GetStream(VIDEO_PIPE_0, &stFrame, 1000);
-		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_0);
+		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_NORMAL, &stRecvParam);
+		//RK_MPI_VENC_GetStream(VIDEO_PIPE_NORMAL, &stFrame, 1000);
+		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_NORMAL);
 	}
-	if (enable_venc_1) {
+	if (enable_slowmotion) {
 		// HACK: avoid rockit error
 		VENC_RECV_PIC_PARAM_S stRecvParam;
 		VENC_STREAM_S stFrame;
 		memset(&stRecvParam, 0, sizeof(stRecvParam));
 		stRecvParam.s32RecvPicNum = 1;
-		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_1, &stRecvParam);
-		//RK_MPI_VENC_GetStream(VIDEO_PIPE_0, &stFrame, 1000);
-		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_1);
+		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_SLOWMOTION, &stRecvParam);
+		//RK_MPI_VENC_GetStream(VIDEO_PIPE_NORMAL, &stFrame, 1000);
+		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_SLOWMOTION);
+	}
+	if (enable_timelapse) {
+		// HACK: avoid rockit error
+		VENC_RECV_PIC_PARAM_S stRecvParam;
+		VENC_STREAM_S stFrame;
+		memset(&stRecvParam, 0, sizeof(stRecvParam));
+		stRecvParam.s32RecvPicNum = 1;
+		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_TIMELAPSE, &stRecvParam);
+		//RK_MPI_VENC_GetStream(VIDEO_PIPE_NORMAL, &stFrame, 1000);
+		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_TIMELAPSE);
 	}
 
 	return ret;
@@ -1273,7 +1380,7 @@ static int rkipc_bind_init() {
 static int rkipc_bind_deinit() {
 	int ret;
 
-	if (enable_venc_0) {
+	if (enable_video) {
 		ret = RK_MPI_SYS_UnBind(&gdc_chn[0], &venc_chn[0]);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("gdc unbind venc fail:%x", ret);
@@ -1288,8 +1395,13 @@ static int rkipc_bind_deinit() {
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("vi 0 unbind venc 3 fail:%x", ret);
 		}
-	} else if (enable_venc_1) {
+	} else if (enable_slowmotion) {
 		ret = RK_MPI_SYS_UnBind(&vi_chn[0], &venc_chn[1]);
+		if (ret != RK_SUCCESS) {
+			LOG_ERROR("vi 0 unbind venc 3 fail:%x", ret);
+		}
+	} else if (enable_timelapse) {
+		ret = RK_MPI_SYS_UnBind(&vi_chn[0], &venc_chn[2]);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("vi 0 unbind venc 3 fail:%x", ret);
 		}
@@ -2379,13 +2491,13 @@ int rk_roi_set(roi_data_s *roi_data) {
 	}
 
 	if (!strcmp(roi_data->stream_type, "mainStream") &&
-	    rk_param_get_int("video.source:enable_venc_0", 0)) {
+	    rk_param_get_int("video.source:enable_video", 0)) {
 		venc_chn = 0;
 	} else if (!strcmp(roi_data->stream_type, "subStream") &&
-	           rk_param_get_int("video.source:enable_venc_1", 0)) {
+	           rk_param_get_int("video.source:enable_slowmotion", 0)) {
 		venc_chn = 1;
 	} else if (!strcmp(roi_data->stream_type, "thirdStream") &&
-	           rk_param_get_int("video.source:enable_venc_2", 0)) {
+	           rk_param_get_int("video.source:enable_timelapse", 0)) {
 		venc_chn = 2;
 	} else {
 		LOG_DEBUG("%s is not exit\n", roi_data->stream_type);
@@ -2692,7 +2804,7 @@ static void *gdc_thread(void *arg) {
 			// 		LOG_ERROR("RK_MPI_VO_SendLayerFrame timeout %x\n", ret);
 			// }
 
-			// ret = RK_MPI_VENC_SendFrame(VIDEO_PIPE_0, &getFrame, 1000);
+			// ret = RK_MPI_VENC_SendFrame(VIDEO_PIPE_NORMAL, &getFrame, 1000);
 			// if (ret)
 			// 	LOG_ERROR("RK_MPI_VENC_SendFrame timeout %x\n", ret);
 
@@ -2761,7 +2873,7 @@ RK_S32 RKGdcVframeCB(RK_VOID *pUsr, GDC_VFAME_INFO_S *pInfo) {
 	gdc_frame.stVFrame.enCompressMode = pInfo->enCompressMode;
 	gdc_frame.stVFrame.u32TimeRef = pInfo->u32Seq;
 	gdc_frame.stVFrame.u64PTS = pInfo->u64PTS;
-	RK_MPI_VENC_SendFrame(VIDEO_PIPE_0, &gdc_frame, 1000);
+	RK_MPI_VENC_SendFrame(VIDEO_PIPE_NORMAL, &gdc_frame, 1000);
 	RK_MPI_MB_ReleaseMB(pInfo->pMbBlk);
 
 	return GDC_INFO_CB_SUCCESS;
@@ -2770,7 +2882,7 @@ RK_S32 RKGdcVframeCB(RK_VOID *pUsr, GDC_VFAME_INFO_S *pInfo) {
 int rkipc_gdc_init() {
 	RK_S32 ret = RK_SUCCESS;
 	GDC_CHN_ATTR_S stAttr = {0};
-	if (enable_venc_0) {
+	if (enable_video) {
 		stAttr.u32MaxInQueue = 8;
 		stAttr.u32MaxOutQueue = 8;
 		stAttr.s32SrcWidth = rk_param_get_int("video.source:width", 4032);
@@ -2812,7 +2924,7 @@ int rkipc_gdc_init() {
 
 static int rkipc_gdc_deinit() {
 	int ret = 0;
-	if (enable_venc_0)
+	if (enable_video)
 		ret = RK_MPI_GDC_DestroyChn(0);
 	if (enable_lcd)
 		ret |= RK_MPI_GDC_DestroyChn(1);
@@ -2829,12 +2941,12 @@ int rk_video_init() {
 
 	int ret = 0;
 	enable_jpeg = rk_param_get_int("video.source:enable_jpeg", 0);
-	enable_venc_0 = rk_param_get_int("video.source:enable_venc_0", 1);
-	enable_venc_1 = rk_param_get_int("video.source:enable_venc_1", 1);
-	enable_venc_2 = rk_param_get_int("video.source:enable_venc_2", 1);
+	enable_video = rk_param_get_int("video.source:enable_video", 1);
+	enable_slowmotion = rk_param_get_int("video.source:enable_slowmotion", 1);
+	enable_timelapse = rk_param_get_int("video.source:enable_timelapse", 1);
 	enable_npu = rk_param_get_int("video.source:enable_npu", 0);
-	LOG_INFO("enable_jpeg is %d, enable_venc_0 is %d, enable_venc_1 is %d, enable_venc_2 is %d\n",
-	         enable_jpeg, enable_venc_0, enable_venc_1, enable_venc_2);
+	LOG_INFO("enable_jpeg is %d, enable_video is %d, enable_slowmotion is %d, enable_timelapse is %d\n",
+	         enable_jpeg, enable_video, enable_slowmotion, enable_timelapse);
 
 	pipe_id_ = rk_param_get_int("video.source:camera_id", 0);
 	g_vi_chn_id = rk_param_get_int("video.source:vi_chn_id", 0);
@@ -2853,14 +2965,14 @@ int rk_video_init() {
 	ret |= rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
 	ret |= rkipc_rtmp_init();
 	// ret |= rkipc_vpss_init();
-	if (enable_venc_0)
-		ret |= rkipc_venc_0_init();
-	if (enable_venc_1)
-		ret |= rkipc_venc_1_init();
-	if (enable_venc_2)
-		ret |= rkipc_venc_2_init();
+	if (enable_video)
+		ret |= rkipc_venc_normal_init();
+	if (enable_slowmotion)
+		ret |= rkipc_venc_slowmotion_init();
+	if (enable_timelapse)
+		ret |= rkipc_venc_timelapse_init();
 	if (enable_jpeg)
-		ret |= rkipc_venc_3_init();
+		ret |= rkipc_jpeg_init();
 	if (g_enable_vo)
 		ret |= rkipc_vo_init();
 	ret |= rkipc_bind_init();
@@ -2878,19 +2990,18 @@ int rk_video_deinit() {
 	ret |= rkipc_bind_deinit();
 	if (g_enable_vo)
 		ret |= rkipc_vo_deinit();
-	if (enable_venc_0) {
-		ret |= rkipc_venc_0_deinit();
+	if (enable_video) {
+		ret |= rkipc_venc_normal_deinit();
 	}
-	if (enable_venc_1) {
-		ret |= rkipc_venc_1_deinit();
+	if (enable_slowmotion) {
+		ret |= rkipc_venc_slowmotion_deinit();
 	}
-	if (enable_venc_2) {
-		pthread_join(venc_thread_2, NULL);
-		ret |= rkipc_venc_2_deinit();
+	if (enable_timelapse) {
+		ret |= rkipc_venc_timelapse_deinit();
 	}
 	if (enable_jpeg) {
 		pthread_join(jpeg_venc_thread_id, NULL);
-		ret |= rkipc_venc_3_deinit();
+		ret |= rkipc_jpeg_deinit();
 	}
 	// ret |= rkipc_vpss_deinit();
 	ret |= rkipc_gdc_deinit();
@@ -2923,14 +3034,18 @@ int rk_video_start_record(void) {
 	g_start_record_ = 1;
 	memset(&stRecvParam, 0, sizeof(VENC_RECV_PIC_PARAM_S));
 	stRecvParam.s32RecvPicNum = -1;
-	if (enable_venc_0) {
-		rk_storage_record_start(VIDEO_PIPE_0);
-		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_0, &stRecvParam);
-		pthread_create(&venc_thread_0, NULL, rkipc_get_venc_0, NULL);
-	} else if (enable_venc_1) {
-		rk_storage_record_start(VIDEO_PIPE_1);
-		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_1, &stRecvParam);
-		pthread_create(&venc_thread_1, NULL, rkipc_get_venc_1, NULL);
+	if (enable_video) {
+		rk_storage_record_start(0);
+		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_NORMAL, &stRecvParam);
+		pthread_create(&venc_thread_normal, NULL, rkipc_video_loop, NULL);
+	} else if (enable_slowmotion) {
+		rk_storage_record_start(1);
+		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_SLOWMOTION, &stRecvParam);
+		pthread_create(&venc_thread_slowmotion, NULL, rkipc_slowmotion_loop, NULL);
+	} else if (enable_timelapse) {
+		rk_storage_record_start(2);
+		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_TIMELAPSE, &stRecvParam);
+		pthread_create(&venc_thread_timelapse, NULL, rkipc_timelapse_loop, NULL);
 	}
 	return 0;
 }
@@ -2939,16 +3054,63 @@ int rk_video_stop_record(void) {
 	if (!g_start_record_)
 		return 0;
 	g_start_record_ = 0;
-	if (enable_venc_0) {
-		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_0);
-		pthread_join(venc_thread_0, NULL);
-		rk_storage_record_stop(VIDEO_PIPE_0);
-	} else if (enable_venc_1) {
-		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_1);
-		pthread_join(venc_thread_1, NULL);
-		rk_storage_record_stop(VIDEO_PIPE_1);
+	if (enable_video) {
+		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_NORMAL);
+		pthread_join(venc_thread_normal, NULL);
+		rk_storage_record_stop(0);
+	} else if (enable_slowmotion) {
+		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_SLOWMOTION);
+		pthread_join(venc_thread_slowmotion, NULL);
+		rk_storage_record_stop(1);
+	} else if (enable_timelapse) {
+		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_TIMELAPSE);
+		pthread_join(venc_thread_timelapse, NULL);
+		rk_storage_record_stop(2);
 	}
 	return 0;
+}
+
+void rk_init_mode(void) {
+	int mode = rk_param_get_int("video.source:mode", 0);
+	int fps = rk_param_get_int("isp.0.adjustment:fps", 30);
+	if (mode == RK_VIDEO_MODE) {
+		LOG_INFO("change to video mode\n");
+		g_current_mode = RK_VIDEO_MODE;
+		if (fps == 30) {
+			system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
+			system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
+			system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
+			system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
+		} else if (fps == 58) {
+			system("echo 1416000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
+			system("echo 1560000000 > /sys/class/devfreq/dmc/userspace/set_freq");
+			system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=58");
+			system("v4l2-ctl -d /dev/v4l-subdev3 --set-fmt-video=width=4032,height=2256,pixelformat=RG10");
+		}
+	} else if (mode == RK_PHOTO_MODE) {
+		LOG_INFO("change to photo mode\n");
+		g_current_mode = RK_PHOTO_MODE;
+		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
+		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
+		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
+		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
+	} else if (mode == RK_SLOW_MOTION_MODE) {
+		LOG_INFO("change to slow motion mode\n");
+		g_current_mode = RK_SLOW_MOTION_MODE;
+		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
+		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
+		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt pad=0,width=1920,height=1080");
+		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=120");
+	} else if (mode == RK_TIME_LAPSE_MODE) {
+		LOG_INFO("change to time lapse mode\n");
+		g_current_mode = RK_TIME_LAPSE_MODE;
+		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
+		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
+		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
+		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
+	} else {
+		LOG_ERROR("unknown mode!\n");
+	}
 }
 
 int rk_set_mode(RK_MODE_E mode) {
@@ -2959,11 +3121,12 @@ int rk_set_mode(RK_MODE_E mode) {
 	rk_isp_deinit(0);
 	if (mode == RK_VIDEO_MODE) {
 		enable_jpeg = 0;
-		enable_venc_0 = 1;
-		enable_venc_1 = 0;
+		enable_video = 1;
+		enable_slowmotion = 0;
 		rk_param_set_int("video.source:enable_jpeg", 0);
-		rk_param_set_int("video.source:enable_venc_0", 1);
-		rk_param_set_int("video.source:enable_venc_1", 0);
+		rk_param_set_int("video.source:enable_video", 1);
+		rk_param_set_int("video.source:enable_slowmotion", 0);
+		rk_param_set_int("video.source:enable_timelapse", 0);
 		rk_param_set_int("isp.0.adjustment:fps", 30);
 		rk_param_set_int("video.0:src_frame_rate_den", 1);
 		rk_param_set_int("video.0:src_frame_rate_num", 30);
@@ -2976,11 +3139,12 @@ int rk_set_mode(RK_MODE_E mode) {
 		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
 	} else if (mode == RK_PHOTO_MODE) {
 		enable_jpeg = 1;
-		enable_venc_0 = 0;
-		enable_venc_1 = 0;
+		enable_video = 0;
+		enable_slowmotion = 0;
 		rk_param_set_int("video.source:enable_jpeg", 1);
-		rk_param_set_int("video.source:enable_venc_0", 0);
-		rk_param_set_int("video.source:enable_venc_1", 0);
+		rk_param_set_int("video.source:enable_video", 0);
+		rk_param_set_int("video.source:enable_slowmotion", 0);
+		rk_param_set_int("video.source:enable_timelapse", 0);
 		rk_param_set_int("video.0:src_frame_rate_den", 1);
 		rk_param_set_int("video.0:src_frame_rate_num", 30);
 		rk_param_set_int("video.0:dst_frame_rate_den", 1);
@@ -2990,18 +3154,32 @@ int rk_set_mode(RK_MODE_E mode) {
 		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
 		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
 		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
-	} else {
+	} else if (mode == RK_SLOW_MOTION_MODE) {
 		enable_jpeg = 0;
-		enable_venc_0 = 0;
-		enable_venc_1 = 1;
+		enable_video = 0;
+		enable_slowmotion = 1;
 		rk_param_set_int("video.source:enable_jpeg", 0);
-		rk_param_set_int("video.source:enable_venc_0", 0);
-		rk_param_set_int("video.source:enable_venc_1", 1);
+		rk_param_set_int("video.source:enable_video", 0);
+		rk_param_set_int("video.source:enable_slowmotion", 1);
+		rk_param_set_int("video.source:enable_timelapse", 0);
 		rk_param_set_int("isp.0.adjustment:fps", 120);
 		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
 		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
 		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt pad=0,width=1920,height=1080");
 		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=120");
+	} else if (mode == RK_TIME_LAPSE_MODE) {
+		enable_jpeg = 0;
+		enable_video = 0;
+		enable_slowmotion = 1;
+		rk_param_set_int("video.source:enable_jpeg", 0);
+		rk_param_set_int("video.source:enable_video", 0);
+		rk_param_set_int("video.source:enable_slowmotion", 0);
+		rk_param_set_int("video.source:enable_timelapse", 1);
+		rk_param_set_int("isp.0.adjustment:fps", 30);
+		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
+		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
+		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
+		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
 	}
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));

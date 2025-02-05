@@ -29,8 +29,10 @@ typedef enum {
 	RK_VIDEO_MODE = 0,
 	RK_PHOTO_MODE,
 	RK_SLOW_MOTION_MODE,
+	RK_TIME_LAPSE_MODE,
 } RK_MODE_E;
 
+void rk_init_mode(void);
 int rk_set_mode(RK_MODE_E mode);
 RK_MODE_E rk_get_mode(void);
 

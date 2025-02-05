@@ -32,7 +32,6 @@ char *rkipc_iq_file_path_ = NULL;
 extern void ui_init(void);
 extern void ui_loop(void);
 extern void ui_deinit(void);
-extern RK_MODE_E g_current_mode;
 
 static void sig_proc(int signo) {
 	LOG_INFO("received signo %d \n", signo);
@@ -89,42 +88,6 @@ void rkipc_get_opt(int argc, char *argv[]) {
 	}
 }
 
-static void init_mode(void) {
-	int mode = rk_param_get_int("video.source:mode", 0);
-	int fps = rk_param_get_int("isp.0.adjustment:fps", 30);
-	if (mode == RK_VIDEO_MODE) {
-		LOG_INFO("change to video mode\n");
-		g_current_mode = RK_VIDEO_MODE;
-		if (fps == 30) {
-			system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
-			system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-			system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
-			system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
-		} else if (fps == 58) {
-			system("echo 1416000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
-			system("echo 1560000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-			system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=58");
-			system("v4l2-ctl -d /dev/v4l-subdev3 --set-fmt-video=width=4032,height=2256,pixelformat=RG10");
-		}
-	} else if (mode == RK_PHOTO_MODE) {
-		LOG_INFO("change to photo mode\n");
-		g_current_mode = RK_PHOTO_MODE;
-		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
-		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
-	} else if (mode == RK_SLOW_MOTION_MODE) {
-		LOG_INFO("change to slow motion mode\n");
-		g_current_mode = RK_SLOW_MOTION_MODE;
-		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
-		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt pad=0,width=1920,height=1080");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=120");
-	} else {
-		LOG_ERROR("unknown mode!\n");
-	}
-}
-
 int main(int argc, char **argv) {
 	LOG_INFO("main begin\n");
 	rkipc_version_dump();
@@ -137,7 +100,7 @@ int main(int argc, char **argv) {
 
 	// init
 	rk_param_init(rkipc_ini_path_);
-	init_mode();
+	rk_init_mode();
 
 	rk_network_init(NULL);
 	rk_system_init();
