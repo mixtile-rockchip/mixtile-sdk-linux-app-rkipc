@@ -180,6 +180,8 @@ static void *rkipc_get_venc_1(void *arg) {
 	printf("#Start %s thread, arg:%p\n", __func__, arg);
 	VENC_STREAM_S stFrame;
 	VI_CHN_STATUS_S stChnStatus;
+	RK_U64 modified_pts = 0;
+	RK_U64 step = 33333; // isp 120fps output -> storage by 30fps
 	int loopCount = 0;
 	int ret = 0;
 	stFrame.pstPack = malloc(sizeof(VENC_PACK_S));
@@ -188,24 +190,24 @@ static void *rkipc_get_venc_1(void *arg) {
 		// 5.get the frame
 		ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_1, &stFrame, 1000);
 		if (ret == RK_SUCCESS) {
+			if (modified_pts)
+				modified_pts += step;
+			else
+				modified_pts = stFrame.pstPack->u64PTS;
+			stFrame.pstPack->u64PTS = modified_pts;
 			void *data = RK_MPI_MB_Handle2VirAddr(stFrame.pstPack->pMbBlk);
 			// LOG_INFO("Count:%d, Len:%d, PTS is %" PRId64", enH264EType is %d\n", loopCount,
 			// stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
 			// stFrame.pstPack->DataType.enH264EType);
-			rkipc_rtsp_write_video_frame(1, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS);
 			if ((stFrame.pstPack->DataType.enH264EType == H264E_NALU_IDRSLICE) ||
 			    (stFrame.pstPack->DataType.enH264EType == H264E_NALU_ISLICE) ||
 			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_IDRSLICE) ||
 			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_ISLICE)) {
 				rk_storage_write_video_frame(1, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 1);
-				rk_rtmp_write_video_frame(1, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-				                          1);
 			} else {
 				rk_storage_write_video_frame(1, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 0);
-				rk_rtmp_write_video_frame(1, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-				                          0);
 			}
 			// 7.release the frame
 			ret = RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_1, &stFrame);

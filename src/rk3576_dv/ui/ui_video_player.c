@@ -191,8 +191,6 @@ static int32_t video_player_create(void) {
 	g_player_handler.enable_audio = true;
 
 	if (rk_get_mode() == RK_SLOW_MOTION_MODE) {
-		g_player_handler.enable_audio = false;
-		g_player_handler.enable_slow_motion = true;
 		g_player_handler.input_width = rk_param_get_int("video.1:width", -1);;
 		g_player_handler.input_height = rk_param_get_int("video.1:height", -1);;
 	} else {
