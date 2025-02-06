@@ -72,7 +72,11 @@ target_link_libraries(${PROJECT_NAME}
 						pthread rockit rkaiq rtsp freetype wpa_client rkmuxer m rockiva rga rkaudio)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
-install(FILES rkipc.ini DESTINATION share)
+if(RK_APP_CHIP STREQUAL "rv1126b")
+	install(FILES rkipc-rv1126b.ini DESTINATION share)
+else()
+	install(FILES rkipc.ini DESTINATION share)
+endif()
 install(PROGRAMS RkLunch.sh DESTINATION bin)
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/image.bmp DESTINATION share)

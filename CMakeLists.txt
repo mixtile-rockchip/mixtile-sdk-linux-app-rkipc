@@ -27,6 +27,8 @@ option(COMPILE_FOR_RK3576 "compile for rk3576 ipc" OFF)
 option(COMPILE_FOR_RK3576_MULTI_IPC "compile for rk3576 multi-ipc" OFF)
 option(COMPILE_FOR_RK3576_DV "compile for rk3576 dv" OFF)
 
+option(COMPILE_FOR_RV1126B "compile for rv1126b ipc" OFF)
+
 if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
 	message(STATUS "CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
 	add_definitions(-g -ggdb -gdwarf -funwind-tables -rdynamic -O0)
@@ -121,6 +123,10 @@ endif()
 
 if(COMPILE_FOR_RK3576_DV)
   add_subdirectory(src/rk3576_dv)
+endif()
+
+if(COMPILE_FOR_RV1126B)
+add_subdirectory(src/rk3576_ipc)
 endif()
 
 if(COMPILE_FOR_BUILDROOT)
