@@ -56,6 +56,7 @@ typedef struct {
 	lv_img_dsc_t *icon_lable;
 	lv_obj_t *cur_btn;
 	rkipc_filelist list;
+	RK_MODE_E mode;
 } ui_playlist_context_t;
 
 /**********************
@@ -156,7 +157,7 @@ static void btn_click_event_cb(lv_event_t *e) {
 		if (track_id < playlist_ctx.list.file_num) {
 			snprintf(file_info.path, sizeof(file_info.path), "%s/%s", playlist_ctx.list.path,
 			         playlist_ctx.list.file[track_id].filename);
-			if (rk_get_mode() == RK_VIDEO_MODE || rk_get_mode() == RK_SLOW_MOTION_MODE)
+			if (playlist_ctx.mode != RK_PHOTO_MODE)
 				ui_page_push_page("video_player", &file_info);
 			else
 				ui_page_push_page("photo_player", (void *)((uint64_t)track_id));
@@ -187,7 +188,7 @@ static lv_obj_t *add_list_btn(lv_obj_t *parent, uint32_t track_id) {
 
 	lv_obj_t *icon = lv_label_create(btn);
 	lv_obj_set_style_pad_hor(icon, 10, 0);
-	if (rk_get_mode() == RK_PHOTO_MODE)
+	if (playlist_ctx.mode == RK_PHOTO_MODE)
 		lv_label_set_text(icon, LV_SYMBOL_IMAGE);
 	else
 		lv_label_set_text(icon, LV_SYMBOL_VIDEO);
@@ -442,17 +443,22 @@ static int32_t playlist_param_init(lv_obj_t *page_obj) {
 
 	orig_pos = (LINE_NUM >> 1);
 
-	if (rk_get_mode() == RK_VIDEO_MODE) {
+	playlist_ctx.mode = (RK_MODE_E)lv_obj_get_user_data(page_obj);
+	if (playlist_ctx.mode == RK_VIDEO_MODE) {
 		folder_name = rk_param_get_string("storage.0:folder_name", "video0");
 		playlist_ctx.lable = "录像回放";
 		snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s/%s", "/mnt/sdcard", folder_name);
-	} else if (rk_get_mode() == RK_PHOTO_MODE) {
+	} else if (playlist_ctx.mode == RK_PHOTO_MODE) {
 		folder_name = rk_param_get_string("storage.3:folder_name", "photo");
 		playlist_ctx.lable = "照片";
 		snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s/%s", "/mnt/sdcard", folder_name);
-	} else {
+	} else if (playlist_ctx.mode == RK_SLOW_MOTION_MODE) {
 		folder_name = rk_param_get_string("storage.1:folder_name", "video1");
 		playlist_ctx.lable = "慢动作回放";
+		snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s/%s", "/mnt/sdcard", folder_name);
+	} else if (playlist_ctx.mode == RK_TIME_LAPSE_MODE) {
+		folder_name = rk_param_get_string("storage.2:folder_name", "video2");
+		playlist_ctx.lable = "延时摄影";
 		snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s/%s", "/mnt/sdcard", folder_name);
 	}
 	if (rkipc_storage_get_file_list(&playlist_ctx.list, g_sd_phandle, LIST_DESCENDING) != 0) {

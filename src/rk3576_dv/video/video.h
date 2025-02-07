@@ -32,9 +32,24 @@ typedef enum {
 	RK_TIME_LAPSE_MODE,
 } RK_MODE_E;
 
+typedef enum {
+	RK_EIS_OFF = 0,
+	RK_NORMAL_STEADY,
+	RK_HORIZON_STEADY,
+} RK_EIS_MODE_E;
+
 void rk_init_mode(void);
 int rk_set_mode(RK_MODE_E mode);
 RK_MODE_E rk_get_mode(void);
+
+RK_EIS_MODE_E rk_get_eis_mode(void);
+int rk_set_eis_mode(RK_EIS_MODE_E eis_mode);
+
+int rk_set_hdr(bool enable);
+int rk_get_hdr(void);
+
+int rk_set_eis_debug(bool enable);
+int rk_get_eis_debug(void);
 
 int rk_video_init();
 int rk_video_deinit();

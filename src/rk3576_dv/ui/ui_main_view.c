@@ -310,7 +310,7 @@ static void media_event_handler(lv_event_t *e) {
 			ui_scansdcard_dialog_create();
 			break;
 		case DISK_MOUNTED:
-			ui_page_push_page("playlist", NULL);
+			ui_page_push_page("gallery", NULL);
 		default:
 			break;
 		}

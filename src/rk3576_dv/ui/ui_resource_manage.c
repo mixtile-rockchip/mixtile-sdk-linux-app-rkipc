@@ -59,9 +59,6 @@ lv_img_dsc_t *index_icon_sw_r = NULL;
 
 lv_img_dsc_t *index_icon_boxbg_r = NULL;
 lv_img_dsc_t *index_icon_boxbg_p = NULL;
-lv_img_dsc_t *index_icon_mic_01 = NULL;
-lv_img_dsc_t *index_icon_mic_02 = NULL;
-lv_img_dsc_t *index_icon_lang_01 = NULL;
 lv_img_dsc_t *index_icon_store_01 = NULL;
 lv_img_dsc_t *index_icon_format_01 = NULL;
 lv_img_dsc_t *index_icon_video = NULL;
@@ -113,9 +110,6 @@ static int32_t ui_font_init(lv_ft_info_t *info, uint32_t weight) {
 static void setting_release_res(void) {
 	ICON_RELEASE(index_icon_boxbg_r);
 	ICON_RELEASE(index_icon_boxbg_p);
-	ICON_RELEASE(index_icon_mic_01);
-	ICON_RELEASE(index_icon_mic_02);
-	ICON_RELEASE(index_icon_lang_01);
 	ICON_RELEASE(index_icon_store_01);
 	ICON_RELEASE(index_icon_format_01);
 	ICON_RELEASE(index_icon_video);
@@ -128,9 +122,6 @@ static void setting_load_res(void) {
 
 	index_icon_boxbg_r = ui_dec_icon("set_boxbg_01.png");
 	index_icon_boxbg_p = ui_dec_icon("set_boxbg_02.png");
-	index_icon_mic_01 = ui_dec_icon("set_icon_mic_01.png");
-	index_icon_mic_02 = ui_dec_icon("set_icon_mic_02.png");
-	index_icon_lang_01 = ui_dec_icon("set_icon_lang_01.png");
 	index_icon_store_01 = ui_dec_icon("set_icon_store_01.png");
 	index_icon_format_01 = ui_dec_icon("set_icon_format_01.png");
 	index_icon_video = ui_dec_icon("set_icon_video.png");

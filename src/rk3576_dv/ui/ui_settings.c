@@ -54,9 +54,9 @@ typedef struct {
 	lv_obj_t *cap_img_obj;
 	lv_obj_t *cap_label_obj;
 
-	lv_obj_t *mic_imgbtn_obj;
-	lv_obj_t *mic_img_obj;
-	lv_obj_t *mic_label_obj;
+	lv_obj_t *set_imgbtn_obj;
+	lv_obj_t *set_img_obj;
+	lv_obj_t *set_label_obj;
 
 	lv_obj_t *store_imgbtn_obj;
 	lv_obj_t *store_img_obj;
@@ -77,8 +77,6 @@ typedef struct {
  *  STATIC VARIABLES
  **********************/
 static UI_SETTINGS_CONTROL_S settings_ctrl;
-
-static int32_t mic = 0;
 
 extern lv_ft_info_t ttf_info_14;
 extern lv_ft_info_t ttf_info_12;
@@ -138,13 +136,6 @@ static void capture_update(void) {
 	} else {
 		lv_label_set_text(settings_ctrl.cap_img_obj, "20P3S");
 	}
-}
-
-static void mic_update(void) {
-	if (mic)
-		lv_img_set_src(settings_ctrl.mic_img_obj, index_icon_mic_02);
-	else
-		lv_img_set_src(settings_ctrl.mic_img_obj, index_icon_mic_01);
 }
 
 static void settings_disk_event_handler(rkipc_mount_status disk_state) {
@@ -213,7 +204,7 @@ static lv_obj_t *create_radio_dialog(lv_obj_t *parent) {
 	lv_color_t text_color = lv_color_make(0XFF, 0XFF, 0XFF);
 	lv_color_t bg_color = lv_palette_darken(LV_PALETTE_GREY, 4);
 	lv_obj_set_style_bg_color(dialog, bg_color, 0);
-	lv_obj_set_style_bg_opa(dialog, LV_OPA_80, 0);
+	lv_obj_set_style_bg_opa(dialog, LV_OPA_COVER, 0);
 	lv_obj_set_style_border_color(dialog, bg_color, 0);
 	lv_obj_set_size(dialog, lv_pct(60), lv_pct(60));
 	lv_obj_align(dialog, LV_ALIGN_CENTER, 0, 0);
@@ -242,36 +233,38 @@ static void create_radio_buttons(lv_obj_t *parent, lv_group_t *g) {
 	};
 	int select_btn_idx = 0;
 	lv_obj_t *btn = NULL, *label = NULL;
-	static lv_style_t default_style, checked_style;
+	static lv_style_t btn_style, btn_focus_style;
 
-	lv_style_reset(&default_style);
-	lv_style_init(&default_style);
-	lv_style_set_bg_color(&default_style, lv_color_hex(0xFFFFFF));
-	lv_style_set_text_color(&default_style, lv_color_hex(0x000000));
-	lv_style_set_bg_opa(&default_style, LV_OPA_COVER);
-	lv_style_set_radius(&default_style, 10);
+	lv_style_reset(&btn_style);
+	lv_style_init(&btn_style);
+	lv_style_set_bg_color(&btn_style, lv_palette_lighten(LV_PALETTE_GREY, 3));
+	lv_style_set_text_color(&btn_style, lv_color_hex(0x000000));
+	lv_style_set_bg_opa(&btn_style, LV_OPA_COVER);
+	lv_style_set_radius(&btn_style, 10);
 
-	lv_style_reset(&checked_style);
-	lv_style_init(&checked_style);
-	lv_style_set_bg_color(&checked_style, lv_palette_lighten(LV_PALETTE_BLUE, 3));
-	lv_style_set_text_color(&checked_style, lv_color_hex(0x000000));
-	lv_style_set_bg_opa(&checked_style, LV_OPA_COVER);
-	lv_style_set_radius(&checked_style, 10);
+	lv_style_reset(&btn_focus_style);
+	lv_style_init(&btn_focus_style);
+	lv_style_set_bg_color(&btn_focus_style, lv_palette_main(LV_PALETTE_GREY));
+	lv_style_set_text_color(&btn_focus_style, lv_color_hex(0x000000));
+	lv_style_set_bg_opa(&btn_focus_style, LV_OPA_COVER);
+	lv_style_set_outline_opa(&btn_focus_style, LV_OPA_TRANSP);
+	lv_style_set_radius(&btn_focus_style, 10);
 
 	for (int i = 0; i < 4; i++) {
-		btn = lv_btn_create(parent);
+		//btn = lv_btn_create(parent);
+		btn = lv_checkbox_create(parent);
 		lv_obj_set_size(btn, lv_pct(80), lv_pct(25));
 		lv_obj_add_flag(btn, LV_OBJ_FLAG_CHECKABLE);
 		lv_obj_add_event_cb(btn, btn_event_cb, LV_EVENT_CLICKED, NULL);
 		lv_obj_add_event_cb(btn, btn_event_cb, LV_EVENT_FOCUSED, NULL);
 		lv_obj_add_event_cb(btn, btn_event_cb, LV_EVENT_DEFOCUSED, NULL);
-		lv_obj_add_style(btn, &default_style, 0);
-		lv_obj_add_style(btn, &checked_style, LV_STATE_CHECKED);
+		lv_checkbox_set_text(btn, options[i]);
+		lv_obj_set_style_text_font(btn, ttf_info_14.font, LV_PART_MAIN);
+		lv_obj_add_style(btn, &btn_style, LV_PART_MAIN);
+		lv_obj_add_style(btn, &btn_focus_style, LV_STATE_FOCUS_KEY);
 
-		label = lv_label_create(btn);
-		lv_obj_set_style_text_font(label, ttf_info_14.font, 0);
-		lv_label_set_text(label, options[i]);
-		lv_obj_center(label);
+		lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, LV_PART_INDICATOR);
+		lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
 
 		lv_group_add_obj(g, btn);
 	}
@@ -279,6 +272,7 @@ static void create_radio_buttons(lv_obj_t *parent, lv_group_t *g) {
 	LOG_INFO("select index %d\n", select_btn_idx);
 	btn = lv_obj_get_child(parent, select_btn_idx);
 	lv_obj_add_state(btn, LV_STATE_CHECKED);
+	lv_group_focus_obj(btn);
 }
 
 static void create_mode_select_box(void) {
@@ -301,6 +295,7 @@ static void destroy_mode_select_box(void) {
 		settings_ctrl.select_dialog = NULL;
 	}
 }
+
 static void mode_event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
@@ -372,7 +367,7 @@ static void capture_event_handler(lv_event_t *e) {
 	}
 }
 
-static void mic_event_handler(lv_event_t *e) {
+static void set_event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
 
@@ -381,8 +376,7 @@ static void mic_event_handler(lv_event_t *e) {
 			lv_event_send(settings_ctrl.exit_obj, LV_EVENT_CLICKED, NULL);
 			return;
 		}
-		mic = !mic;
-		mic_update();
+		ui_page_push_page("advanced_setup", NULL);
 	} else if (code == LV_EVENT_FOCUSED) {
 		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_boxbg_p, NULL);
 		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_PRESSED, NULL, index_icon_boxbg_p, NULL);
@@ -490,7 +484,7 @@ static void setting_layout(void) {
 	lv_obj_set_grid_cell(settings_ctrl.cap_imgbtn_obj, LV_GRID_ALIGN_CENTER, 2, 1,
 	                     LV_GRID_ALIGN_CENTER, 1, 1);
 
-	lv_obj_set_grid_cell(settings_ctrl.mic_imgbtn_obj, LV_GRID_ALIGN_CENTER, 0, 1,
+	lv_obj_set_grid_cell(settings_ctrl.set_imgbtn_obj, LV_GRID_ALIGN_CENTER, 0, 1,
 	                     LV_GRID_ALIGN_CENTER, 2, 1);
 
 	lv_obj_set_grid_cell(settings_ctrl.store_imgbtn_obj, LV_GRID_ALIGN_CENTER, 1, 1,
@@ -569,17 +563,17 @@ static void setting_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_width(label_obj, lv_pct(100));
 	lv_obj_align(label_obj, LV_ALIGN_BOTTOM_MID, 0, 0);
 
-	settings_ctrl.mic_imgbtn_obj = imgbtn_obj = lv_imgbtn_create(cont_obj);
+	settings_ctrl.set_imgbtn_obj = imgbtn_obj = lv_imgbtn_create(cont_obj);
 	lv_imgbtn_set_src(imgbtn_obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_boxbg_r, NULL);
 	lv_imgbtn_set_src(imgbtn_obj, LV_IMGBTN_STATE_PRESSED, NULL, index_icon_boxbg_p, NULL);
-	lv_obj_add_event_cb(imgbtn_obj, mic_event_handler, LV_EVENT_CLICKED, NULL);
-	lv_obj_add_event_cb(imgbtn_obj, mic_event_handler, LV_EVENT_FOCUSED, NULL);
-	lv_obj_add_event_cb(imgbtn_obj, mic_event_handler, LV_EVENT_DEFOCUSED, NULL);
+	lv_obj_add_event_cb(imgbtn_obj, set_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(imgbtn_obj, set_event_handler, LV_EVENT_FOCUSED, NULL);
+	lv_obj_add_event_cb(imgbtn_obj, set_event_handler, LV_EVENT_DEFOCUSED, NULL);
 	lv_obj_set_size(imgbtn_obj, index_icon_boxbg_r->header.w, index_icon_boxbg_r->header.h);
-	settings_ctrl.mic_img_obj = img_obj = lv_img_create(imgbtn_obj);
-	mic_update();
+	settings_ctrl.set_img_obj = img_obj = lv_label_create(imgbtn_obj);
+	lv_obj_set_size(settings_ctrl.set_img_obj, lv_pct(60), lv_pct(50));
 	lv_obj_align(img_obj, LV_ALIGN_CENTER, 0, 0);
-	settings_ctrl.mic_label_obj = label_obj = lv_label_create(imgbtn_obj);
+	settings_ctrl.set_label_obj = label_obj = lv_label_create(imgbtn_obj);
 	lv_obj_set_width(label_obj, lv_pct(100));
 	lv_obj_align_to(label_obj, img_obj, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
 
@@ -613,7 +607,7 @@ static void setting_create_ctrl(lv_obj_t *page_obj) {
 }
 
 static void setting_set_text() {
-	static lv_style_t style, symbol_style, icon_style;
+	static lv_style_t style, symbol_style, icon_style, symbol_focus_style;
 	lv_color_t text_color = lv_color_hex(0xFFFFFF);
 
 	lv_style_reset(&style);
@@ -624,9 +618,23 @@ static void setting_set_text() {
 
 	lv_style_reset(&symbol_style);
 	lv_style_init(&symbol_style);
-	lv_style_set_text_font(&symbol_style, &lv_font_montserrat_24);
-	lv_style_set_text_color(&symbol_style, text_color);
-	lv_style_set_text_align(&symbol_style, LV_TEXT_ALIGN_CENTER);
+	lv_style_set_bg_opa(&symbol_style, LV_OPA_TRANSP);
+	lv_style_set_text_font(&symbol_style, &lv_font_montserrat_32);
+	lv_style_set_text_color(&symbol_style, lv_color_hex(0xFFFFFF));
+	lv_style_set_text_align(&symbol_style, LV_TEXT_ALIGN_LEFT);
+	lv_style_set_outline_opa(&symbol_style, LV_OPA_TRANSP);
+	lv_style_set_outline_width(&symbol_style, 0);
+	lv_style_set_pad_all(&symbol_style, 5);
+
+	lv_style_reset(&symbol_focus_style);
+	lv_style_init(&symbol_focus_style);
+	lv_style_set_bg_opa(&symbol_focus_style, LV_OPA_TRANSP);
+	lv_style_set_text_font(&symbol_focus_style, &lv_font_montserrat_32);
+	lv_style_set_text_color(&symbol_focus_style, lv_palette_main(LV_PALETTE_GREY));
+	lv_style_set_text_align(&symbol_focus_style, LV_TEXT_ALIGN_LEFT);
+	lv_style_set_outline_opa(&symbol_focus_style, LV_OPA_TRANSP);
+	lv_style_set_outline_width(&symbol_focus_style, 0);
+	lv_style_set_pad_all(&symbol_focus_style, 5);
 
 	lv_style_reset(&icon_style);
 	lv_style_init(&icon_style);
@@ -658,8 +666,12 @@ static void setting_set_text() {
 	lv_label_set_text(settings_ctrl.cap_label_obj, "连拍模式");
 	lv_obj_add_style(settings_ctrl.cap_label_obj, &style, 0);
 
-	lv_label_set_text(settings_ctrl.mic_label_obj, "录音");
-	lv_obj_add_style(settings_ctrl.mic_label_obj, &style, 0);
+	lv_label_set_text(settings_ctrl.set_label_obj, "高级设置");
+	lv_obj_add_style(settings_ctrl.set_label_obj, &style, 0);
+	lv_label_set_text(settings_ctrl.set_img_obj, LV_SYMBOL_SETTINGS);
+	lv_obj_set_style_text_font(settings_ctrl.set_img_obj, &lv_font_montserrat_32, 0);
+	lv_obj_set_style_text_color(settings_ctrl.set_img_obj, text_color, 0);
+	lv_obj_set_style_text_align(settings_ctrl.set_img_obj, LV_TEXT_ALIGN_CENTER, 0);
 
 	lv_label_set_text(settings_ctrl.store_label_obj, "存储状态");
 	lv_obj_add_style(settings_ctrl.store_label_obj, &style, 0);
@@ -667,8 +679,10 @@ static void setting_set_text() {
 	lv_label_set_text(settings_ctrl.format_label_obj, "格式化");
 	lv_obj_add_style(settings_ctrl.format_label_obj, &style, 0);
 
-	lv_label_set_text(settings_ctrl.exit_label_obj, LV_SYMBOL_CLOSE);
-	lv_obj_add_style(settings_ctrl.exit_label_obj, &symbol_style, 0);
+	lv_obj_remove_style_all(settings_ctrl.exit_obj);
+	lv_label_set_text(settings_ctrl.exit_label_obj, LV_SYMBOL_LEFT);
+	lv_obj_add_style(settings_ctrl.exit_obj, &symbol_style, 0);
+	lv_obj_add_style(settings_ctrl.exit_obj, &symbol_focus_style, LV_STATE_FOCUS_KEY);
 
 	lv_label_set_text(settings_ctrl.cap_img_obj, "5P1S");
 	lv_obj_add_style(settings_ctrl.cap_img_obj, &icon_style, 0);
@@ -697,10 +711,10 @@ static void setting_destroy_ctrl(void) {
 		lv_obj_del(settings_ctrl.cap_imgbtn_obj);
 		settings_ctrl.cap_imgbtn_obj = NULL;
 	}
-	if (NULL != settings_ctrl.mic_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.mic_imgbtn_obj);
-		lv_obj_del(settings_ctrl.mic_imgbtn_obj);
-		settings_ctrl.mic_imgbtn_obj = NULL;
+	if (NULL != settings_ctrl.set_imgbtn_obj) {
+		ui_common_remove_stype_all(settings_ctrl.set_imgbtn_obj);
+		lv_obj_del(settings_ctrl.set_imgbtn_obj);
+		settings_ctrl.set_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.store_imgbtn_obj) {
 		ui_common_remove_stype_all(settings_ctrl.store_imgbtn_obj);
@@ -740,7 +754,7 @@ static void settings_add_indev(void) {
 	lv_group_add_obj(group, settings_ctrl.mode_imgbtn_obj);
 	lv_group_add_obj(group, settings_ctrl.fps_imgbtn_obj);
 	lv_group_add_obj(group, settings_ctrl.cap_imgbtn_obj);
-	lv_group_add_obj(group, settings_ctrl.mic_imgbtn_obj);
+	lv_group_add_obj(group, settings_ctrl.set_imgbtn_obj);
 	lv_group_add_obj(group, settings_ctrl.store_imgbtn_obj);
 	lv_group_add_obj(group, settings_ctrl.format_imgbtn_obj);
 

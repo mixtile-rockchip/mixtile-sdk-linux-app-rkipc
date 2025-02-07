@@ -41,9 +41,6 @@ extern lv_img_dsc_t *index_icon_boxbg_r;
 extern lv_img_dsc_t *index_icon_boxbg_p;
 extern lv_img_dsc_t *index_icon_video;
 extern lv_img_dsc_t *index_icon_capture;
-extern lv_img_dsc_t *index_icon_mic_01;
-extern lv_img_dsc_t *index_icon_mic_02;
-extern lv_img_dsc_t *index_icon_lang_01;
 extern lv_img_dsc_t *index_icon_store_01;
 extern lv_img_dsc_t *index_icon_format_01;
 
