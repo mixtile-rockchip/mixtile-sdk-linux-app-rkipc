@@ -126,6 +126,7 @@ if(COMPILE_FOR_RK3576_DV)
 endif()
 
 if(COMPILE_FOR_RV1126B)
+add_definitions(-DCOMPILE_FOR_RV1126B)
 add_subdirectory(src/rk3576_ipc)
 endif()
 

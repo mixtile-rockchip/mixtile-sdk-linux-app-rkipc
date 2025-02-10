@@ -72,7 +72,7 @@ target_link_libraries(${PROJECT_NAME}
 						pthread rockit rkaiq rtsp freetype wpa_client rkmuxer m rockiva rga rkaudio)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
-if(RK_APP_CHIP STREQUAL "rv1126b")
+if(COMPILE_FOR_RV1126B)
 	install(FILES rkipc-rv1126b.ini DESTINATION share)
 else()
 	install(FILES rkipc.ini DESTINATION share)
