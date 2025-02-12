@@ -2,9 +2,9 @@
 
 文件标识：RK-KF-YF-937
 
-发布版本：V1.7.0
+发布版本：V1.7.1
 
-日期：2025-01-06
+日期：2025-02-12
 
 文件密级：□绝密   □秘密   □内部资料   ■公开
 
@@ -94,6 +94,7 @@ Rockchip Electronics Co., Ltd.
 | V1.6.8     | Fenrir Lin | 2024-07-18   | 补充RV1103B相关说明                                          |
 | V1.6.9     | Fenrir Lin | 2024-08-29   | 修改RV1106 Dual-IPC的流程框图。                              |
 | V1.7.0     | Fenrir Lin | 2025-01-06   | 新增RK3576 DV的流程框图                                      |
+| V1.7.1     | Yu Zheng   | 2025-02-12   | 修改RK3576DV的流程框图和部分参数说明<br/>增加播放显示模块API介绍 |
 
 ---
 
@@ -367,8 +368,12 @@ graph TB
 ```mermaid
 graph LR
 	AI-->AENC-->RTSP_RTMP_0
-	VI_0-->GDC_0-->VENC_0-->MUXER-->MP4
-	VENC_0-->RTSP_RTMP_0
+	AENC-->MUXER
+	VI_0-->GDC_0-->VENC_0_normal-->MUXER-->MP4
+	GDC_0-.->VENC_1_slowmotion-.->MUXER
+	GDC_0-.->VENC_2_timelapse-.->MUXER
+	VENC_0_normal-->RTSP_RTMP_0
+	GDC_0-.->VENC_3-.->JPEG
 	VI_1-->GDC_1-->VO
 ```
 
@@ -1096,6 +1101,25 @@ submitOne(groupName: string, isReboot: boolean = false, isAppRestart = false) {
 | rk_param_deinit     | 反初始化                    |
 | rk_param_reload     | 不保存当前参数，重新加载ini |
 
+### 播放显示模块
+
+| 函数名称                     | 功能                     |
+| ---------------------------- | ------------------------ |
+| rk_player_create             | 创建播放模块             |
+| rk_player_destroy            | 销毁播放模块             |
+| rk_player_play               | 开始播放                 |
+| rk_player_pause              | 暂停播放                 |
+| rk_player_stop               | 结束播放                 |
+| rk_player_set_file           | 设置播放文件             |
+| rk_player_get_photo          | 解析一张jpeg图片         |
+| rk_player_release_photo      | 释放解析图片所使用的资源 |
+| rk_player_video_seek         | 设置视频播放位置         |
+| rk_player_get_video_duration | 获取视频总时长           |
+| rk_player_get_video_position | 获取视频当前播放位置     |
+| rk_player_audio_seek         | 设置音频播放位置         |
+| rk_player_get_audio_duration | 获取音频总时长           |
+| rk_player_get_audio_position | 获取音频当前播放位置     |
+
 ## ini参数说明
 
 **注意：由于各个产品类型定义不同，部分参数是特有的，部分参数的含义也可能不同，此处仅供参考，以实际ini文件中的注释为准。**
@@ -1581,5 +1605,19 @@ enable_npu = 1
 enable = 1 ; 是否使能网络时间同步
 refresh_time_s = 60 ; ntp刷新时间，单位秒
 ntp_server = 119.28.183.184 ; ntp服务器地址
+```
+
+### 播放显示模块
+
+```ini
+[display]
+dev_id = 1 ; 显示设备id
+layer_id = 5 ; 显示图层id
+width = 240 ; 显示设备宽
+height = 320 ; 显示设备高
+fps = 30 ; 显示帧率
+intf_type = LCD ; 显示设备类型
+play_chn_id = 1 ; 播放通道id
+play_chn_priority = 2 ; 播放通道的优先级，高优先级的通道会覆盖低优先级通道
 ```
 

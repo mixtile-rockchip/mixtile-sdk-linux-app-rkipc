@@ -2,9 +2,9 @@
 
 ID: RK-KF-YF-937
 
-Release Version: V1.7.0
+Release Version: V1.7.1
 
-Release Date: 2025-01-06
+Release Date: 2025-02-12
 
 Security Level: □Top-Secret   □Secret   □Internal   ■Public
 
@@ -88,6 +88,7 @@ Software development engineers
 | V1.6.8      | Fenrir Lin | 2024-07-18 | Supplement the relevant explanations for RV1103B.            |
 | V1.6.9      | Fenrir Lin | 2024-08-29 | Modify the RV1106 Dual-IPC block diagram.                    |
 | V1.7.0      | Fenrir Lin | 2025-01-06 | Added RK3576 DV block diagram.                               |
+| V1.7.1      | Yu Zheng   | 2025-02-12 | Modified RK3576DV flow block diagram and part of the parameter description <br/>Added playback and display module API introduction |
 
 ---
 
@@ -361,8 +362,12 @@ graph TB
 ```mermaid
 graph LR
 	AI-->AENC-->RTSP_RTMP_0
-	VI_0-->GDC_0-->VENC_0-->MUXER-->MP4
-	VENC_0-->RTSP_RTMP_0
+	AENC-->MUXER
+	VI_0-->GDC_0-->VENC_0_normal-->MUXER-->MP4
+	GDC_0-.->VENC_1_slowmotion-.->MUXER
+	GDC_0-.->VENC_2_timelapse-.->MUXER
+	VENC_0_normal-->RTSP_RTMP_0
+	GDC_0-.->VENC_3-.->JPEG
 	VI_1-->GDC_1-->VO
 ```
 
@@ -1090,6 +1095,25 @@ Currently only supported for rv1126_ipc_rkmedia.
 | rk_param_deinit     | Deinitialize                                      |
 | rk_param_reload     | Reload parameters without saving current settings |
 
+### Playback and display module
+
+| Function Name                | Functionality                                    |
+| ---------------------------- | ------------------------------------------------ |
+| rk_player_create             | Create playback module                           |
+| rk_player_destroy            | Destroy playback module                          |
+| rk_player_play               | Start playing                                    |
+| rk_player_pause              | Pause playing                                    |
+| rk_player_stop               | Stop playing                                     |
+| rk_player_set_file           | Set the file to play                             |
+| rk_player_get_photo          | Parse a JPEG image                               |
+| rk_player_release_photo      | Frees the resources used to parse JPEG           |
+| rk_player_video_seek         | Set the time from which the video starts playing |
+| rk_player_get_video_duration | Get the total duration of the video              |
+| rk_player_get_video_position | Get the current position of the video            |
+| rk_player_audio_seek         | Set the time from which the audio starts playing |
+| rk_player_get_audio_duration | Get the total duration of the audio              |
+| rk_player_get_audio_position | Get the current position of the audio            |
+
 ## ini Parameter Introduction
 
 **Note: Due to variations in product types and definitions, some parameters may be specific to certain products, and the meanings of some parameters may differ. This section is provided for reference only; please refer to comments in the actual ini file for accurate information.**
@@ -1575,3 +1599,18 @@ enable = 1 ; Enable network time synchronization
 refresh_time_s = 60 ; NTP refresh time in seconds
 ntp_server = 119.28.183.184 ; NTP server address
 ```
+
+### Playback and display module
+
+```ini
+[display]
+dev_id = 1 ; Display device id
+layer_id = 5 ; Display layer id
+width = 240 ; Display width
+height = 320 ; Display height
+fps = 30 ; Display framerate
+intf_type = LCD ; Display device type
+play_chn_id = 1 ; Display channel id
+play_chn_priority = 2 ; The priority of the playback channel. The channel with higher priority overwrites the channel with lower priority
+```
+
