@@ -1,5 +1,29 @@
 #!/bin/sh
 
+rcS()
+{
+	for i in /oem/usr/etc/init.d/S??* ;do
+
+		# Ignore dangling symlinks (if any).
+		[ ! -f "$i" ] && continue
+
+		case "$i" in
+			*.sh)
+				# Source shell script for speed.
+				(
+					trap - INT QUIT TSTP
+					set start
+					. $i
+				)
+				;;
+			*)
+				# No sh extension, so fork subprocess.
+				$i start
+				;;
+		esac
+	done
+}
+
 check_linker()
 {
         [ ! -L "$2" ] && ln -sf $1 $2
@@ -36,11 +60,6 @@ post_chk()
 		sleep .1
 	done
 
-	network_init&
-	check_linker /userdata   /oem/usr/www/userdata
-	check_linker /media/usb0 /oem/usr/www/usb0
-	check_linker /mnt/sdcard /oem/usr/www/sdcard
-
 	# if ko exist, install ko first
 	default_ko_dir=/ko
 	if [ -f "/oem/usr/ko/insmod_ko.sh" ];then
@@ -50,6 +69,10 @@ post_chk()
 		cd $default_ko_dir && sh insmod_ko.sh && cd -
 	fi
 
+	network_init &
+	check_linker /userdata   /oem/usr/www/userdata
+	check_linker /media/usb0 /oem/usr/www/usb0
+	check_linker /mnt/sdcard /oem/usr/www/sdcard
 	# if /data/rkipc not exist, cp /usr/share
 	rkipc_ini=/userdata/rkipc.ini
 	default_rkipc_ini=/tmp/rkipc-factory-config.ini
@@ -63,6 +86,11 @@ post_chk()
 
 	# avoid MIPI screen not displaying when startup
 	export rt_vo_disable_vop=0
+
+	if [ ! -f "/userdata/image.bmp" ]; then
+		cp -fa /oem/usr/share/image.bmp /userdata/
+	fi
+
 	if [ -d "/oem/usr/share/iqfiles" ];then
 		rkipc -a /oem/usr/share/iqfiles &
 	else
@@ -70,8 +98,9 @@ post_chk()
 	fi
 }
 
+rcS
+
 ulimit -c unlimited
 echo "/data/core-%p-%e" > /proc/sys/kernel/core_pattern
 
 post_chk &
-
