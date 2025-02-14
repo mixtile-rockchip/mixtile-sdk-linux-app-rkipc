@@ -71,7 +71,8 @@ static int gdc_display_w = 704;
 static int gdc_display_h = 384;
 static FILE *vi_info_file;
 static FILE *imu_info_file;
-static char gdc_info_buffer[256];
+static char gdc_vi_info_buffer[256];
+static char gdc_imu_info_buffer[256];
 static int gdc_debug_cnt = 0;
 
 /*
@@ -2138,12 +2139,12 @@ RK_S32 RKGdcSensorCB(RK_VOID *pUsr, GDC_SENSOR_INFO_S *pInfo) {
 	// pInfo->s64Timestamp, pInfo->dTemp,
 	// pInfo->dGyroData[0], pInfo->dGyroData[1], pInfo->dGyroData[2],
 	// pInfo->dAccData[0], pInfo->dAccData[1], pInfo->dAccData[2]);
-	sprintf(gdc_info_buffer, "%lf %lf %lf %lf %lf %lf %lf %lld\n",
+	sprintf(gdc_imu_info_buffer, "%lf %lf %lf %lf %lf %lf %lf %lld\n",
 			pInfo->dAccData[0], pInfo->dAccData[1], pInfo->dAccData[2],
 			pInfo->dGyroData[0], pInfo->dGyroData[1], pInfo->dGyroData[2],
 			pInfo->dTemp, pInfo->s64Timestamp);
 
-	fwrite(gdc_info_buffer, sizeof(char), strlen(gdc_info_buffer), imu_info_file);
+	fwrite(gdc_imu_info_buffer, sizeof(char), strlen(gdc_imu_info_buffer), imu_info_file);
 	fflush(imu_info_file);
 
 	return GDC_INFO_CB_SUCCESS;
@@ -2168,9 +2169,9 @@ RK_S32 RKGdcVframeCB(RK_VOID *pUsr, GDC_VFAME_INFO_S *pInfo) {
 		return GDC_INFO_CB_SUCCESS;
 	}
 
-	sprintf(gdc_info_buffer, "%lld %d %d %d %d %d %lf\n", pInfo->u64ExtraPts, pInfo->u32RsSkew, pInfo->u32ExpTime,
+	sprintf(gdc_vi_info_buffer, "%lld %d %d %d %d %d %lf\n", pInfo->u64ExtraPts, pInfo->u32RsSkew, pInfo->u32ExpTime,
 			pInfo->u32Again, pInfo->u32Dgain, pInfo->u32Ispgain, pInfo->dIso);
-	fwrite(gdc_info_buffer, sizeof(char), strlen(gdc_info_buffer), vi_info_file);
+	fwrite(gdc_vi_info_buffer, sizeof(char), strlen(gdc_vi_info_buffer), vi_info_file);
 	fflush(vi_info_file);
 	memset(&gdc_frame, 0, sizeof(VIDEO_FRAME_INFO_S));
 	gdc_frame.stVFrame.pMbBlk = pInfo->pMbBlk;
