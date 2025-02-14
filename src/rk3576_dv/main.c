@@ -7,7 +7,6 @@
 #include "network.h"
 #include "osd.h"
 #include "param.h"
-#include "rockiva.h"
 #include "server.h"
 #include "storage.h"
 #include "system.h"
@@ -104,8 +103,6 @@ int main(int argc, char **argv) {
 
 	rk_network_init(NULL);
 	rk_system_init();
-	if (rk_param_get_int("video.source:enable_npu", 0))
-		rkipc_rockiva_init();
 	rkipc_camera_id_ = rk_param_get_int("video.source:camera_id", 0); // need rk_param_init
 	// rk_isp_init(rkipc_camera_id_, rkipc_iq_file_path_);
 	// rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));
@@ -133,8 +130,6 @@ int main(int argc, char **argv) {
 	rk_storage_deinit();
 	rkipc_server_deinit();
 	rk_system_deinit();
-	if (rk_param_get_int("video.source:enable_npu", 0))
-		rkipc_rockiva_deinit();
 	rk_network_deinit();
 	rk_param_deinit();
 	LOG_INFO("rkipc deinit over\n");

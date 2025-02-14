@@ -115,8 +115,8 @@ int rk_event_ri_get_time_threshold(int *value) {
 
 int rk_event_ri_set_time_threshold(int value) {
 	rk_param_set_int("event.regional_invasion:time_threshold", value);
-	rkipc_rockiva_deinit();
-	rkipc_rockiva_init();
+	// rkipc_rockiva_deinit();
+	// rkipc_rockiva_init();
 
 	return 0;
 }
