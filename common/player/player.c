@@ -968,6 +968,7 @@ static int send_jpeg_to_vdec(RK_PHOTO_DATA *data, MB_BLK input_mb, RK_U32 input_
 	input_frame.bEndOfStream = RK_TRUE;
 	input_frame.bEndOfFrame = RK_TRUE;
 	input_frame.bBypassMbBlk = RK_FALSE;
+	RK_MPI_SYS_MmzFlushCache(input_mb, false);
 
 	ret = RK_MPI_VDEC_SendStream(JPEG_VDEC_CHN_ID, &input_frame, 2000);
 	if (ret != RK_SUCCESS) {
@@ -995,6 +996,7 @@ static int send_jpeg_to_vdec(RK_PHOTO_DATA *data, MB_BLK input_mb, RK_U32 input_
 		LOG_ERROR("malloc failed\n");
 		ret = -1;
 	} else {
+		RK_MPI_SYS_MmzFlushCache(output_frame.stVFrame.pMbBlk, false);
 		memcpy(data->data, RK_MPI_MB_Handle2VirAddr(output_frame.stVFrame.pMbBlk), data->size);
 	}
 	RK_MPI_VPSS_ReleaseChnFrame(JPEG_VPSS_GRP_ID, JPEG_VPSS_CHN_ID, &output_frame);
