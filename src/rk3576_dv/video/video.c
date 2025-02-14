@@ -1222,7 +1222,8 @@ static int rkipc_bind_init() {
 	else if (g_current_mode == RK_TIME_LAPSE_MODE)
 		target_venc_chn.s32ChnId = 2;
 
-	if (g_current_eis_mode != RK_EIS_OFF) {
+	if (g_current_eis_mode != RK_EIS_OFF &&
+			(g_current_mode == RK_PHOTO_MODE || g_current_mode == RK_VIDEO_MODE)) {
 		ret = RK_MPI_SYS_Bind(&vi_chn[0], &gdc_chn[0]);
 		if (ret != RK_SUCCESS)
 			LOG_ERROR("vi 0 bind gdc 0 fail:%x", ret);
@@ -1249,37 +1250,40 @@ static int rkipc_bind_init() {
 				LOG_ERROR("vi 1 bind vo 1 fail:%x", ret);
 		}
 	}
-
+	// HACK: avoid rockit error
+	VENC_RECV_PIC_PARAM_S stRecvParam;
+	VENC_STREAM_S stFrame;
+	memset(&stRecvParam, 0, sizeof(stRecvParam));
+	stRecvParam.s32RecvPicNum = 1;
+	stFrame.pstPack = malloc(sizeof(VENC_PACK_S));
 	if (g_current_mode == RK_VIDEO_MODE) {
-		// HACK: avoid rockit error
-		VENC_RECV_PIC_PARAM_S stRecvParam;
-		VENC_STREAM_S stFrame;
-		memset(&stRecvParam, 0, sizeof(stRecvParam));
-		stRecvParam.s32RecvPicNum = 1;
 		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_NORMAL, &stRecvParam);
-		//RK_MPI_VENC_GetStream(VIDEO_PIPE_NORMAL, &stFrame, 1000);
+		ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_NORMAL, &stFrame, 1000);
+		if (!ret)
+			RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_NORMAL, &stFrame);
+		else
+			LOG_ERROR("RK_MPI_VENC_GetStream failed %#X!", ret);
 		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_NORMAL);
 	}
 	if (g_current_mode == RK_SLOW_MOTION_MODE) {
-		// HACK: avoid rockit error
-		VENC_RECV_PIC_PARAM_S stRecvParam;
-		VENC_STREAM_S stFrame;
-		memset(&stRecvParam, 0, sizeof(stRecvParam));
-		stRecvParam.s32RecvPicNum = 1;
 		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_SLOWMOTION, &stRecvParam);
-		//RK_MPI_VENC_GetStream(VIDEO_PIPE_NORMAL, &stFrame, 1000);
+		ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_SLOWMOTION, &stFrame, 1000);
+		if (!ret)
+			RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_NORMAL, &stFrame);
+		else
+			LOG_ERROR("RK_MPI_VENC_GetStream failed %#X!", ret);
 		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_SLOWMOTION);
 	}
 	if (g_current_mode == RK_TIME_LAPSE_MODE) {
-		// HACK: avoid rockit error
-		VENC_RECV_PIC_PARAM_S stRecvParam;
-		VENC_STREAM_S stFrame;
-		memset(&stRecvParam, 0, sizeof(stRecvParam));
-		stRecvParam.s32RecvPicNum = 1;
 		RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_TIMELAPSE, &stRecvParam);
-		//RK_MPI_VENC_GetStream(VIDEO_PIPE_NORMAL, &stFrame, 1000);
+		ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_TIMELAPSE, &stFrame, 1000);
+		if (!ret)
+			RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_TIMELAPSE, &stFrame);
+		else
+			LOG_ERROR("RK_MPI_VENC_GetStream failed %#X!", ret);
 		RK_MPI_VENC_StopRecvFrame(VIDEO_PIPE_TIMELAPSE);
 	}
+	free(stFrame.pstPack);
 
 	return ret;
 }
@@ -1300,7 +1304,8 @@ static int rkipc_bind_deinit() {
 	else if (g_current_mode == RK_TIME_LAPSE_MODE)
 		target_venc_chn.s32ChnId = 2;
 
-	if (g_current_eis_mode != RK_EIS_OFF) {
+	if (g_current_eis_mode != RK_EIS_OFF &&
+			(g_current_mode == RK_PHOTO_MODE || g_current_mode == RK_VIDEO_MODE)) {
 		if (!enable_eis_debug) {
 			ret = RK_MPI_SYS_UnBind(&gdc_chn[0], &target_venc_chn);
 			if (ret != RK_SUCCESS)
@@ -2191,7 +2196,6 @@ int rkipc_gdc_init() {
 
 	stAttr.u32MaxInQueue = 8;
 	stAttr.u32MaxOutQueue = 8;
-	// TODO: different mode may have different resolution, so need use different eis config.
 	stAttr.s32SrcWidth = rk_param_get_int("video.source:width", 4032);
 	stAttr.s32SrcHeight = rk_param_get_int("video.source:height", 2256);
 	stAttr.s32DstWidth = rk_param_get_int("video.0:width", 3840);
@@ -2199,6 +2203,7 @@ int rkipc_gdc_init() {
 	stAttr.enPixelFormat = RK_FMT_YUV420SP;
 	stAttr.enCompMode = COMPRESS_MODE_NONE;
 	memcpy(stAttr.cfgFile, "/usr/share/rkeis_config.json", strlen("/usr/share/rkeis_config.json"));
+
 	if (enable_eis_debug) {
 		vi_info_file = fopen("/tmp/vi_info.txt", "w");
 		imu_info_file = fopen("/tmp/imu_info.txt", "w");
@@ -2264,7 +2269,8 @@ int rk_video_init() {
 
 	ret |= rkipc_vi_dev_init();
 	ret |= rkipc_vi_chn_init();
-	ret |= rkipc_gdc_init();
+	if (g_current_mode == RK_VIDEO_MODE || g_current_mode == RK_PHOTO_MODE)
+		ret |= rkipc_gdc_init();
 	ret |= rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
 	ret |= rkipc_rtmp_init();
 	if (g_current_mode == RK_VIDEO_MODE)
@@ -2302,7 +2308,8 @@ int rk_video_deinit() {
 		pthread_join(jpeg_venc_thread_id, NULL);
 		ret |= rkipc_jpeg_deinit();
 	}
-	ret |= rkipc_gdc_deinit();
+	if (g_current_mode == RK_VIDEO_MODE || g_current_mode == RK_PHOTO_MODE)
+		ret |= rkipc_gdc_deinit();
 	ret |= rkipc_vi_chn_deinit();
 	ret |= rkipc_vi_dev_deinit();
 	ret |= rkipc_rtmp_deinit();
@@ -2413,6 +2420,7 @@ void rk_init_mode(void) {
 
 int rk_set_mode(RK_MODE_E mode) {
 	int ret = 0;
+	long long start_time = rkipc_get_curren_time_ms();
 	if (g_current_mode == mode)
 		return 0;
 	rk_video_deinit();
@@ -2456,6 +2464,7 @@ int rk_set_mode(RK_MODE_E mode) {
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));
 	rk_video_init();
+	LOG_INFO("set new mode %d, cost time %lld ms\n", mode, rkipc_get_curren_time_ms() - start_time);
 	return 0;
 }
 
@@ -2551,6 +2560,7 @@ int rk_set_eis_mode(RK_EIS_MODE_E eis_mode) {
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_video_init();
 	LOG_INFO("set eis mode %d\n", eis_mode);
+	return 0;
 }
 
 int rk_set_hdr(bool enable) {

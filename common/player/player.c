@@ -997,7 +997,7 @@ static int send_jpeg_to_vdec(RK_PHOTO_DATA *data, MB_BLK input_mb, RK_U32 input_
 	} else {
 		memcpy(data->data, RK_MPI_MB_Handle2VirAddr(output_frame.stVFrame.pMbBlk), data->size);
 	}
-	RK_MPI_VPSS_ReleaseChnFrame(JPEG_VPSS_GRP_ID, JPEG_VPSS_GRP_ID, &output_frame);
+	RK_MPI_VPSS_ReleaseChnFrame(JPEG_VPSS_GRP_ID, JPEG_VPSS_CHN_ID, &output_frame);
 	RK_MPI_SYS_UnBind(&stSrcChn, &stDestChn);
 	LOG_INFO("get jpeg success\n");
 	return 0;
