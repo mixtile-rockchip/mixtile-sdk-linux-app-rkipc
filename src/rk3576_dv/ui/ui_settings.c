@@ -328,6 +328,10 @@ static void fps_event_handler(lv_event_t *e) {
 			ui_dialog_create("WARNING", "请先切换到录像模式!");
 			return;
 		}
+		if (rk_get_eis_mode() == RK_HORIZON_STEADY) {
+			ui_dialog_create("WARNING", "地平线防抖不支持切换帧率!");
+			return;
+		}
 		fps_update();
 	} else if (code == LV_EVENT_FOCUSED) {
 		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_boxbg_p, NULL);

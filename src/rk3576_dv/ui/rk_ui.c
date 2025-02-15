@@ -290,7 +290,7 @@ static int32_t rk_disp_setup(void) {
 		LOG_ERROR("failed to set layer attr\n");
 		return ret;
 	}
-	ret = RK_MPI_VO_SetLayerSpliceMode(lcd_vo_layer, VO_SPLICE_MODE_GPU);
+	ret = RK_MPI_VO_SetLayerSpliceMode(lcd_vo_layer, VO_SPLICE_MODE_RGA);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("failed to set layer splice mode\n");
 		return ret;

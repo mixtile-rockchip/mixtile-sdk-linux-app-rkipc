@@ -140,6 +140,10 @@ static void btn_event_cb(lv_event_t *e) {
 			destroy_eis_config_box();
 			return;
 		}
+		if (rk_get_mode() != RK_VIDEO_MODE) {
+			ui_dialog_create("WARNING", "请先切换到录像模式!");
+			return ;
+		}
 		child_cnt = lv_obj_get_child_cnt(parent);
 		while (child_idx < child_cnt) {
 			child = lv_obj_get_child(parent, child_idx);

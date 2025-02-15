@@ -41,7 +41,7 @@ static RK_EIS_MODE_E g_current_eis_mode = RK_EIS_OFF;
 
 static int pipe_id_ = 0;
 static int g_vi_chn_id = 0;
-int g_vi_ext_chn_id = 4; // 3:vpss_scale_1 4:vpss_scale_0 5:vpss_scale_2 6:vpss_scale_3
+static int g_vi_ext_chn_id = 4; // 3:vpss_scale_1 4:vpss_scale_0 5:vpss_scale_2 6:vpss_scale_3
 static int g_vi_for_vo_chn_id = 1;
 
 static int max_capture_num = 5;
@@ -277,14 +277,17 @@ static void drop_stream_cache(struct stream_cache *cache) {
 		step = 2;
 	else
 		step = 1;
+	LOG_INFO("fps %d, gop %d, step %d\n", fps, gop, step);
 	list_for_each_safe(cur, tmp, &cache->packet_list) {
 		packet = container_of(cur, struct stream_cache_packet, list);
 		if ((i % step) == 0) {
 			pts += 33333; // force 30fps output
 			rk_storage_write_video_frame(2, cache->data + packet->offset, packet->size,
 				                             pts, 1);
-			LOG_DEBUG("send frame pts %lld, len %d, index %d to vdec\n", pts, packet->size, i);
+			LOG_INFO("save frame pts %lld, len %d, index %d\n", pts, packet->size, i);
 		}
+		++i;
+		LOG_DEBUG("frame pts %lld, len %d\n", pts, packet->size);
 		list_del(cur);
 		free(packet);
 	}
@@ -353,10 +356,10 @@ static void *rkipc_timelapse_loop(void *arg) {
 					rk_storage_write_video_frame(2, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 1);
 				}
+				LOG_DEBUG("Count:%d, Len:%d, PTS is %" PRId64", enH264EType is %d, ref type %d\n", loopCount,
+					stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
+					stFrame.pstPack->DataType.enH265EType, stFrame.stH265Info.enRefType);
 			}
-			LOG_DEBUG("Count:%d, Len:%d, PTS is %" PRId64", enH264EType is %d, ref type %d\n", loopCount,
-				stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
-				stFrame.pstPack->DataType.enH265EType, stFrame.stH265Info.enRefType);
 			// 7.release the frame
 			ret = RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_TIMELAPSE, &stFrame);
 			if (ret != RK_SUCCESS)
@@ -488,26 +491,43 @@ static int rkipc_vi_dev_init() {
 		LOG_ERROR("RK_MPI_VI_EnableDev already\n");
 	}
 	VI_PARAM_MOD_S stModParam;
-	memset(&stModParam, 0, sizeof(stModParam));
-	stModParam.enViModType = VI_EXT_CHN_MODE;
-	stModParam.stExtChnParam.mirrorCmsc = 0; // 1 is for vpss, 0 is for vi ext
-	stModParam.stExtChnParam.extChn[0] = 0;
-	stModParam.stExtChnParam.extChn[1] = 0;
-	ret = RK_MPI_VI_SetModParam(&stModParam);
-	if (ret)
-		LOG_ERROR("RK_MPI_VI_SetModParam fail:%#X\n", ret);
+	if (g_current_eis_mode == RK_HORIZON_STEADY) {
+		memset(&stModParam, 0, sizeof(stModParam));
+		// INFO: vblank is too short to support isp online mode for 4032*3016 resolution
+		stModParam.enViModType = VI_DEV_PIPE_MODE;
+		stModParam.stDevPipeModParam.enDevPipeMode = VI_DEV_PIPE_OFFLINE;
+		ret = RK_MPI_VI_SetModParam(&stModParam);
+		if (ret)
+			LOG_ERROR("RK_MPI_VI_SetModParam fail:%#X\n", ret);
+	} else {
+		memset(&stModParam, 0, sizeof(stModParam));
+		stModParam.enViModType = VI_DEV_PIPE_MODE;
+		stModParam.stDevPipeModParam.enDevPipeMode = VI_DEV_PIPE_ONLINE;
+		ret = RK_MPI_VI_SetModParam(&stModParam);
+		if (ret)
+			LOG_ERROR("RK_MPI_VI_SetModParam fail:%#X\n", ret);
 
-	memset(&stModParam, 0, sizeof(stModParam));
-	stModParam.enViModType = VI_EXT_CHN_MODE;
-	ret = RK_MPI_VI_GetModParam(&stModParam);
-	if (ret)
-		LOG_ERROR("RK_MPI_VI_GetModParam fail:%#X\n", ret);
+		memset(&stModParam, 0, sizeof(stModParam));
+		stModParam.enViModType = VI_EXT_CHN_MODE;
+		stModParam.stExtChnParam.mirrorCmsc = 0; // 1 is for vpss, 0 is for vi ext
+		stModParam.stExtChnParam.extChn[0] = 0;
+		stModParam.stExtChnParam.extChn[1] = 0;
+		ret = RK_MPI_VI_SetModParam(&stModParam);
+		if (ret)
+			LOG_ERROR("RK_MPI_VI_SetModParam fail:%#X\n", ret);
 
-	LOG_INFO("vi mod:%d mirror:%d ext_chn_mode:%d ext_chn1_mode:%d"
-				"ext_chn2_mode:%d ext_chn3_mode:%d\n",
-				stModParam.enViModType, stModParam.stExtChnParam.mirrorCmsc,
-				stModParam.stExtChnParam.extChn[0], stModParam.stExtChnParam.extChn[1],
-				stModParam.stExtChnParam.extChn[2], stModParam.stExtChnParam.extChn[3]);
+		memset(&stModParam, 0, sizeof(stModParam));
+		stModParam.enViModType = VI_EXT_CHN_MODE;
+		ret = RK_MPI_VI_GetModParam(&stModParam);
+		if (ret)
+			LOG_ERROR("RK_MPI_VI_GetModParam fail:%#X\n", ret);
+
+		LOG_INFO("vi mod:%d mirror:%d ext_chn_mode:%d ext_chn1_mode:%d"
+					"ext_chn2_mode:%d ext_chn3_mode:%d\n",
+					stModParam.enViModType, stModParam.stExtChnParam.mirrorCmsc,
+					stModParam.stExtChnParam.extChn[0], stModParam.stExtChnParam.extChn[1],
+					stModParam.stExtChnParam.extChn[2], stModParam.stExtChnParam.extChn[3]);
+	}
 
 	return 0;
 }
@@ -558,11 +578,21 @@ static int rkipc_vi_chn_init() {
 		vi_chn_attr.stIspOpt.bAttchFrmInfo = true;
 	vi_chn_attr.stFrameRate.s32SrcFrameRate = -1;
 	vi_chn_attr.stFrameRate.s32DstFrameRate = -1;
-	ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_ext_chn_id, &vi_chn_attr);
-	ret |= RK_MPI_VI_EnableChn(pipe_id_, g_vi_ext_chn_id);
-	if (ret) {
-		LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
-		return ret;
+	if (g_current_eis_mode == RK_HORIZON_STEADY) {
+		// INFO: vblank is too short to support vpss online mode for 4032*3016 resolution
+		ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_for_vo_chn_id, &vi_chn_attr);
+		ret |= RK_MPI_VI_EnableChn(pipe_id_, g_vi_for_vo_chn_id);
+		if (ret) {
+			LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
+			return ret;
+		}
+	} else {
+		ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_ext_chn_id, &vi_chn_attr);
+		ret |= RK_MPI_VI_EnableChn(pipe_id_, g_vi_ext_chn_id);
+		if (ret) {
+			LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
+			return ret;
+		}
 	}
 
 	return ret;
@@ -573,7 +603,10 @@ int rkipc_vi_chn_deinit() {
 	ret = RK_MPI_VI_DisableChn(pipe_id_, g_vi_chn_id);
 	if (ret)
 		LOG_ERROR("ERROR: RK_MPI_VI_DisableChn VI error! ret=%x\n", ret);
-	ret = RK_MPI_VI_DisableChn(pipe_id_, g_vi_ext_chn_id);
+	if (g_current_eis_mode == RK_HORIZON_STEADY)
+		ret = RK_MPI_VI_DisableChn(pipe_id_, g_vi_for_vo_chn_id);
+	else
+		ret = RK_MPI_VI_DisableChn(pipe_id_, g_vi_ext_chn_id);
 	if (ret)
 		LOG_ERROR("ERROR: RK_MPI_VI_DisableChn VI error! ret=%x\n", ret);
 
@@ -1192,7 +1225,10 @@ static int rkipc_bind_init() {
 	vi_chn[0].s32ChnId = g_vi_chn_id;
 	vi_chn[1].enModId = RK_ID_VI;
 	vi_chn[1].s32DevId = 0;
-	vi_chn[1].s32ChnId = g_vi_ext_chn_id;
+	if (g_current_eis_mode == RK_HORIZON_STEADY)
+		vi_chn[1].s32ChnId = g_vi_for_vo_chn_id;
+	else
+		vi_chn[1].s32ChnId = g_vi_ext_chn_id;
 	for (int i = 0; i < 2; i++) {
 		gdc_chn[i].enModId = RK_ID_GDC;
 		gdc_chn[i].s32DevId = 0;
@@ -2139,6 +2175,8 @@ RK_S32 RKGdcSensorCB(RK_VOID *pUsr, GDC_SENSOR_INFO_S *pInfo) {
 	// pInfo->s64Timestamp, pInfo->dTemp,
 	// pInfo->dGyroData[0], pInfo->dGyroData[1], pInfo->dGyroData[2],
 	// pInfo->dAccData[0], pInfo->dAccData[1], pInfo->dAccData[2]);
+	if (!g_start_record_)
+		return GDC_INFO_CB_SUCCESS;
 	sprintf(gdc_imu_info_buffer, "%lf %lf %lf %lf %lf %lf %lf %lld\n",
 			pInfo->dAccData[0], pInfo->dAccData[1], pInfo->dAccData[2],
 			pInfo->dGyroData[0], pInfo->dGyroData[1], pInfo->dGyroData[2],
@@ -2163,6 +2201,8 @@ RK_S32 RKGdcVframeCB(RK_VOID *pUsr, GDC_VFAME_INFO_S *pInfo) {
 	//		pInfo->u32Dgain, pInfo->u32Ispgain, pInfo->dIso);
 
 	// 为保证imu数据记录早于vi数据，丢弃vi的前30帧
+	if (!g_start_record_)
+		return GDC_INFO_CB_SUCCESS;
 	gdc_debug_cnt++;
 	if (gdc_debug_cnt < 30) {
 		RK_MPI_MB_ReleaseMB(pInfo->pMbBlk);
@@ -2205,14 +2245,14 @@ int rkipc_gdc_init() {
 	stAttr.enCompMode = COMPRESS_MODE_NONE;
 	memset(stAttr.cfgFile, 0, sizeof(stAttr.cfgFile));
 	if (g_current_eis_mode == RK_HORIZON_STEADY) {
-		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_horizon_4032x2256_4032x2256_30fps.json"
-				, strlen("/usr/share/rkeis_config_imx386_horizon_4032x2256_4032x2256_30fps.json"));
+		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_horizon_4032x3016_3840x2160_30fps.json"
+				, strlen("/usr/share/rkeis_config_imx386_horizon_4032x3016_3840x2160_30fps.json"));
 	} else if (rk_param_get_int("isp.0.adjustment:fps", 30) == 60) {
-		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_4032x2256_4032x2256_60fps.json"
-				, strlen("/usr/share/rkeis_config_imx386_4032x2256_4032x2256_60fps.json"));
+		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_4032x2256_3840x2160_60fps.json"
+				, strlen("/usr/share/rkeis_config_imx386_4032x2256_3840x2160_60fps.json"));
 	} else {
-		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_4032x2256_4032x2256_30fps.json"
-				, strlen("/usr/share/rkeis_config_imx386_4032x2256_4032x2256_30fps.json"));
+		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_4032x2256_3840x2160_30fps.json"
+				, strlen("/usr/share/rkeis_config_imx386_4032x2256_3840x2160_30fps.json"));
 	}
 	if (enable_eis_debug) {
 		vi_info_file = fopen("/tmp/vi_info.txt", "w");
@@ -2392,46 +2432,19 @@ int rk_video_stop_record(void) {
 }
 
 void rk_init_mode(void) {
-	int mode = rk_param_get_int("video.source:mode", 0);
-	int fps = rk_param_get_int("isp.0.adjustment:fps", 30);
-	if (mode == RK_VIDEO_MODE) {
-		LOG_INFO("change to video mode\n");
-		g_current_mode = RK_VIDEO_MODE;
-		if (fps == 30) {
-			system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
-			system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-			system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
-			system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
-		} else if (fps == 58) {
-			system("echo 1416000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
-			system("echo 1560000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-			system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=58");
-			system("v4l2-ctl -d /dev/v4l-subdev3 --set-fmt-video=width=4032,height=2256,pixelformat=RG10");
-		}
-	} else if (mode == RK_PHOTO_MODE) {
-		LOG_INFO("change to photo mode\n");
-		g_current_mode = RK_PHOTO_MODE;
-		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
-		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
-	} else if (mode == RK_SLOW_MOTION_MODE) {
-		LOG_INFO("change to slow motion mode\n");
-		g_current_mode = RK_SLOW_MOTION_MODE;
-		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
-		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt pad=0,width=1920,height=1080");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=120");
-	} else if (mode == RK_TIME_LAPSE_MODE) {
-		LOG_INFO("change to time lapse mode\n");
-		g_current_mode = RK_TIME_LAPSE_MODE;
-		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
-		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
-	} else {
-		LOG_ERROR("unknown mode!\n");
-	}
+	rk_param_set_int("isp.0.adjustment:fps", 30);
+	rk_param_set_int("video.source:mode", RK_VIDEO_MODE);
+	rk_param_set_int("video.source:eis_mode", RK_NORMAL_STEADY);
+	rk_param_set_int("video.0:src_frame_rate_den", 1);
+	rk_param_set_int("video.0:src_frame_rate_num", 30);
+	rk_param_set_int("video.0:dst_frame_rate_den", 1);
+	rk_param_set_int("video.0:dst_frame_rate_num", 30);
+	rk_param_set_int("video.0:gop", 60);
+	rk_param_set_int("video.source:width", 4032);
+	rk_param_set_int("video.source:height", 2256);
+	system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
+	system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
+	system("media-ctl -d /dev/media0 --set-v4l2 \'\"m00_b_imx386 5-001a\":0[fmt:SGRBG10/4032x2256@10000/300000]\'");
 }
 
 int rk_set_mode(RK_MODE_E mode) {
@@ -2448,32 +2461,36 @@ int rk_set_mode(RK_MODE_E mode) {
 		rk_param_set_int("video.0:dst_frame_rate_den", 1);
 		rk_param_set_int("video.0:dst_frame_rate_num", 30);
 		rk_param_set_int("video.0:gop", 60);
+		rk_param_set_int("video.source:width", 4032);
+		rk_param_set_int("video.source:height", 2256);
 		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
 		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
+		system("media-ctl -d /dev/media0 --set-v4l2 \'\"m00_b_imx386 5-001a\":0[fmt:SGRBG10/4032x2256@10000/300000]\'");
 	} else if (mode == RK_PHOTO_MODE) {
 		rk_param_set_int("video.0:src_frame_rate_den", 1);
 		rk_param_set_int("video.0:src_frame_rate_num", 30);
 		rk_param_set_int("video.0:dst_frame_rate_den", 1);
 		rk_param_set_int("video.0:dst_frame_rate_num", 30);
 		rk_param_set_int("video.0:gop", 60);
+		rk_param_set_int("video.source:width", 4032);
+		rk_param_set_int("video.source:height", 2256);
 		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
 		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
+		system("media-ctl -d /dev/media0 --set-v4l2 \'\"m00_b_imx386 5-001a\":0[fmt:SGRBG10/4032x2256@10000/300000]\'");
 	} else if (mode == RK_SLOW_MOTION_MODE) {
+		rk_param_set_int("video.source:width", 1920);
+		rk_param_set_int("video.source:height", 1080);
 		rk_param_set_int("isp.0.adjustment:fps", 120);
 		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
 		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt pad=0,width=1920,height=1080");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=120");
+		system("media-ctl -d /dev/media0 --set-v4l2 \'\"m00_b_imx386 5-001a\":0[fmt:SGRBG10/1920x1080@10000/1200000]\'");
 	} else if (mode == RK_TIME_LAPSE_MODE) {
+		rk_param_set_int("video.source:width", 4032);
+		rk_param_set_int("video.source:height", 2256);
 		rk_param_set_int("isp.0.adjustment:fps", 30);
 		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
 		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fmt width=4032,height=2256");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
+		system("media-ctl -d /dev/media0 --set-v4l2 \'\"m00_b_imx386 5-001a\":0[fmt:SGRBG10/4032x2256@10000/300000]\'");
 	}
 	g_current_mode = mode;
 	rk_param_set_int("video.source:mode", mode);
@@ -2503,6 +2520,7 @@ int rk_video_set_fps(int new_fps) {
 	LOG_WARN("====================> start change fps\n");
 	rk_video_deinit();
 	rk_isp_deinit(0);
+	rk_storage_deinit();
 	if (fps == 58) {
 		rk_param_set_int("isp.0.adjustment:fps", 58);
 		rk_param_set_int("video.0:src_frame_rate_den", 1);
@@ -2513,8 +2531,7 @@ int rk_video_set_fps(int new_fps) {
 		LOG_WARN("====================> change to 60fps\n");
 		system("echo 1416000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
 		system("echo 1560000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=58");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-fmt-video=width=4032,height=2256,pixelformat=RG10");
+		system("media-ctl -d /dev/media0 --set-v4l2 \'\"m00_b_imx386 5-001a\":0[fmt:SGRBG10/4032x2256@10000/580000]\'");
 	} else {
 		rk_param_set_int("isp.0.adjustment:fps", 30);
 		rk_param_set_int("video.0:src_frame_rate_den", 1);
@@ -2525,9 +2542,9 @@ int rk_video_set_fps(int new_fps) {
 		LOG_WARN("====================> change to 30fps\n");
 		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
 		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-subdev-fps pad=0,fps=30");
-		system("v4l2-ctl -d /dev/v4l-subdev3 --set-fmt-video=width=4032,height=2256,pixelformat=RG10");
+		system("media-ctl -d /dev/media0 --set-v4l2 \'\"m00_b_imx386 5-001a\":0[fmt:SGRBG10/4032x2256@10000/300000]\'");
 	}
+	rk_storage_init();
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_isp_set_frame_rate_without_ini(0, fps);
 	rk_video_init();
@@ -2571,10 +2588,35 @@ int rk_set_eis_mode(RK_EIS_MODE_E eis_mode) {
 		return 0;
 	rk_video_deinit();
 	rk_isp_deinit(0);
-	g_current_eis_mode = eis_mode;
 	// BUG: fix some isp bug. If no delay here, isp would be hang...
 	usleep(100 * 1000);
+	g_current_eis_mode = eis_mode;
 	rk_param_set_int("video.source:eis_mode", eis_mode);
+	if (eis_mode == RK_HORIZON_STEADY) {
+		rk_param_set_int("isp.0.adjustment:fps", 30);
+		rk_param_set_int("video.0:src_frame_rate_den", 1);
+		rk_param_set_int("video.0:src_frame_rate_num", 30);
+		rk_param_set_int("video.0:dst_frame_rate_den", 1);
+		rk_param_set_int("video.0:dst_frame_rate_num", 30);
+		rk_param_set_int("video.0:gop", 60);
+		rk_param_set_int("video.source:width", 4032);
+		rk_param_set_int("video.source:height", 3016);
+		system("echo 1416000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
+		system("echo 1560000000 > /sys/class/devfreq/dmc/userspace/set_freq");
+		system("media-ctl -d /dev/media0 --set-v4l2 \'\"m00_b_imx386 5-001a\":0[fmt:SGRBG10/4032x3016@10000/300000]\'");
+	} else {
+		rk_param_set_int("isp.0.adjustment:fps", 30);
+		rk_param_set_int("video.0:src_frame_rate_den", 1);
+		rk_param_set_int("video.0:src_frame_rate_num", 30);
+		rk_param_set_int("video.0:dst_frame_rate_den", 1);
+		rk_param_set_int("video.0:dst_frame_rate_num", 30);
+		rk_param_set_int("video.0:gop", 60);
+		rk_param_set_int("video.source:width", 4032);
+		rk_param_set_int("video.source:height", 2256);
+		system("echo 600000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed");
+		system("echo 1068000000 > /sys/class/devfreq/dmc/userspace/set_freq");
+		system("media-ctl -d /dev/media0 --set-v4l2 \'\"m00_b_imx386 5-001a\":0[fmt:SGRBG10/4032x2256@10000/300000]\'");
+	}
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_video_init();
 	LOG_INFO("set eis mode %d\n", eis_mode);
