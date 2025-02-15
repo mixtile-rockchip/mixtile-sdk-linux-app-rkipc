@@ -90,15 +90,12 @@ target_link_libraries(${PROJECT_NAME}
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 install(FILES rkipc.ini DESTINATION share)
-install(FILES video/rkeis_config.json DESTINATION share)
-install(FILES video/rkeis_config_display.json DESTINATION share)
+file(GLOB EIS_CONFIG_FILES video/rkeis_config*)
+install(FILES ${EIS_CONFIG_FILES} DESTINATION share)
 install(PROGRAMS RkLunch.sh DESTINATION bin)
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)
-install(FILES ${PROJECT_SOURCE_DIR}/common/osd/image.bmp DESTINATION share)
-install(FILES ${PROJECT_SOURCE_DIR}/common/osd/simsun_cn.ttc DESTINATION share)
 install(FILES res/font/PuHuiTi.ttf DESTINATION share)
 install(FILES ${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1031-linux-gnu/libwpa_client.so DESTINATION lib)
-install(FILES ${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1031-linux-gnu/libRkEis.so DESTINATION lib)
 
 file(GLOB ICON_FILES res/ui/*)
 install(FILES ${ICON_FILES} DESTINATION share/res/ui/)

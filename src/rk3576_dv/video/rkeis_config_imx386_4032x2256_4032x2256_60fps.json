@@ -1,5 +1,5 @@
 {
-    "cfgVersion": "1.0.3",
+    "cfgVersion": "1.0.4",
     "initParams": {
         "still_crop": 0,
         "src_type": 4,
@@ -20,9 +20,10 @@
         "delay_num": 7,
         "ois_mode": 0,
         "dvs_mode": 1,
+        "horizon_mode": 0,
         "use_async": 1,
         "view_angle": 0.0,
-        "frame_rate": 30.0,
+        "frame_rate": 60.0,
         "sensor_axes_type": 0,
         "motion_detect_mode": 0,
         "num_cores": 1,
@@ -31,11 +32,13 @@
         "remap_hw": 0,
         "x_grid_step": 32,
         "y_grid_step": 32,
-		"follow_mode_params" :{
-			"th1": 3.5,
-			"th2": 5.5,
-			"th3": 8.0
-		}
+        "follow_mode_params" :{
+            "th1": 3.5,
+            "th2": 5.5,
+            "th3": 8.0
+        },
+        "opencl_lib_path": "/usr/lib/libOpenCL.so",
+        "opencl_program_path": "/usr/share/rkEIS_CLProgram_Bifrost-G52-g13p0-01eac0.bin"
     },
     "estParams": {
         "view_angle": 0.0,
@@ -49,10 +52,10 @@
         "dst_center_y": 1.07571387e+03,
         "f_len_unit": 1.0,
         "force_use_json_rs": 0,
-        "rs_skew": 32472000,
+        "rs_skew": 16164000,
         "start_of_scanline": 0,
         "image_timestamp_offset": 0,
-        "gyro_timestamp_offset": 0.0008,
+        "gyro_timestamp_offset": 600000,
         "hall_timestamp_offset": 0,
         "src_ldc": {
             "k1": -4.49787825e-02,
@@ -92,17 +95,17 @@
         "gyro_static_calib_value_path": "/data/IMUCalibratorFile/gyro_static_calib_val.txt", 
         "accel_calib_value_path": "/data/IMUCalibratorFile/accel_calib_val.txt",
         "gyro_dynamic_calib_value_path": "/data/IMUCalibratorFile/gyro_dynamic_calib_val.txt",
-		"use_init_temp_coef": 1,
-		"init_temp_coef": {
-			"x_a0": 0.010083,
-			"x_a1": 0.000199,
-			"x_a2": -0.000004,
-			"y_a0": 0.005144,
-			"y_a1": -0.000233,
-			"y_a2": 0.000002,
-			"z_a0": -0.002433,
-			"z_a1": 0.000182,
-			"z_a2": 0.000003
-		}
+        "use_init_temp_coef": 1,
+        "init_temp_coef": {
+            "x_a0": 0.008068,
+            "x_a1": -0.000084,
+            "x_a2": -0.000001,
+            "y_a0": 0.010499,
+            "y_a1": -0.000181,
+            "y_a2": -0.000004,
+            "z_a0": -0.007734,
+            "z_a1": 0.000393,
+            "z_a2": -0.000002
+        }
     }
 }

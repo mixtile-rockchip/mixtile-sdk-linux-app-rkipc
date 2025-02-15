@@ -68,8 +68,6 @@ lv_img_dsc_t *index_icon_slow_motion = NULL;
 lv_img_dsc_t *index_icon_bg_r = NULL;
 lv_img_dsc_t *index_icon_bg_p = NULL;
 
-lv_img_dsc_t *index_icon_player_play = NULL;
-
 lv_img_dsc_t *icon_record_stop_r = NULL;
 lv_img_dsc_t *icon_record_stop_p = NULL;
 lv_img_dsc_t *icon_record_start_r = NULL;
@@ -179,16 +177,6 @@ static void media_load_res(void) {
 	index_icon_bg_p = ui_dec_icon("media_icon_bg_02.png");
 }
 
-static void player_release_res(void) {
-	ICON_RELEASE(index_icon_player_play);
-}
-
-static void player_load_res(void) {
-	player_release_res();
-
-	index_icon_player_play = ui_dec_icon("player_icon_play.png");
-}
-
 static void ui_font_release(void) {
 	if (NULL != ttf_info_10.font) {
 		lv_ft_font_destroy(ttf_info_10.font);
@@ -237,7 +225,6 @@ void ui_resource_release(void) {
 	setting_release_res();
 	view_release_res();
 	media_release_res();
-	player_release_res();
 
 	ui_font_release();
 
@@ -249,5 +236,4 @@ void ui_resource_load(void) {
 	setting_load_res();
 	view_load_res();
 	media_load_res();
-	player_load_res();
 }

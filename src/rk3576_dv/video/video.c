@@ -2202,8 +2202,17 @@ int rkipc_gdc_init() {
 	stAttr.s32DstHeight = rk_param_get_int("video.0:height", 2160);
 	stAttr.enPixelFormat = RK_FMT_YUV420SP;
 	stAttr.enCompMode = COMPRESS_MODE_NONE;
-	memcpy(stAttr.cfgFile, "/usr/share/rkeis_config.json", strlen("/usr/share/rkeis_config.json"));
-
+	memset(stAttr.cfgFile, 0, sizeof(stAttr.cfgFile));
+	if (g_current_eis_mode == RK_HORIZON_STEADY) {
+		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_horizon_4032x2256_4032x2256_30fps.json"
+				, strlen("/usr/share/rkeis_config_imx386_horizon_4032x2256_4032x2256_30fps.json"));
+	} else if (rk_param_get_int("isp.0.adjustment:fps", 30) == 60) {
+		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_4032x2256_4032x2256_60fps.json"
+				, strlen("/usr/share/rkeis_config_imx386_4032x2256_4032x2256_60fps.json"));
+	} else {
+		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_4032x2256_4032x2256_30fps.json"
+				, strlen("/usr/share/rkeis_config_imx386_4032x2256_4032x2256_30fps.json"));
+	}
 	if (enable_eis_debug) {
 		vi_info_file = fopen("/tmp/vi_info.txt", "w");
 		imu_info_file = fopen("/tmp/imu_info.txt", "w");
@@ -2222,8 +2231,14 @@ int rkipc_gdc_init() {
 		stAttr.s32DstHeight = gdc_display_h;
 		stAttr.enPixelFormat = RK_FMT_YUV420SP;
 		stAttr.enCompMode = COMPRESS_MODE_NONE;
-		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_display.json",
-				strlen("/usr/share/rkeis_config_display.json"));
+		memset(stAttr.cfgFile, 0, sizeof(stAttr.cfgFile));
+		if (g_current_eis_mode == RK_HORIZON_STEADY) {
+			memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_horizon_704x384_704x384_30fps.json"
+					, strlen("/usr/share/rkeis_config_imx386_horizon_704x384_704x384_30fps.json"));
+		} else {
+			memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_704x384_704x384_30fps.json"
+					, strlen("/usr/share/rkeis_config_imx386_704x384_704x384_30fps.json"));
+		}
 		ret = RK_MPI_GDC_CreateChn(1, &stAttr);
 	}
 
@@ -2480,6 +2495,8 @@ int rk_video_get_fps(void) {
 int rk_video_set_fps(int new_fps) {
 	int fps = rk_param_get_int("isp.0.adjustment:fps", 30);
 	if (fps == new_fps)
+		return 0;
+	if (g_current_mode == RK_SLOW_MOTION_MODE || g_current_mode == RK_TIME_LAPSE_MODE)
 		return 0;
 	fps = new_fps;
 	LOG_WARN("====================> start change fps\n");

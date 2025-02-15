@@ -52,8 +52,6 @@ extern lv_img_dsc_t *icon_record_start_p;
 extern lv_img_dsc_t *index_icon_bg_r;
 extern lv_img_dsc_t *index_icon_bg_p;
 
-extern lv_img_dsc_t *index_icon_player_play;
-
 void ui_resource_release(void);
 void ui_resource_load(void);
 
