@@ -61,6 +61,7 @@ typedef struct {
 
 	lv_obj_t *rec_obj;
 	lv_obj_t *status_bar;
+	lv_obj_t *bat_status_obj;
 
 	lv_obj_t *media_obj;
 	lv_obj_t *setting_obj;
@@ -114,6 +115,23 @@ static bool rk_record_is_active() {
 	return (value == 1);
 }
 
+static int get_bat_capacity(void) {
+	char buf[64] = {'\0'};
+	int fd = open("/sys/class/power_supply/cw221X-bat/capacity", O_RDONLY);
+	int ret = 0, capacity = 100;
+	if (fd >= 0) {
+		ret = read(fd, buf, sizeof(buf));
+		if (ret < 0)
+			LOG_ERROR("read bat capacity failed %s\n", strerror(errno));
+		else
+			capacity = atoi(buf);
+		close(fd);
+	} else {
+		LOG_ERROR("open bat capacity failed %s\n", strerror(errno));
+	}
+	return capacity;
+}
+
 static void timer_xcb(lv_timer_t *timer) {
 	time_t timep;
 	struct tm *p;
@@ -134,6 +152,17 @@ static void timer_xcb(lv_timer_t *timer) {
 		                      p->tm_sec);
 		lv_img_set_src(main_view_ctrl.rec_obj, index_icon_record_nor);
 	}
+	int capacity = get_bat_capacity();
+	if (capacity > 90)
+		lv_label_set_text(main_view_ctrl.bat_status_obj, LV_SYMBOL_BATTERY_FULL);
+	else if (capacity >= 75)
+		lv_label_set_text(main_view_ctrl.bat_status_obj, LV_SYMBOL_BATTERY_3);
+	else if (capacity >= 50)
+		lv_label_set_text(main_view_ctrl.bat_status_obj, LV_SYMBOL_BATTERY_2);
+	else if (capacity >= 25)
+		lv_label_set_text(main_view_ctrl.bat_status_obj, LV_SYMBOL_BATTERY_1);
+	else
+		lv_label_set_text(main_view_ctrl.bat_status_obj, LV_SYMBOL_BATTERY_EMPTY);
 }
 
 static void capture_xcb(lv_timer_t *timer) {
@@ -349,6 +378,7 @@ static void main_view_create_ctrl(lv_obj_t *page_obj) {
 
 	main_view_ctrl.status_bar = lv_obj_create(page_obj);
 	lv_obj_set_size(main_view_ctrl.status_bar, lv_pct(100), LV_SIZE_CONTENT);
+
 	main_view_ctrl.rec_obj = lv_img_create(main_view_ctrl.status_bar);
 	lv_img_set_src(main_view_ctrl.rec_obj, index_icon_record_nor);
 
@@ -402,6 +432,10 @@ static void main_view_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_text_font(main_view_ctrl.time_bar, ttf_info_14.font, 0);
 	lv_obj_set_style_text_color(main_view_ctrl.time_bar, lv_color_hex(0xffffff), 0);
 	lv_obj_set_style_width(main_view_ctrl.time_bar, lv_pct(60), 0);
+
+	main_view_ctrl.bat_status_obj = lv_label_create(main_view_ctrl.status_bar);
+	lv_obj_set_style_text_font(main_view_ctrl.bat_status_obj, &lv_font_montserrat_24, 0);
+	lv_obj_set_style_text_color(main_view_ctrl.bat_status_obj, lv_color_hex(0xffffff), 0);
 
 	main_view_ctrl.cap_obj = lv_label_create(page_obj);
 	lv_obj_set_style_text_font(main_view_ctrl.cap_obj, ttf_info_28.font, 0);
