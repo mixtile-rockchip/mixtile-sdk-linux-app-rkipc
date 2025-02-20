@@ -43,20 +43,12 @@ typedef enum {
 	RUNNING,
 } PLAYER_STATUS;
 
-typedef struct _rkMpiVDECCtx {
-	int s32ChnFd;
-	bool bEnableMbPool;
-	MB_POOL s32Pool;
-	uint32_t u32Width;
-	uint32_t u32Height;
-} VDEC_CTX_S;
-
 typedef struct _rkPlayerCtx {
 	char input_file_path[128];
-	VDEC_CTX_S vdec_ctx;
 	DemuxerParam demuxer_param;
 	bool enable_audio;
 	bool enable_video;
+	bool media_is_init;
 	void *demuxer_handle;
 	rk_player_event_cb event_cb;
 	pthread_mutex_t mutex; // protect rkdemuxer
@@ -452,7 +444,7 @@ static void destroy_vo(void) {
 #endif
 }
 
-static int create_vdec(VDEC_CTX_S *ctx) {
+static int create_vdec(PLAYER_CTX_S *ctx) {
 	int ret = RK_SUCCESS;
 	VDEC_CHN_ATTR_S stAttr;
 	VDEC_CHN_PARAM_S stVdecParam;
@@ -460,36 +452,27 @@ static int create_vdec(VDEC_CTX_S *ctx) {
 	VDEC_PIC_BUF_ATTR_S stVdecPicBufAttr;
 	MB_PIC_CAL_S stMbPicCalret;
 	VDEC_MOD_PARAM_S stModParam;
-	const char *tmp_output_data_type = rk_param_get_string("video.0:output_data_type", NULL);
 
 	memset(&stAttr, 0, sizeof(VDEC_CHN_ATTR_S));
 	memset(&stVdecParam, 0, sizeof(VDEC_CHN_PARAM_S));
 	memset(&stModParam, 0, sizeof(VDEC_MOD_PARAM_S));
 
-	if (ctx->bEnableMbPool) {
-		stModParam.enVdecMBSource = MB_SOURCE_USER;
-		ret = RK_MPI_VDEC_SetModParam(&stModParam);
-		if (ret != RK_SUCCESS) {
-			LOG_ERROR("vdec %d SetModParam failed! errcode %x\n", VDEC_CHN_ID, ret);
-			return ret;
-		}
-	}
 	stAttr.enMode = VIDEO_MODE_STREAM;
-	if (tmp_output_data_type == NULL) {
+	if (ctx->demuxer_param.pVideoCodec == NULL) {
 		LOG_ERROR("bad video file format!\n");
 		return -1;
-	} else if (!strcmp(tmp_output_data_type, "H.264")) {
+	} else if (!strcmp(ctx->demuxer_param.pVideoCodec, "h264")) {
 		stAttr.enType = RK_VIDEO_ID_AVC;
-	} else if (!strcmp(tmp_output_data_type, "H.265")) {
+	} else if (!strcmp(ctx->demuxer_param.pVideoCodec, "h265")) {
 		stAttr.enType = RK_VIDEO_ID_HEVC;
 	} else {
 		LOG_ERROR("unknown video file input!\n");
 		return -1;
 	}
-	stAttr.u32PicWidth = ctx->u32Width;
-	stAttr.u32PicHeight = ctx->u32Height;
+	stAttr.u32PicWidth = ctx->demuxer_param.s32VideoWidth;
+	stAttr.u32PicHeight = ctx->demuxer_param.s32VideoWidth;
 	stAttr.u32FrameBufCnt = 8;
-	stAttr.u32StreamBufCnt = rk_param_get_int("video.0:buf_cnt", 11);
+	stAttr.u32StreamBufCnt = 11;
 
 	ret = RK_MPI_VDEC_CreateChn(VDEC_CHN_ID, &stAttr);
 	if (ret != RK_SUCCESS) {
@@ -506,42 +489,6 @@ static int create_vdec(VDEC_CTX_S *ctx) {
 		return ret;
 	}
 
-	ctx->s32ChnFd = RK_MPI_VDEC_GetFd(VDEC_CHN_ID);
-	if (ctx->s32ChnFd <= 0) {
-		LOG_ERROR("get fd chn %d failed %d", VDEC_CHN_ID, ctx->s32ChnFd);
-		return ret;
-	}
-
-	if (ctx->bEnableMbPool) {
-		memset(&stMbPoolCfg, 0, sizeof(MB_POOL_CONFIG_S));
-
-		stVdecPicBufAttr.enCodecType = stAttr.enType;
-		stVdecPicBufAttr.stPicBufAttr.u32Width = ctx->u32Width;
-		stVdecPicBufAttr.stPicBufAttr.u32Height = ctx->u32Height;
-		stVdecPicBufAttr.stPicBufAttr.enPixelFormat = RK_FMT_YUV420SP;
-		stVdecPicBufAttr.stPicBufAttr.enCompMode = COMPRESS_MODE_NONE;
-		ret = RK_MPI_CAL_VDEC_GetPicBufferSize(&stVdecPicBufAttr, &stMbPicCalret);
-		if (ret != RK_SUCCESS) {
-			LOG_ERROR("get picture buffer size failed. err 0x%x", ret);
-			return ret;
-		}
-
-		stMbPoolCfg.u64MBSize = stMbPicCalret.u32MBSize;
-		stMbPoolCfg.u32MBCnt = 10;
-		stMbPoolCfg.enRemapMode = MB_REMAP_MODE_CACHED;
-		stMbPoolCfg.bPreAlloc = RK_TRUE;
-		ctx->s32Pool = RK_MPI_MB_CreatePool(&stMbPoolCfg);
-		if (ctx->s32Pool == MB_INVALID_POOLID) {
-			LOG_ERROR("create pool failed!");
-			return ret;
-		}
-		ret = RK_MPI_VDEC_AttachMbPool(VDEC_CHN_ID, ctx->s32Pool);
-		if (ret != RK_SUCCESS) {
-			LOG_ERROR("attatc vdec mb pool %d failed! ", VDEC_CHN_ID);
-			return ret;
-		}
-	}
-
 	ret = RK_MPI_VDEC_StartRecvStream(VDEC_CHN_ID);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("start recv chn %d failed %x! ", VDEC_CHN_ID, ret);
@@ -551,29 +498,17 @@ static int create_vdec(VDEC_CTX_S *ctx) {
 	return ret;
 }
 
-static void destroy_vdec(VDEC_CTX_S *ctx) {
+static void destroy_vdec(void) {
 	RK_MPI_VDEC_StopRecvStream(VDEC_CHN_ID);
-
-	if (ctx->s32ChnFd > 0) {
-		RK_MPI_VDEC_CloseFd(VDEC_CHN_ID);
-	}
-
-	if (ctx->bEnableMbPool) {
-		RK_MPI_VDEC_DetachMbPool(VDEC_CHN_ID);
-		RK_MPI_VDEC_DestroyChn(VDEC_CHN_ID);
-		RK_MPI_MB_DestroyPool(ctx->s32Pool);
-	} else {
-		RK_MPI_VDEC_DestroyChn(VDEC_CHN_ID);
-	}
+	RK_MPI_VDEC_DestroyChn(VDEC_CHN_ID);
 	return;
 }
 
-static int create_ao(void) {
+static int create_ao(PLAYER_CTX_S *ctx) {
 	int ret = 0;
-	int sample_rate = rk_param_get_int("audio.0:sample_rate", 16000);
-	int channels = rk_param_get_int("audio.0:channels", 2);
-	const char *card_name = rk_param_get_string("audio.0:card_name", "hw:0,0");
-	const char *format = rk_param_get_string("audio.0:format", NULL);
+	int sample_rate = ctx->demuxer_param.s32AudioSampleRate;
+	int channels = ctx->demuxer_param.s32AudioChannels;
+	const char *card_name = "hw:0,0";
 	AUDIO_DEV aoDevId = 0;
 	AO_CHN aoChn = 0;
 	AIO_ATTR_S aoAttr;
@@ -586,15 +521,6 @@ static int create_ao(void) {
 	aoAttr.soundCard.channels = channels;
 	aoAttr.soundCard.sampleRate = sample_rate;
 	aoAttr.soundCard.bitWidth = AUDIO_BIT_WIDTH_16;
-
-	if (!strcmp(format, "S16")) {
-		aoAttr.enBitwidth = AUDIO_BIT_WIDTH_16;
-	} else if (!strcmp(format, "U8")) {
-		aoAttr.enBitwidth = AUDIO_BIT_WIDTH_8;
-	} else {
-		LOG_ERROR("not support %s\n", format);
-		return -1;
-	}
 	aoAttr.enSamplerate = (AUDIO_SAMPLE_RATE_E)sample_rate;
 
 	if (channels == 1)
@@ -602,11 +528,14 @@ static int create_ao(void) {
 	else if (channels == 2)
 		aoAttr.enSoundmode = AUDIO_SOUND_MODE_STEREO;
 	else {
-		LOG_ERROR("unsupport = %d", channels);
+		LOG_ERROR("unsupport = %d\n", channels);
 		return RK_FAILURE;
 	}
 
-	aoAttr.u32PtNumPerFrm = rk_param_get_int("audio.0:frame_size", 1024);
+	if (channels == 2)
+		aoAttr.u32PtNumPerFrm = 2304;
+	else
+		aoAttr.u32PtNumPerFrm = 1152;
 	aoAttr.u32FrmNum = 4;
 	aoAttr.u32EXFlag = 0;
 	aoAttr.u32ChnCnt = 2;
@@ -643,7 +572,7 @@ static int create_ao(void) {
 		return RK_FAILURE;
 	}
 
-	ret = RK_MPI_AO_SetVolume(aoDevId, rk_param_get_int("audio.0:volume", 50));
+	ret = RK_MPI_AO_SetVolume(aoDevId, 100);
 	if (ret != 0) {
 		LOG_ERROR("RK_MPI_AO_SetVolume failed %#X\n", ret);
 		return RK_FAILURE;
@@ -659,12 +588,11 @@ static int destroy_ao(void) {
 	RK_MPI_AO_Disable(0);
 }
 
-static int create_adec(void) {
+static int create_adec(PLAYER_CTX_S *ctx) {
 	int ret = 0;
-	int sample_rate = rk_param_get_int("audio.0:sample_rate", 16000);
-	int channels = rk_param_get_int("audio.0:channels", 2);
-	const char *format = rk_param_get_string("audio.0:format", NULL);
-	const char *encode_type = rk_param_get_string("audio.0:encode_type", NULL);
+	int sample_rate = ctx->demuxer_param.s32AudioSampleRate;
+	int channels = ctx->demuxer_param.s32AudioChannels;
+	const char *encode_type = ctx->demuxer_param.pAudioCodec;
 	ADEC_CHN_ATTR_S pstChnAttr;
 	memset(&pstChnAttr, 0, sizeof(ADEC_CHN_ATTR_S));
 
@@ -673,13 +601,10 @@ static int create_adec(void) {
 		LOG_ERROR("register_adec_mp3 failed %#X\n", ret);
 		return -1;
 	}
-	if (!strcmp(encode_type, "MP2")) {
+	if (!strcmp(encode_type, "mp2")) {
 		pstChnAttr.enType = RK_AUDIO_ID_MP2;
 		pstChnAttr.stCodecAttr.enType = RK_AUDIO_ID_MP2;
-	} else if (!strcmp(encode_type, "G711A")) {
-		pstChnAttr.enType = RK_AUDIO_ID_PCM_ALAW;
-		pstChnAttr.stCodecAttr.enType = RK_AUDIO_ID_PCM_ALAW;
-	} else if (!strcmp(encode_type, "MP3")) {
+	} else if (!strcmp(encode_type, "mp3")) {
 		pstChnAttr.enType = RK_AUDIO_ID_MP3;
 		pstChnAttr.stCodecAttr.enType = RK_AUDIO_ID_MP3;
 	} else {
@@ -1102,14 +1027,13 @@ static void read_audio_packet_cb(void *handle) {
 		mb_ext_config.u64Size = audio_packet->s32PacketSize;
 		RK_MPI_SYS_CreateMB(&(audio_stream.pMbBlk), &mb_ext_config);
 
-	__RETRY:
 		ret = RK_MPI_ADEC_SendStream(ADEC_CHN_ID, &audio_stream, RK_TRUE);
 		if (ret != RK_SUCCESS) {
-			LOG_ERROR("RK_MPI_ADEC_SendStream failed[%x]", ret);
-			goto __RETRY;
+			LOG_ERROR("RK_MPI_ADEC_SendStream failed[%x]\n", ret);
+		} else {
+			ctx->audio_current_pts = audio_packet->s64Pts;
 		}
 		RK_MPI_MB_ReleaseMB(audio_stream.pMbBlk);
-		ctx->audio_current_pts = audio_packet->s64Pts;
 	}
 
 	return;
@@ -1158,9 +1082,6 @@ static void *video_player_loop(void *p) {
 					rkdemuxer_seek_video_pts(ctx->demuxer_handle, 0);
 					ctx->video_current_pts = 0;
 					ctx->video_status = PAUSE;
-					if (ctx->event_cb) {
-						ctx->event_cb(RK_PLAYER_EOF);
-					}
 				}
 			}
 			pthread_mutex_unlock(&ctx->mutex);
@@ -1177,6 +1098,11 @@ static void *video_player_loop(void *p) {
 						, cost_time / 1000
 						, delay_time / 1000
 						);
+			if (ctx->event_cb)
+				if (ret)
+					ctx->event_cb(RK_PLAYER_ERROR);
+				else if (packet.s8EofFlag)
+					ctx->event_cb(RK_PLAYER_EOF);
 			} else {
 				LOG_ERROR("decode one frame cost too much time %u ms\n", cost_time / 1000);
 			}
@@ -1188,28 +1114,13 @@ static void *video_player_loop(void *p) {
 static void *audio_player_loop(void *p) {
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)p;
 	int ret = 0;
-	int sample_rate = rk_param_get_int("audio.0:sample_rate", 16000);
-	int channels = rk_param_get_int("audio.0:channels", 2);
-	int frame_size = rk_param_get_int("audio.0:frame_size", 1024);
-	const char *format = rk_param_get_string("audio.0:format", NULL);
 	bool quit = false;
-	uint64_t frame_interval_time = 0, cost_time = 0, delay_time = 0;
 	DemuxerPacket packet;
 	struct timespec start_time, end_time;
 
 	prctl(PR_SET_NAME, "audio_player_loop", 0, 0, 0);
 	LOG_INFO("enter thread\n");
 
-	if (!strcmp(format, "S16")) {
-		frame_interval_time = ((uint64_t)frame_size * 1000 * 1000) / sample_rate / channels / 2;
-	} else if (!strcmp(format, "U8")) {
-		frame_interval_time = ((uint64_t)frame_size * 1000 * 1000) / sample_rate / channels;
-	} else {
-		LOG_ERROR("not support %s\n", format);
-		return NULL;
-	}
-	LOG_INFO("sample_rate %d, channels %d, frame_size %d, frame interval %llu\n"
-			, sample_rate, channels, frame_size, frame_interval_time);
 	while (!quit) {
 		switch (ctx->audio_status) {
 		case UNINITIALIZED:
@@ -1220,7 +1131,6 @@ static void *audio_player_loop(void *p) {
 			usleep(300 * 1000);
 			break;
 		case RUNNING:
-			clock_gettime(CLOCK_MONOTONIC, &start_time);
 			pthread_mutex_lock(&ctx->mutex);
 			// Packet malloc by rkdemuxer, free by user. So this critial zone is safe.
 			ret = rkdemuxer_read_one_audio_packet(ctx->demuxer_handle, &packet);
@@ -1231,43 +1141,34 @@ static void *audio_player_loop(void *p) {
 				if (packet.s8EofFlag) {
 					LOG_INFO("reach EOS, stop play and reset file position\n");
 					rkdemuxer_seek_audio_pts(ctx->demuxer_handle, 0);
-					ctx->audio_status = PAUSE;
 					ctx->audio_current_pts = 0;
+					ctx->audio_status = PAUSE;
 				}
 			}
-
 			pthread_mutex_unlock(&ctx->mutex);
 			if (!ret)
 				read_audio_packet_cb(&packet);
-			clock_gettime(CLOCK_MONOTONIC, &end_time);
-			cost_time = end_time.tv_sec * 1000000LL + end_time.tv_nsec / 1000LL
-				- (start_time.tv_sec * 1000000LL + start_time.tv_nsec / 1000LL);
-			if (cost_time < frame_interval_time) {
-				delay_time = frame_interval_time - cost_time;
-				usleep(delay_time);
-				LOG_DEBUG("frame interval %llu ms, decode cost %llu ms, delay %llu ms\n"
-						, frame_interval_time / 1000
-						, cost_time / 1000
-						, delay_time / 1000
-						);
-			} else {
-				LOG_ERROR("decode one frame cost too much time %u ms\n", cost_time / 1000);
-			}
+			if (ctx->event_cb)
+				if (ret)
+					ctx->event_cb(RK_PLAYER_ERROR);
+				// INFO: avoid multiple processing
+				else if (packet.s8EofFlag && !ctx->enable_video)
+					ctx->event_cb(RK_PLAYER_EOF);
 		}
 	}
 	return NULL;
 }
 
-static int create_media_pipe(PLAYER_CTX_S *ctx) {
+static int create_media_pipe_unlocked(PLAYER_CTX_S *ctx) {
 	int ret = 0;
 
-	pthread_mutex_init(&ctx->mutex, NULL);
+	if (ctx->media_is_init)
+		return 0;
 	if (ctx->enable_video) {
-		ctx->vdec_ctx.bEnableMbPool = true;
 		ret = create_vo();
 		if (ret)
 			return ret;
-		ret = create_vdec(&ctx->vdec_ctx);
+		ret = create_vdec(ctx);
 		if (ret)
 			return ret;
 		ret = bind_vdec_vo();
@@ -1276,28 +1177,30 @@ static int create_media_pipe(PLAYER_CTX_S *ctx) {
 	}
 
 	if (ctx->enable_audio) {
-		ret = create_ao();
+		ret = create_ao(ctx);
 		if (ret)
 			return ret;
-		ret = create_adec();
+		ret = create_adec(ctx);
 		if (ret)
 			return ret;
 		ret = bind_adec_ao();
 		if (ret)
 			return ret;
-		pthread_create(&ctx->audio_player_thread_id, NULL, audio_player_loop, (void *)ctx);
 	}
+	ctx->media_is_init = true;
 	LOG_INFO("create player success!\n");
 	return 0;
 }
 
-static int destroy_media_pipe(PLAYER_CTX_S *ctx) {
+static int destroy_media_pipe_unlocked(PLAYER_CTX_S *ctx) {
 	int ret = 0;
 
-	rkdemuxer_deinit(&ctx->demuxer_handle);
+	if (!ctx->media_is_init)
+		return 0;
+
 	if (ctx->enable_video) {
 		unbind_vdec_vo();
-		destroy_vdec(&ctx->vdec_ctx);
+		destroy_vdec();
 		destroy_vo();
 	}
 	if (ctx->enable_audio) {
@@ -1305,8 +1208,8 @@ static int destroy_media_pipe(PLAYER_CTX_S *ctx) {
 		destroy_adec();
 		destroy_ao();
 	}
-	pthread_mutex_destroy(&ctx->mutex);
 	LOG_INFO("destroy player success!\n");
+	ctx->media_is_init = false;
 	return 0;
 }
 
@@ -1400,12 +1303,12 @@ static int set_record_file_unlocked(PLAYER_CTX_S *ctx, const char *input_file_pa
 	         ctx->demuxer_param.s8VideoFormat);
 	LOG_INFO("video codec %s, avg fps %d, first pts %lld, timebase %d/%d\n",
 	         ctx->demuxer_param.pVideoCodec, ctx->demuxer_param.s32VideoAvgFrameRate,
-	         ctx->demuxer_param.s64VideoFirstPTS, ctx->demuxer_param.s32VideoTimeBaseDen,
-	         ctx->demuxer_param.s32VideoTimeBaseNum);
+	         ctx->demuxer_param.s64VideoFirstPTS, ctx->demuxer_param.s32VideoTimeBaseNum,
+	         ctx->demuxer_param.s32VideoTimeBaseDen);
 	LOG_INFO("audio codec %s, channel %d, sample rate %d, first pts %lld, timebase %d/%d\n",
 	         ctx->demuxer_param.pAudioCodec, ctx->demuxer_param.s32AudioChannels,
 	         ctx->demuxer_param.s32AudioSampleRate, ctx->demuxer_param.s64AudioFirstPTS,
-	         ctx->demuxer_param.s32AudioTimeBaseDen, ctx->demuxer_param.s32AudioTimeBaseNum);
+	         ctx->demuxer_param.s32AudioTimeBaseNum, ctx->demuxer_param.s32AudioTimeBaseDen);
 
 	if (ctx->enable_video && ctx->demuxer_param.pVideoCodec) {
 		ctx->video_status = PAUSE;
@@ -1440,10 +1343,6 @@ int rk_player_create(RK_PLAYER_CONFIG_S *config) {
 		LOG_ERROR("bad config parameter!\n");
 		return -1;
 	}
-	if (!config->input_width || !config->input_height) {
-		LOG_ERROR("bad input resolution %dx%d!\n", config->input_width, config->input_height);
-		return -1;
-	}
 
 	PLAYER_CTX_S *ctx = malloc(sizeof(PLAYER_CTX_S));
 	if (!ctx) {
@@ -1454,14 +1353,8 @@ int rk_player_create(RK_PLAYER_CONFIG_S *config) {
 	ctx->enable_video = config->enable_video;
 	ctx->enable_audio = config->enable_audio;
 	ctx->event_cb = config->event_cb;
-	ctx->vdec_ctx.u32Width = config->input_width;
-	ctx->vdec_ctx.u32Height = config->input_height;
-	if (create_media_pipe(ctx) != 0) {
-		LOG_ERROR("initialize failed\n");
-		free(ctx);
-		return -1;
-	}
 	config->ctx = ctx;
+	pthread_mutex_init(&ctx->mutex, NULL);
 	return 0;
 }
 
@@ -1477,9 +1370,20 @@ int rk_player_set_file(RK_PLAYER_CONFIG_S *config, const char *input_file_path) 
 		return -1;
 	}
 	pthread_mutex_lock(&ctx->mutex);
+	destroy_media_pipe_unlocked(ctx);
 	remove_record_file_unlocked(ctx);
 	read_duration_unlocked(ctx, input_file_path);
 	ret = set_record_file_unlocked(ctx, input_file_path);
+	if (ret != 0) {
+		LOG_ERROR("set file failed\n");
+		goto __unlock;
+	}
+	ret = create_media_pipe_unlocked(ctx);
+	if (ret != 0) {
+		LOG_ERROR("initialize failed\n");
+		goto __unlock;
+	}
+__unlock:
 	pthread_mutex_unlock(&ctx->mutex);
 	return ret;
 }
@@ -1546,9 +1450,29 @@ int rk_player_stop(RK_PLAYER_CONFIG_S *config) {
 	RKIPC_CHECK_POINTER(config, -1);
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
 	RKIPC_CHECK_POINTER(ctx, -1);
-	ret = rk_player_pause(config);
-	ret |= rk_player_video_seek(config, 0);
-	ret |= rk_player_audio_seek(config, 0);
+	pthread_mutex_lock(&ctx->mutex);
+	if (ctx->enable_video) {
+		if (ctx->video_status == UNINITIALIZED) {
+			ret = -1;
+			LOG_ERROR("change video_status in a uninitialized player!\n");
+		} else if (ctx->video_status == RUNNING) {
+			ctx->video_status = PAUSE;
+		}
+		ret = rkdemuxer_seek_video_pts(ctx->demuxer_handle, 0);
+		if (ret)
+			LOG_ERROR("seek video pts 0 failed\n");
+	}
+	if (ctx->enable_audio) {
+		if (ctx->audio_status == UNINITIALIZED) {
+			LOG_ERROR("change audio_status in a uninitialized player!\n");
+		} else if (ctx->audio_status == RUNNING) {
+			ctx->audio_status = PAUSE;
+		}
+		ret = rkdemuxer_seek_audio_pts(ctx->demuxer_handle, 0);
+		if (ret)
+			LOG_ERROR("seek audio pts 0 failed\n");
+	}
+	pthread_mutex_unlock(&ctx->mutex);
 	if (ctx->event_cb)
 		ctx->event_cb(RK_PLAYER_STOP);
 
@@ -1562,9 +1486,10 @@ int rk_player_destroy(RK_PLAYER_CONFIG_S *config) {
 	RKIPC_CHECK_POINTER(ctx, -1);
 	pthread_mutex_lock(&ctx->mutex);
 	remove_record_file_unlocked(ctx);
+	destroy_media_pipe_unlocked(ctx);
 	pthread_mutex_unlock(&ctx->mutex);
-	destroy_media_pipe(ctx);
 	free(ctx);
+	config->ctx = NULL;
 	return 0;
 }
 
@@ -1580,6 +1505,7 @@ int rk_player_video_seek(RK_PLAYER_CONFIG_S *config, uint64_t time_ms) {
 			ret = -1;
 			LOG_ERROR("change video_status in a uninitialized player!\n");
 		} else if (ctx->video_status == RUNNING) {
+			// TODO: need modified postion in runtime
 			ret = -1;
 			LOG_ERROR("need to pause player before seek!\n");
 		} else {
@@ -1633,7 +1559,9 @@ int rk_player_get_video_duration(RK_PLAYER_CONFIG_S *config, uint32_t *duration)
 	RKIPC_CHECK_POINTER(duration, -1);
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
 	RKIPC_CHECK_POINTER(ctx, -1);
+	pthread_mutex_lock(&ctx->mutex);
 	*duration = (uint32_t)ctx->video_total_duraion / 1000;
+	pthread_mutex_unlock(&ctx->mutex);
 	return 0;
 }
 

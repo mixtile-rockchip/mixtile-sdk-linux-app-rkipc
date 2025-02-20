@@ -11,6 +11,7 @@
 #include "storage.h"
 #include "system.h"
 #include "video.h"
+#include "player.h"
 #include <linux/input.h>
 
 #ifdef LOG_TAG
@@ -87,6 +88,19 @@ void rkipc_get_opt(int argc, char *argv[]) {
 	}
 }
 
+
+static RK_PLAYER_CONFIG_S player_handler;
+static enum {
+	PLAYER_UNINIT,
+	PLAYER_INIT,
+	PLAYER_STOP
+} player_status = PLAYER_UNINIT;
+
+static void player_event_cb(RK_PLAYER_EVENT event) {
+	if (event == RK_PLAYER_EOF)
+		player_status = PLAYER_STOP;
+}
+
 int main(int argc, char **argv) {
 	LOG_INFO("main begin\n");
 	rkipc_version_dump();
@@ -107,6 +121,19 @@ int main(int argc, char **argv) {
 	// rk_isp_init(rkipc_camera_id_, rkipc_iq_file_path_);
 	// rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));
 	RK_MPI_SYS_Init();
+
+	if (rk_param_get_int("audio.0:enable_startup_sound", 0)) {
+		memset(&player_handler, 0, sizeof(player_handler));
+		player_handler.enable_video = false;
+		player_handler.enable_audio = true;
+		player_handler.event_cb = player_event_cb;
+		rk_player_create(&player_handler);
+		rk_player_set_file(&player_handler
+				, rk_param_get_string("audio.0:startup_sound_file", NULL));
+		rk_player_play(&player_handler);
+		player_status = PLAYER_INIT;
+	}
+
 	rkipc_server_init();
 	rk_storage_init();
 	LOG_INFO("rkipc init over\n");
@@ -117,8 +144,13 @@ int main(int argc, char **argv) {
 	rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));
 	ui_init();
 	rk_video_init();
+
 	while (g_main_run_) {
 		ui_loop();
+		if (player_status == PLAYER_STOP) {
+			player_status = PLAYER_UNINIT;
+			rk_player_destroy(&player_handler);
+		}
 	}
 	rk_video_deinit();
 	ui_deinit();

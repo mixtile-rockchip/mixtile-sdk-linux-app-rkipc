@@ -449,7 +449,6 @@ static void main_view_create_ctrl(lv_obj_t *page_obj) {
 	lv_timer_ready(main_view_ctrl.timer);
 
 	main_view_ctrl.capture_timer = lv_timer_create(capture_xcb, 100, NULL);
-	lv_timer_ready(main_view_ctrl.capture_timer);
 	lv_timer_pause(main_view_ctrl.capture_timer);
 }
 
