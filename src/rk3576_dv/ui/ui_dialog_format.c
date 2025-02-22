@@ -34,10 +34,6 @@
 static lv_obj_t *format_obj = NULL;
 static lv_obj_t *format_ani_obj = NULL;
 static lv_group_t *format_group = NULL;
-
-static FORMAT_DIALOG_CB g_extry_cb = NULL;
-static FORMAT_DIALOG_CB g_exit_cb = NULL;
-static void *g_format_handler = NULL;
 /**********************
  *      MACROS
  **********************/
@@ -61,32 +57,38 @@ static void format_dialog_destroy_event_cb(lv_event_t *e) {
 		ui_format_dialog_destory();
 }
 
-static bool start_formatting_handler(int32_t msg, void *wparam, void *lparam) {
-	int ret = 0;
-	rk_storage_deinit();
-	ret = rk_storage_format();
-	ret |= rk_storage_init();
+static pthread_t format_task_id;
+static bool format_task_done = false;
+static int format_task_result = 0;
 
-	lv_anim_t a;
-	lv_anim_init(&a);
-	lv_anim_set_var(&a, format_ani_obj);
-	lv_anim_set_time(&a, 0);
-	lv_anim_set_delay(&a, 1);
-	lv_anim_set_ready_cb(&a, lv_obj_del_anim_ready_cb);
-	lv_anim_start(&a);
-
-	if (g_exit_cb)
-		g_exit_cb();
-
-	if (ret != 0)
-		ui_dialog_create("WARNING", "格式化失败!");
-	else
-		ui_dialog_create("WARNING", "格式化成功!");
-
-	return true;
+static void* format_task_func(void *arg) {
+	LOG_INFO("start format\n");
+	format_task_result = rk_storage_deinit();
+	LOG_INFO("deinit storage done, ret = %#X\n", format_task_result);
+	format_task_result = rk_storage_format();
+	LOG_INFO("format storage done, ret = %#X\n", format_task_result);
+	format_task_result = rk_storage_init();
+	LOG_INFO("init storage done, ret = %#X\n", format_task_result);
+	format_task_done = true;
 }
 
-static void auto_del(void) {
+static void format_timer_func(lv_timer_t *timer) {
+	if (format_task_done) {
+		pthread_join(format_task_id, NULL);
+		if (format_task_result != 0)
+			ui_dialog_create("WARNING", "格式化失败!");
+		else
+			ui_dialog_create("WARNING", "格式化成功!");
+		lv_timer_del(timer);
+		if (format_ani_obj) {
+			lv_obj_del(format_ani_obj);
+			format_ani_obj = NULL;
+		}
+		ui_format_dialog_destory();
+	}
+}
+
+static void start_format(void) {
 	lv_obj_t *obj;
 	lv_color_t color;
 	color.full = 0xFF000000;
@@ -103,10 +105,11 @@ static void auto_del(void) {
 	lv_obj_set_size(obj, 100, 100);
 	lv_obj_center(obj);
 
-	if (g_extry_cb)
-		g_extry_cb();
-
-	lv_send_msg(g_format_handler, 0, NULL, NULL);
+	format_task_done = false;
+	format_task_result = 0;
+	pthread_create(&format_task_id, NULL, format_task_func, NULL);
+	lv_timer_t *timer = lv_timer_create(format_timer_func, 200, NULL);
+	lv_timer_ready(timer);
 }
 
 static void format_start_event_cb(lv_event_t *e) {
@@ -116,11 +119,11 @@ static void format_start_event_cb(lv_event_t *e) {
 		ui_format_dialog_destory();
 		if (evdev_get_current_code() == KEY_POWER)
 			return ;
-		auto_del();
+		start_format();
 	}
 }
 
-void ui_format_dialog_create(FORMAT_DIALOG_CB extry_cb, FORMAT_DIALOG_CB exit_cb) {
+void ui_format_dialog_create(void) {
 	if (format_obj)
 		return;
 
@@ -230,10 +233,6 @@ void ui_format_dialog_create(FORMAT_DIALOG_CB extry_cb, FORMAT_DIALOG_CB exit_cb
 	obj = lv_label_create(obj);
 	lv_obj_add_style(obj, &symbol_style, 0);
 	lv_label_set_text(obj, LV_SYMBOL_OK);
-
-	g_extry_cb = exit_cb, g_exit_cb = exit_cb;
-	if (NULL == g_format_handler)
-		g_format_handler = lv_msg_register_handler(start_formatting_handler);
 }
 
 void ui_format_dialog_destory() {

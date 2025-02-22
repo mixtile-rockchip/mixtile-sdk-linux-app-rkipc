@@ -23,7 +23,7 @@ extern "C" {
 
 typedef void (*FORMAT_DIALOG_CB)(void);
 
-void ui_format_dialog_create(FORMAT_DIALOG_CB extry_cb, FORMAT_DIALOG_CB exit_cb);
+void ui_format_dialog_create(void);
 void ui_format_dialog_destory(void);
 
 #ifdef __cplusplus

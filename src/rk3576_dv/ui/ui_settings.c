@@ -163,10 +163,6 @@ static void settings_disk_event_handler(rkipc_mount_status disk_state) {
 	}
 }
 
-static void format_extry(void) {}
-
-static void format_exit(void) {}
-
 static void destroy_mode_select_box(void);
 
 static void btn_event_cb(lv_event_t *e) {
@@ -442,7 +438,7 @@ static void format_event_handler(lv_event_t *e) {
 		case DISK_NOT_FORMATTED:
 		case DISK_SCANNING:
 		case DISK_MOUNTED:
-			ui_format_dialog_create(format_extry, format_exit);
+			ui_format_dialog_create();
 			break;
 		default:
 			break;
