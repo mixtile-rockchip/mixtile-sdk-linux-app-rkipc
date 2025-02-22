@@ -90,7 +90,7 @@ post_chk()
 	echo 800 > /sys/bus/iio/devices/iio:device1/in_accel_sampling_frequency
 	echo 0.004785 > /sys/bus/iio/devices/iio:device1/in_accel_scale
 	echo 0.001064225 > /sys/bus/iio/devices/iio:device1/in_anglvel_scale
-	echo 180 > /sys/bus/iio/devices/iio:device1/in_accel_lpf_bw
+	echo 121 > /sys/bus/iio/devices/iio:device1/in_accel_lpf_bw
 	echo 0 > /sys/bus/iio/devices/iio:device1/in_anglvel_lpf_bw
 
 	echo 1 > /sys/devices/platform/charger-manager/chg_en

@@ -38,7 +38,7 @@
             "th3": 8.0
         },
         "opencl_lib_path": "/usr/lib/libOpenCL.so",
-        "opencl_program_path": "/data/rkEIS_CLProgram_Bifrost-G52-g13p0-01eac0.bin"
+        "opencl_program_path": "/usr/share/rkEIS_CLProgram_Bifrost-G52-g13p0-01eac0.bin"
     },
     "estParams": {
         "view_angle": 0.0,
@@ -92,7 +92,7 @@
         "calib_mode": 3,
         "imu_rate": 800.0,
         "affinity_mask": 6,
-        "gyro_static_calib_value_path": "/data/IMUCalibratorFile/gyro_static_calib_val.txt", 
+        "gyro_static_calib_value_path": "/data/IMUCalibratorFile/gyro_static_calib_val.txt",
         "accel_calib_value_path": "/data/IMUCalibratorFile/accel_calib_val.txt",
         "gyro_dynamic_calib_value_path": "/data/IMUCalibratorFile/gyro_dynamic_calib_val.txt",
         "use_init_temp_coef": 1,

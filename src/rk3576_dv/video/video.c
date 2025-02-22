@@ -68,7 +68,7 @@ static int dp_vo_h = 1080;
 static int lcd_vo_w = 240;
 static int lcd_vo_h = 320;
 static int gdc_display_w = 704;
-static int gdc_display_h = 384;
+static int gdc_display_h = 512;
 static FILE *vi_info_file;
 static FILE *imu_info_file;
 static char gdc_vi_info_buffer[256];
@@ -545,8 +545,13 @@ static int rkipc_vi_chn_init() {
 	int buf_cnt = rk_param_get_int("video.0:buf_cnt", 32);
 
 	if (g_current_mode != RK_SLOW_MOTION_MODE) {
-		video_width = rk_param_get_int("video.source:width", -1);
-		video_height = rk_param_get_int("video.source:height", -1);
+		if (g_current_eis_mode == RK_EIS_OFF) {
+			video_width = rk_param_get_int("video.0:width", -1);
+			video_height = rk_param_get_int("video.0:height", -1);
+		} else {
+			video_width = rk_param_get_int("video.source:width", -1);
+			video_height = rk_param_get_int("video.source:height", -1);
+		}
 	} else {
 		video_width = rk_param_get_int("video.1:width", -1);
 		video_height = rk_param_get_int("video.1:height", -1);
@@ -570,8 +575,13 @@ static int rkipc_vi_chn_init() {
 	}
 
 	vi_chn_attr.stIspOpt.u32BufCount = 4;
-	vi_chn_attr.stSize.u32Width = gdc_display_w;
-	vi_chn_attr.stSize.u32Height = gdc_display_h;
+	if (g_current_eis_mode == RK_HORIZON_STEADY) {
+		vi_chn_attr.stSize.u32Width = 704;
+		vi_chn_attr.stSize.u32Height = 512;
+	} else {
+		vi_chn_attr.stSize.u32Width = 704;
+		vi_chn_attr.stSize.u32Height = 384;
+	}
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.u32Depth = 0;
 	if (g_current_eis_mode != RK_EIS_OFF)
@@ -2201,10 +2211,12 @@ RK_S32 RKGdcVframeCB(RK_VOID *pUsr, GDC_VFAME_INFO_S *pInfo) {
 	//		pInfo->u32Dgain, pInfo->u32Ispgain, pInfo->dIso);
 
 	// 为保证imu数据记录早于vi数据，丢弃vi的前30帧
-	if (!g_start_record_)
-		return GDC_INFO_CB_SUCCESS;
 	gdc_debug_cnt++;
 	if (gdc_debug_cnt < 30) {
+		RK_MPI_MB_ReleaseMB(pInfo->pMbBlk);
+		return GDC_INFO_CB_SUCCESS;
+	}
+	if (!g_start_record_) {
 		RK_MPI_MB_ReleaseMB(pInfo->pMbBlk);
 		return GDC_INFO_CB_SUCCESS;
 	}
@@ -2247,7 +2259,7 @@ int rkipc_gdc_init() {
 	if (g_current_eis_mode == RK_HORIZON_STEADY) {
 		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_horizon_4032x3016_3840x2160_30fps.json"
 				, strlen("/usr/share/rkeis_config_imx386_horizon_4032x3016_3840x2160_30fps.json"));
-	} else if (rk_param_get_int("isp.0.adjustment:fps", 30) == 60) {
+	} else if (rk_param_get_int("isp.0.adjustment:fps", 30) == 58) {
 		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_4032x2256_3840x2160_60fps.json"
 				, strlen("/usr/share/rkeis_config_imx386_4032x2256_3840x2160_60fps.json"));
 	} else {
@@ -2266,19 +2278,26 @@ int rkipc_gdc_init() {
 	if (enable_lcd || enable_dp) {
 		stAttr.u32MaxInQueue = 8;
 		stAttr.u32MaxOutQueue = 8;
-		stAttr.s32SrcWidth = gdc_display_w;
-		stAttr.s32SrcHeight = gdc_display_h;
-		stAttr.s32DstWidth = gdc_display_w;
-		stAttr.s32DstHeight = gdc_display_h;
+		if (g_current_eis_mode == RK_HORIZON_STEADY) {
+			stAttr.s32SrcWidth = 704;
+			stAttr.s32SrcHeight = 512;
+			stAttr.s32DstWidth = 672;
+			stAttr.s32DstHeight = 368;
+		} else {
+			stAttr.s32SrcWidth = 704;
+			stAttr.s32SrcHeight = 384;
+			stAttr.s32DstWidth = 704;
+			stAttr.s32DstHeight = 384;
+		}
 		stAttr.enPixelFormat = RK_FMT_YUV420SP;
 		stAttr.enCompMode = COMPRESS_MODE_NONE;
 		memset(stAttr.cfgFile, 0, sizeof(stAttr.cfgFile));
 		if (g_current_eis_mode == RK_HORIZON_STEADY) {
-			memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_horizon_704x384_704x384_30fps.json"
-					, strlen("/usr/share/rkeis_config_imx386_horizon_704x384_704x384_30fps.json"));
+			memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_horizon_704x512_672x368_30fps.json"
+					, strlen("/usr/share/rkeis_config_imx386_horizon_704x512_672x368_30fps.json"));
 		} else {
-			memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_704x384_704x384_30fps.json"
-					, strlen("/usr/share/rkeis_config_imx386_704x384_704x384_30fps.json"));
+			memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_704x512_704x512_30fps.json"
+					, strlen("/usr/share/rkeis_config_imx386_704x512_704x512_30fps.json"));
 		}
 		ret = RK_MPI_GDC_CreateChn(1, &stAttr);
 	}
