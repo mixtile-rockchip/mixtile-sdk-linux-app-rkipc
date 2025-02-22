@@ -112,6 +112,7 @@ typedef struct {
 
 static int extCodecHandle = -1;
 static unsigned mp3DecInitCnt = 0;
+static MB_POOL vdec_mb_pool = MB_INVALID_POOLID;
 
 static int mp3_decoder_open(void *pDecoderAttr, void **ppDecoder) {
 	if (pDecoderAttr == NULL) {
@@ -469,8 +470,16 @@ static int create_vdec(PLAYER_CTX_S *ctx) {
 		LOG_ERROR("unknown video file input!\n");
 		return -1;
 	}
+
+	stModParam.enVdecMBSource = MB_SOURCE_USER;
+	ret = RK_MPI_VDEC_SetModParam(&stModParam);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("vdec %d SetModParam failed! errcode %x\n", VDEC_CHN_ID, ret);
+		return ret;
+	}
+
 	stAttr.u32PicWidth = ctx->demuxer_param.s32VideoWidth;
-	stAttr.u32PicHeight = ctx->demuxer_param.s32VideoWidth;
+	stAttr.u32PicHeight = ctx->demuxer_param.s32VideoHeigh;
 	stAttr.u32FrameBufCnt = 8;
 	stAttr.u32StreamBufCnt = 11;
 
@@ -489,6 +498,36 @@ static int create_vdec(PLAYER_CTX_S *ctx) {
 		return ret;
 	}
 
+	memset(&stMbPoolCfg, 0, sizeof(MB_POOL_CONFIG_S));
+
+	stVdecPicBufAttr.enCodecType = stAttr.enType;
+	stVdecPicBufAttr.stPicBufAttr.u32Width = ctx->demuxer_param.s32VideoWidth;
+	stVdecPicBufAttr.stPicBufAttr.u32Height = ctx->demuxer_param.s32VideoHeigh;
+	stVdecPicBufAttr.stPicBufAttr.enPixelFormat = RK_FMT_YUV420SP;
+	stVdecPicBufAttr.stPicBufAttr.enCompMode = COMPRESS_MODE_NONE;
+	ret = RK_MPI_CAL_VDEC_GetPicBufferSize(&stVdecPicBufAttr, &stMbPicCalret);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("get picture buffer size failed. err 0x%x", ret);
+		return ret;
+	}
+
+	stMbPoolCfg.u64MBSize = stMbPicCalret.u32MBSize;
+	stMbPoolCfg.u32MBCnt = 10;
+	stMbPoolCfg.enRemapMode = MB_REMAP_MODE_CACHED;
+	stMbPoolCfg.bPreAlloc = RK_TRUE;
+	vdec_mb_pool = RK_MPI_MB_CreatePool(&stMbPoolCfg);
+	if (vdec_mb_pool == MB_INVALID_POOLID) {
+		LOG_ERROR("create pool failed!");
+		return ret;
+	}
+	LOG_INFO("create mb pool %d, width %d, height %d\n"
+			, vdec_mb_pool, ctx->demuxer_param.s32VideoWidth, ctx->demuxer_param.s32VideoHeigh);
+	ret = RK_MPI_VDEC_AttachMbPool(VDEC_CHN_ID, vdec_mb_pool);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("attatc vdec mb pool %d failed! ", VDEC_CHN_ID);
+		return ret;
+	}
+
 	ret = RK_MPI_VDEC_StartRecvStream(VDEC_CHN_ID);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("start recv chn %d failed %x! ", VDEC_CHN_ID, ret);
@@ -500,7 +539,10 @@ static int create_vdec(PLAYER_CTX_S *ctx) {
 
 static void destroy_vdec(void) {
 	RK_MPI_VDEC_StopRecvStream(VDEC_CHN_ID);
+	RK_MPI_VDEC_DetachMbPool(VDEC_CHN_ID);
 	RK_MPI_VDEC_DestroyChn(VDEC_CHN_ID);
+	RK_MPI_MB_DestroyPool(vdec_mb_pool);
+	vdec_mb_pool = MB_INVALID_POOLID;
 	return;
 }
 
@@ -983,13 +1025,9 @@ static void read_video_packet_cb(void *handle) {
 		video_stream.bEndOfFrame = video_packet->s8EofFlag ? RK_TRUE : RK_FALSE;
 		video_stream.bBypassMbBlk = RK_TRUE;
 
-	__RETRY:
 		ret = RK_MPI_VDEC_SendStream(VDEC_CHN_ID, &video_stream, 1000);
-		if (ret) {
-			LOG_ERROR("RK_MPI_VDEC_SendStream failed[%x]", ret);
-			usleep(1000llu);
-			goto __RETRY;
-		}
+		if (ret)
+			LOG_ERROR("RK_MPI_VDEC_SendStream failed[%x]\n", ret);
 		RK_MPI_MB_ReleaseMB(video_stream.pMbBlk);
 		ctx->video_current_pts = video_packet->s64Pts;
 	} else {
