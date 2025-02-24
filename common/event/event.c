@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #include "common.h"
-#include "rockiva.h"
+// #include "rockiva.h"
 
 #ifdef LOG_TAG
 #undef LOG_TAG
