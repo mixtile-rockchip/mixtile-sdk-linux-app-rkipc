@@ -9,6 +9,7 @@
 #include "player.h"
 #include "common.h"
 #include <byteswap.h>
+#include <mp3dec.h>
 #include <rk_debug.h>
 #include <rk_mpi_adec.h>
 #include <rk_mpi_ao.h>
@@ -24,7 +25,6 @@
 #include <rkdemuxer.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <mp3dec.h>
 
 #define SLOW_MOTION_RATE 4
 
@@ -478,28 +478,7 @@ static int create_vdec(PLAYER_CTX_S *ctx) {
 		return ret;
 	}
 
-	stAttr.u32PicWidth = ctx->demuxer_param.s32VideoWidth;
-	stAttr.u32PicHeight = ctx->demuxer_param.s32VideoHeigh;
-	stAttr.u32FrameBufCnt = 8;
-	stAttr.u32StreamBufCnt = 11;
-
-	ret = RK_MPI_VDEC_CreateChn(VDEC_CHN_ID, &stAttr);
-	if (ret != RK_SUCCESS) {
-		LOG_ERROR("create %d vdec failed! ", VDEC_CHN_ID);
-		return ret;
-	}
-
-	stVdecParam.stVdecPictureParam.enPixelFormat = RK_FMT_YUV420SP;
-	stVdecParam.stVdecVideoParam.enCompressMode = COMPRESS_MODE_NONE;
-
-	ret = RK_MPI_VDEC_SetChnParam(VDEC_CHN_ID, &stVdecParam);
-	if (ret != RK_SUCCESS) {
-		LOG_ERROR("set chn %d param failed %x! ", VDEC_CHN_ID, ret);
-		return ret;
-	}
-
 	memset(&stMbPoolCfg, 0, sizeof(MB_POOL_CONFIG_S));
-
 	stVdecPicBufAttr.enCodecType = stAttr.enType;
 	stVdecPicBufAttr.stPicBufAttr.u32Width = ctx->demuxer_param.s32VideoWidth;
 	stVdecPicBufAttr.stPicBufAttr.u32Height = ctx->demuxer_param.s32VideoHeigh;
@@ -520,8 +499,30 @@ static int create_vdec(PLAYER_CTX_S *ctx) {
 		LOG_ERROR("create pool failed!");
 		return ret;
 	}
-	LOG_INFO("create mb pool %d, width %d, height %d\n"
-			, vdec_mb_pool, ctx->demuxer_param.s32VideoWidth, ctx->demuxer_param.s32VideoHeigh);
+	LOG_INFO("create mb pool %d, width %d, height %d, mb buffer size %d\n", vdec_mb_pool,
+	         ctx->demuxer_param.s32VideoWidth, ctx->demuxer_param.s32VideoHeigh,
+	         stMbPicCalret.u32MBSize);
+
+	stAttr.u32PicWidth = ctx->demuxer_param.s32VideoWidth;
+	stAttr.u32PicHeight = ctx->demuxer_param.s32VideoHeigh;
+	stAttr.u32FrameBufCnt = 8;
+	stAttr.u32StreamBufCnt = 11;
+	stAttr.u32FrameBufSize = stMbPicCalret.u32MBSize;
+
+	ret = RK_MPI_VDEC_CreateChn(VDEC_CHN_ID, &stAttr);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("create %d vdec failed! ", VDEC_CHN_ID);
+		return ret;
+	}
+
+	stVdecParam.stVdecPictureParam.enPixelFormat = RK_FMT_YUV420SP;
+	stVdecParam.stVdecVideoParam.enCompressMode = COMPRESS_MODE_NONE;
+
+	ret = RK_MPI_VDEC_SetChnParam(VDEC_CHN_ID, &stVdecParam);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("set chn %d param failed %x! ", VDEC_CHN_ID, ret);
+		return ret;
+	}
 	ret = RK_MPI_VDEC_AttachMbPool(VDEC_CHN_ID, vdec_mb_pool);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("attatc vdec mb pool %d failed! ", VDEC_CHN_ID);
@@ -788,25 +789,6 @@ static bool validate_format(uint32_t format) {
 	return false;
 };
 
-static uint32_t cal_size_by_format(uint32_t width, uint32_t height, uint32_t format) {
-	uint32_t size = 0;
-	switch (format) {
-	case RK_FMT_YUV420SP:
-		size = width * height * 3 / 2;
-		break;
-	case RK_FMT_RGB565:
-		size = width * height * 2;
-		break;
-	case RK_FMT_RGBA8888:
-	case RK_FMT_BGRA8888:
-		size = width * height * 4;
-		break;
-	default:
-		break;
-	}
-	return size;
-}
-
 static int create_jpeg_vdec(const RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data) {
 	int ret = RK_SUCCESS;
 	VDEC_CHN_ATTR_S stAttr;
@@ -856,77 +838,116 @@ static void destroy_jpeg_vdec(void) {
 	return;
 }
 
-// Use vpss to resize and change image format.
-static int create_jpeg_vpss(const RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data) {
+static int resize_yuv_by_tde(RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data,
+                             VIDEO_FRAME_INFO_S *tmp_frame) {
 	int ret = 0;
-	VPSS_GRP_ATTR_S stVpssGrpAttr;
-	VPSS_CHN_ATTR_S stVpssChnAttr;
-	memset(&stVpssGrpAttr, 0, sizeof(stVpssGrpAttr));
-	memset(&stVpssChnAttr, 0, sizeof(stVpssChnAttr));
-	stVpssGrpAttr.u32MaxW = 4096;
-	stVpssGrpAttr.u32MaxH = 4096;
-	stVpssGrpAttr.enPixelFormat = RK_FMT_YUV420SP;
-	stVpssGrpAttr.stFrameRate.s32SrcFrameRate = -1;
-	stVpssGrpAttr.stFrameRate.s32DstFrameRate = -1;
-	stVpssGrpAttr.enCompressMode = COMPRESS_MODE_NONE;
-	ret = RK_MPI_VPSS_CreateGrp(JPEG_VPSS_GRP_ID, &stVpssGrpAttr);
+	TDE_HANDLE tde_handle;
+	TDE_SURFACE_S tde_src = {}, tde_dst = {};
+	TDE_RECT_S tde_src_rect = {}, tde_dst_rect = {};
+	PIC_BUF_ATTR_S tde_dst_buf_attr = {};
+	MB_PIC_CAL_S tde_dst_pic_cal = {};
+	MB_BLK tde_dst_mb = RK_NULL;
+
+	tde_dst_buf_attr.u32Width = config->output_width;
+	tde_dst_buf_attr.u32Height = config->output_height;
+	tde_dst_buf_attr.enPixelFormat = config->output_format;
+	tde_dst_buf_attr.enCompMode = COMPRESS_MODE_NONE;
+
+	ret = RK_MPI_CAL_TDE_GetPicBufferSize(&tde_dst_buf_attr, &tde_dst_pic_cal);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("RK_MPI_VPSS_CreateGrp error! ret is %#x\n", ret);
+		LOG_ERROR("get picture buffer size failed. err 0x%x\n", ret);
+		return ret;
+	}
+	ret = RK_MPI_SYS_MmzAlloc(&tde_dst_mb, RK_NULL, RK_NULL, tde_dst_pic_cal.u32MBSize);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_SYS_MmzAlloc err 0x%x\n", ret);
 		return ret;
 	}
 
-	stVpssChnAttr.enChnMode = VPSS_CHN_MODE_AUTO;
-	stVpssChnAttr.enDynamicRange = DYNAMIC_RANGE_SDR8;
-	stVpssChnAttr.enPixelFormat = config->output_format;
-	stVpssChnAttr.stFrameRate.s32SrcFrameRate = -1;
-	stVpssChnAttr.stFrameRate.s32DstFrameRate = -1;
-	stVpssChnAttr.u32Width = config->output_width;
-	stVpssChnAttr.u32Height = config->output_height;
-	stVpssChnAttr.enCompressMode = COMPRESS_MODE_NONE;
-	stVpssChnAttr.u32Depth = 1;
-	ret = RK_MPI_VPSS_SetChnAttr(JPEG_VPSS_GRP_ID, JPEG_VPSS_CHN_ID, &stVpssChnAttr);
+	ret = RK_TDE_Open();
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("0: RK_MPI_VPSS_SetChnAttr error! ret is %#x\n", ret);
+		LOG_ERROR("RK_TDE_Open failed %#X\n", ret);
+		RK_MPI_SYS_MmzFree(tde_dst_mb);
 		return ret;
 	}
-	ret = RK_MPI_VPSS_EnableChn(JPEG_VPSS_GRP_ID, JPEG_VPSS_CHN_ID);
-	if (ret != RK_SUCCESS)
-		LOG_ERROR("0: RK_MPI_VPSS_EnableChn error! ret is %#x\n", ret);
-	RK_MPI_VPSS_SetVProcDev(JPEG_VPSS_GRP_ID, VIDEO_PROC_DEV_GPU);
-	ret = RK_MPI_VPSS_StartGrp(JPEG_VPSS_GRP_ID);
+	tde_handle = RK_TDE_BeginJob();
+
+	tde_src.enColorFmt = RK_FMT_YUV420SP;
+	tde_src.enComprocessMode = COMPRESS_MODE_NONE;
+	tde_src.u32Width = tmp_frame->stVFrame.u32Width;
+	tde_src.u32Height = tmp_frame->stVFrame.u32Height;
+	tde_src.pMbBlk = tmp_frame->stVFrame.pMbBlk;
+	tde_src_rect.s32Xpos = 0;
+	tde_src_rect.s32Ypos = 0;
+	tde_src_rect.u32Width = tmp_frame->stVFrame.u32Width;
+	tde_src_rect.u32Height = tmp_frame->stVFrame.u32Height;
+
+	tde_dst.enColorFmt = config->output_format;
+	tde_dst.enComprocessMode = COMPRESS_MODE_NONE;
+	tde_dst.u32Width = config->output_width;
+	tde_dst.u32Height = config->output_height;
+	tde_dst.pMbBlk = tde_dst_mb;
+	tde_dst_rect.s32Xpos = 0;
+	tde_dst_rect.s32Ypos = 0;
+	tde_dst_rect.u32Width = config->output_width;
+	tde_dst_rect.u32Height = config->output_height;
+
+	ret = RK_TDE_QuickResize(tde_handle, &tde_src, &tde_src_rect, &tde_dst, &tde_dst_rect);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("RK_MPI_VPSS_StartGrp error! ret is %#x\n", ret);
+		LOG_ERROR("RK_TDE_QuickResize failed. err 0x%x\n", ret);
+		RK_TDE_CancelJob(tde_handle);
+		RK_MPI_SYS_MmzFree(tde_dst_mb);
+		RK_TDE_Close();
 		return ret;
 	}
-	LOG_INFO("create vpss success\n");
+
+	RK_TDE_EndJob(tde_handle, RK_FALSE, RK_TRUE, 4000);
+	ret = RK_TDE_WaitForDone(tde_handle);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_TDE_WaitForDone failed %#X\n", ret);
+		RK_MPI_SYS_MmzFree(tde_dst_mb);
+		RK_TDE_Close();
+		return ret;
+	} else {
+		LOG_DEBUG("tde job done success\n");
+	}
+	LOG_INFO("get frame width %d, height %d, format %X, size %d\n", tde_dst.u32Width,
+	         tde_dst.u32Height, tde_dst.enColorFmt, tde_dst_pic_cal.u32MBSize);
+	data->width = tde_dst.u32Width;
+	data->height = tde_dst.u32Height;
+	data->format = tde_dst.enColorFmt;
+	data->size = tde_dst_pic_cal.u32MBSize;
+	data->data = malloc(data->size);
+#ifdef DUMP_IMG
+	{
+		char dump_file_path[256] = {'\0'};
+		snprintf(dump_file_path, sizeof(dump_file_path), "/tmp/%dx%d.argb8888", tde_dst.u32Width,
+		         tde_dst.u32Height);
+		FILE *file = fopen(dump_file_path, "w");
+		void *buf = RK_MPI_MB_Handle2VirAddr(tde_dst.pMbBlk);
+		int size = tde_dst.u32Width * tde_dst.u32Height * 4;
+		RK_MPI_SYS_MmzFlushCache(tde_dst.pMbBlk, false);
+		fwrite(buf, 1, size, file);
+		fclose(file);
+	}
+#endif
+	if (!data) {
+		LOG_ERROR("malloc failed\n");
+		ret = -1;
+	} else {
+		RK_MPI_SYS_MmzFlushCache(tde_dst.pMbBlk, false);
+		memcpy(data->data, RK_MPI_MB_Handle2VirAddr(tde_dst.pMbBlk), data->size);
+	}
+	RK_MPI_SYS_MmzFree(tde_dst_mb);
+	RK_TDE_Close();
 	return ret;
 }
 
-static int destroy_jpeg_vpss(void) {
-	RK_MPI_VPSS_StopGrp(JPEG_VPSS_GRP_ID);
-	RK_MPI_VPSS_DisableChn(JPEG_VPSS_GRP_ID, JPEG_VPSS_CHN_ID);
-	RK_MPI_VPSS_DestroyGrp(JPEG_VPSS_GRP_ID);
-	return 0;
-}
-
-static int send_jpeg_to_vdec(RK_PHOTO_DATA *data, MB_BLK input_mb, RK_U32 input_size) {
+static int send_jpeg_to_vdec(RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data, MB_BLK input_mb,
+                             RK_U32 input_size) {
 	int ret = 0;
-	MPP_CHN_S stSrcChn, stDestChn;
-	VDEC_STREAM_S input_frame;
-	VIDEO_FRAME_INFO_S output_frame;
-	stSrcChn.enModId = RK_ID_VDEC;
-	stSrcChn.s32DevId = 0;
-	stSrcChn.s32ChnId = JPEG_VDEC_CHN_ID;
-
-	stDestChn.enModId = RK_ID_VPSS;
-	stDestChn.s32DevId = JPEG_VPSS_GRP_ID;
-	stDestChn.s32ChnId = JPEG_VPSS_CHN_ID;
-
-	ret = RK_MPI_SYS_Bind(&stSrcChn, &stDestChn);
-	if (ret != RK_SUCCESS) {
-		LOG_ERROR("vdec bind vpss error %#X\n", ret);
-		return ret;
-	}
+	VDEC_STREAM_S input_frame = {};
+	VIDEO_FRAME_INFO_S tmp_frame = {};
 
 	memset(&input_frame, 0, sizeof(input_frame));
 	input_frame.u64PTS = 0;
@@ -940,35 +961,32 @@ static int send_jpeg_to_vdec(RK_PHOTO_DATA *data, MB_BLK input_mb, RK_U32 input_
 	ret = RK_MPI_VDEC_SendStream(JPEG_VDEC_CHN_ID, &input_frame, 2000);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("RK_MPI_VDEC_SendStream failed %#X\n", ret);
-		RK_MPI_SYS_UnBind(&stSrcChn, &stDestChn);
 		return ret;
 	}
-	ret = RK_MPI_VPSS_GetChnFrame(JPEG_VPSS_GRP_ID, JPEG_VPSS_CHN_ID, &output_frame, 2000);
+	ret = RK_MPI_VDEC_GetFrame(JPEG_VDEC_CHN_ID, &tmp_frame, 1000);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("RK_MPI_VPSS_GetChnFrame failed %#X\n", ret);
-		RK_MPI_SYS_UnBind(&stSrcChn, &stDestChn);
+		LOG_ERROR("RK_MPI_VDEC_GetFrame failed %#X\n", ret);
 		return ret;
 	}
-	LOG_INFO("get frame width %d, height %d, format %X, size %d\n", output_frame.stVFrame.u32Width,
-	         output_frame.stVFrame.u32Height, output_frame.stVFrame.enPixelFormat,
-	         cal_size_by_format(output_frame.stVFrame.u32Width, output_frame.stVFrame.u32Height,
-	                            output_frame.stVFrame.enPixelFormat));
-	data->width = output_frame.stVFrame.u32Width;
-	data->height = output_frame.stVFrame.u32Height;
-	data->format = output_frame.stVFrame.enPixelFormat;
-	data->size = cal_size_by_format(output_frame.stVFrame.u32Width, output_frame.stVFrame.u32Height,
-	                                output_frame.stVFrame.enPixelFormat);
-	data->data = malloc(data->size);
-	if (!data) {
-		LOG_ERROR("malloc failed\n");
-		ret = -1;
-	} else {
-		RK_MPI_SYS_MmzFlushCache(output_frame.stVFrame.pMbBlk, false);
-		memcpy(data->data, RK_MPI_MB_Handle2VirAddr(output_frame.stVFrame.pMbBlk), data->size);
+#ifdef DUMP_IMG
+	{
+		char dump_file_path[256] = {'\0'};
+		snprintf(dump_file_path, sizeof(dump_file_path), "/tmp/%dx%d.yuv420",
+		         tmp_frame.stVFrame.u32VirWidth, tmp_frame.stVFrame.u32VirHeight);
+		FILE *file = fopen(dump_file_path, "w");
+		void *buf = RK_MPI_MB_Handle2VirAddr(tmp_frame.stVFrame.pMbBlk);
+		int size = tmp_frame.stVFrame.u32VirWidth * tmp_frame.stVFrame.u32VirHeight * 3 / 2;
+		fwrite(buf, 1, size, file);
+		fclose(file);
 	}
-	RK_MPI_VPSS_ReleaseChnFrame(JPEG_VPSS_GRP_ID, JPEG_VPSS_CHN_ID, &output_frame);
-	RK_MPI_SYS_UnBind(&stSrcChn, &stDestChn);
-	LOG_INFO("get jpeg success\n");
+#endif
+	ret = resize_yuv_by_tde(config, data, &tmp_frame);
+	if (ret != RK_SUCCESS)
+		LOG_ERROR("resize yuv by tde failed %#X\n", ret);
+	else
+		LOG_INFO("get jpeg success\n");
+	RK_MPI_VDEC_ReleaseFrame(JPEG_VDEC_CHN_ID, &tmp_frame);
+
 	return 0;
 }
 
@@ -978,13 +996,7 @@ static int decode_one_jpeg(RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data, MB_BLK 
 	ret = create_jpeg_vdec(config, data);
 	if (ret != 0)
 		return ret;
-	ret = create_jpeg_vpss(config, data);
-	if (ret != 0) {
-		destroy_jpeg_vdec();
-		return ret;
-	}
-	ret = send_jpeg_to_vdec(data, input_mb, input_size);
-	destroy_jpeg_vpss();
+	ret = send_jpeg_to_vdec(config, data, input_mb, input_size);
 	destroy_jpeg_vdec();
 	return ret;
 }
@@ -1126,21 +1138,18 @@ static void *video_player_loop(void *p) {
 			if (!ret)
 				read_video_packet_cb(&packet);
 			clock_gettime(CLOCK_MONOTONIC, &end_time);
-			cost_time = end_time.tv_sec * 1000000LL + end_time.tv_nsec / 1000LL
-				- (start_time.tv_sec * 1000000LL + start_time.tv_nsec / 1000LL);
+			cost_time = end_time.tv_sec * 1000000LL + end_time.tv_nsec / 1000LL -
+			            (start_time.tv_sec * 1000000LL + start_time.tv_nsec / 1000LL);
 			if (cost_time < frame_interval_time) {
 				delay_time = frame_interval_time - cost_time;
 				usleep(delay_time);
-				LOG_DEBUG("frame interval %llu ms, decode cost %llu ms, delay %llu ms\n"
-						, frame_interval_time / 1000
-						, cost_time / 1000
-						, delay_time / 1000
-						);
-			if (ctx->event_cb)
-				if (ret)
-					ctx->event_cb(RK_PLAYER_ERROR);
-				else if (packet.s8EofFlag)
-					ctx->event_cb(RK_PLAYER_EOF);
+				LOG_DEBUG("frame interval %llu ms, decode cost %llu ms, delay %llu ms\n",
+				          frame_interval_time / 1000, cost_time / 1000, delay_time / 1000);
+				if (ctx->event_cb)
+					if (ret)
+						ctx->event_cb(RK_PLAYER_ERROR);
+					else if (packet.s8EofFlag)
+						ctx->event_cb(RK_PLAYER_EOF);
 			} else {
 				LOG_ERROR("decode one frame cost too much time %u ms\n", cost_time / 1000);
 			}
@@ -1526,6 +1535,7 @@ int rk_player_destroy(RK_PLAYER_CONFIG_S *config) {
 	remove_record_file_unlocked(ctx);
 	destroy_media_pipe_unlocked(ctx);
 	pthread_mutex_unlock(&ctx->mutex);
+	pthread_mutex_destroy(&ctx->mutex);
 	free(ctx);
 	config->ctx = NULL;
 	return 0;
