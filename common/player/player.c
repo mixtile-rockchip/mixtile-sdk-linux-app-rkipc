@@ -807,6 +807,7 @@ static int create_jpeg_vdec(const RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data) 
 	stAttr.u32PicWidth = config->input_width;   // width of jpeg
 	stAttr.u32PicHeight = config->input_height; // height of jpeg
 	stAttr.u32FrameBufCnt = 8;
+	stAttr.u32FrameBufDepth = 8;
 	stAttr.u32StreamBufCnt = 3;
 
 	ret = RK_MPI_VDEC_CreateChn(JPEG_VDEC_CHN_ID, &stAttr);
