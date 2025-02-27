@@ -105,13 +105,7 @@ static void record_event_handler(lv_event_t *e);
  **********************/
 static bool rk_record_is_active() {
 	int value = 0;
-
-	if (rk_get_mode() == RK_VIDEO_MODE)
-		rk_storage_record_statue_get(0, &value);
-	else if (rk_get_mode() == RK_SLOW_MOTION_MODE)
-		rk_storage_record_statue_get(1, &value);
-	else if (rk_get_mode() == RK_TIME_LAPSE_MODE)
-		rk_storage_record_statue_get(2, &value);
+	rk_storage_record_statue_get(0, &value);
 	return (value == 1);
 }
 

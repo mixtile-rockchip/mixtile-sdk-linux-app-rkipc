@@ -37,7 +37,7 @@ typedef enum {
 	RK_HORIZON_STEADY,
 } RK_EIS_MODE_E;
 
-void rk_init_mode(void);
+int rk_init_mode(void);
 int rk_set_mode(RK_MODE_E mode);
 RK_MODE_E rk_get_mode(void);
 

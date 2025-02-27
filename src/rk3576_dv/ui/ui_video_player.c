@@ -190,7 +190,7 @@ static int32_t video_player_create(void) {
 	int ret = 0;
 	memset(&g_player_handler, 0, sizeof(&g_player_handler));
 	g_player_handler.enable_video = true;
-	g_player_handler.enable_audio = true;
+	g_player_handler.enable_audio = false;
 	g_player_handler.event_cb = player_event_cb;
 	ret = rk_player_create(&g_player_handler);
 	if (ret) {

@@ -66,7 +66,7 @@ post_chk()
 	rkipc_ini=/userdata/rkipc.ini
 	default_rkipc_ini=/tmp/rkipc-factory-config.ini
 	if [ ! -f "$default_rkipc_ini" ];then
-		ln -s -f /usr/share/rkipc.ini $default_rkipc_ini
+		ln -s -f /usr/share/rkipc-imx386-800w-30fps.ini $default_rkipc_ini
 	fi
 	if [ ! -f "$default_rkipc_ini" ];then
 		echo "Error: not found rkipc.ini !!!"

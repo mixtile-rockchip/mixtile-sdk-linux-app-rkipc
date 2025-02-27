@@ -21,14 +21,14 @@
 #include <linux/input.h>
 
 #include "common.h"
+#include "evdev.h"
 #include "lvgl/porting/lv_port_indev.h"
 #include "storage.h"
-#include "evdev.h"
-#include "video.h"
 #include "ui_common.h"
 #include "ui_page_manager.h"
 #include "ui_player.h"
 #include "ui_resource_manage.h"
+#include "video.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -39,6 +39,27 @@
 /**********************
  *  STATIC PROTOTYPES
  **********************/
+struct file_info {
+	char *name;
+	int is_directory;
+	off_t size;
+	time_t mtime;
+};
+
+struct file_list {
+	char *path;
+	struct file_info *files;
+	int count;
+	int capacity;
+	int error_code;
+};
+
+#define RK_FILE_OK 0
+#define RK_FILE_OPEN_FAIL (-1)
+#define RK_FILE_READ_FAIL (-2)
+#define RK_FILE_NO_MEM (-3)
+#define RK_FILE_STAT_FAIL (-4)
+
 typedef enum {
 	UI_CTRL_UP_ARROW = 0,
 	UI_CTRL_DOWN_ARROW,
@@ -55,7 +76,7 @@ typedef struct {
 	const char *lable;
 	lv_img_dsc_t *icon_lable;
 	lv_obj_t *cur_btn;
-	rkipc_filelist list;
+	struct file_list list;
 	RK_MODE_E mode;
 } ui_playlist_context_t;
 
@@ -92,6 +113,91 @@ extern void *g_sd_phandle;
 /**********************
  *   STATIC FUNCTIONS
  **********************/
+static void init_file_list(struct file_list *list) {
+	list->path = NULL;
+	list->files = NULL;
+	list->count = 0;
+	list->capacity = 0;
+	list->error_code = RK_FILE_OK;
+}
+
+void rk_free_file_list(struct file_list *list) {
+	if (list) {
+		free(list->path);
+		for (int i = 0; i < list->count; ++i) {
+			free(list->files[i].name);
+		}
+		free(list->files);
+		init_file_list(list);
+	}
+}
+
+static int expand_capacity(struct file_list *list) {
+	const int new_cap = (list->capacity == 0) ? 16 : list->capacity * 2;
+	struct file_info *new_files = realloc(list->files, new_cap * sizeof(struct file_info));
+	if (!new_files) {
+		list->error_code = RK_FILE_NO_MEM;
+		return -1;
+	}
+	list->files = new_files;
+	list->capacity = new_cap;
+	return 0;
+}
+
+int rk_get_file_list(const char *path, struct file_list *list) {
+	if (!path || !list)
+		return -1;
+	DIR *dir = opendir(path);
+	if (!dir) {
+		list->error_code = RK_FILE_OPEN_FAIL;
+		return -1;
+	}
+
+	init_file_list(list);
+	list->path = strdup(path);
+	if (!list->path) {
+		list->error_code = RK_FILE_NO_MEM;
+		closedir(dir);
+		return -1;
+	}
+
+	struct dirent *entry;
+	while ((entry = readdir(dir)) != NULL) {
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+			continue;
+		}
+
+		if (list->count >= list->capacity) {
+			if (expand_capacity(list) != 0)
+				break;
+		}
+
+		char full_path[PATH_MAX];
+		snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
+
+		struct stat st;
+		if (lstat(full_path, &st) != 0) {
+			list->error_code = RK_FILE_STAT_FAIL;
+			continue;
+		}
+
+		struct file_info *info = &list->files[list->count];
+		info->name = strdup(entry->d_name);
+		info->is_directory = S_ISDIR(st.st_mode);
+		info->size = st.st_size;
+		info->mtime = st.st_mtime;
+
+		if (!info->name) {
+			list->error_code = RK_FILE_NO_MEM;
+			break;
+		}
+
+		list->count++;
+	}
+
+	closedir(dir);
+	return (list->error_code == RK_FILE_OK) ? 0 : -1;
+}
 
 static void list_btn_check_next() {
 	if (NULL == playlist_ctx.cur_btn)
@@ -101,7 +207,7 @@ static void list_btn_check_next() {
 	int32_t cur_btn_id, next_btn_id;
 	int child_cnt = lv_obj_get_child_cnt(playlist_ctx.list_obj);
 	if (child_cnt <= 0)
-		return ;
+		return;
 
 	cur_btn_obj = playlist_ctx.cur_btn;
 	cur_btn_id = lv_obj_get_index(cur_btn_obj);
@@ -154,9 +260,9 @@ static void btn_click_event_cb(lv_event_t *e) {
 		player_file_info_t file_info;
 		memset(&file_info, 0, sizeof(file_info));
 
-		if (track_id < playlist_ctx.list.file_num) {
+		if (track_id < playlist_ctx.list.count) {
 			snprintf(file_info.path, sizeof(file_info.path), "%s/%s", playlist_ctx.list.path,
-			         playlist_ctx.list.file[track_id].filename);
+			         playlist_ctx.list.files[track_id].name);
 			if (playlist_ctx.mode != RK_PHOTO_MODE)
 				ui_page_push_page("video_player", &file_info);
 			else
@@ -167,7 +273,7 @@ static void btn_click_event_cb(lv_event_t *e) {
 }
 
 static lv_obj_t *add_list_btn(lv_obj_t *parent, uint32_t track_id) {
-	const char *title = playlist_ctx.list.file[track_id].filename;
+	const char *title = playlist_ctx.list.files[track_id].name;
 	const char *lable = playlist_ctx.lable;
 
 	lv_color_t text_color = lv_color_make(0xff, 0xff, 0xff);
@@ -230,7 +336,7 @@ static void scroll_event_cb(lv_event_t *e) {
 
 		child = lv_obj_get_child(obj, -1);
 		track_id = (uint64_t)lv_obj_get_user_data(child);
-		while (++track_id < playlist_ctx.list.file_num && actual_step_size < step_size) {
+		while (++track_id < playlist_ctx.list.count && actual_step_size < step_size) {
 			actual_step_size++;
 			add_list_btn(playlist_ctx.list_obj, track_id);
 		}
@@ -328,7 +434,7 @@ static void playlist_create_ctrl(lv_obj_t *page_obj) {
 	static const lv_coord_t grid_rows[] = {LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
 
 	obj = page_obj;
-// HACK: there has a style bug, workaround here.
+	// HACK: there has a style bug, workaround here.
 	if (switch_from_player) {
 		lv_disp_set_bg_opa(NULL, LV_OPA_COVER);
 		lv_disp_set_bg_color(NULL, lv_color_hex(0x343247));
@@ -445,42 +551,37 @@ static int32_t playlist_param_init(lv_obj_t *page_obj) {
 
 	playlist_ctx.mode = (RK_MODE_E)lv_obj_get_user_data(page_obj);
 	if (playlist_ctx.mode == RK_VIDEO_MODE) {
-		folder_name = rk_param_get_string("storage.0:folder_name", "video0");
+		folder_name = "/mnt/sdcard/video0";
 		playlist_ctx.lable = "录像回放";
-		snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s/%s", "/mnt/sdcard", folder_name);
 	} else if (playlist_ctx.mode == RK_PHOTO_MODE) {
-		folder_name = rk_param_get_string("storage.3:folder_name", "photo");
+		folder_name = "/mnt/sdcard/photo";
 		playlist_ctx.lable = "照片";
-		snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s/%s", "/mnt/sdcard", folder_name);
 	} else if (playlist_ctx.mode == RK_SLOW_MOTION_MODE) {
-		folder_name = rk_param_get_string("storage.1:folder_name", "video1");
+		folder_name = "/mnt/sdcard/slowmotion";
 		playlist_ctx.lable = "慢动作回放";
-		snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s/%s", "/mnt/sdcard", folder_name);
 	} else if (playlist_ctx.mode == RK_TIME_LAPSE_MODE) {
-		folder_name = rk_param_get_string("storage.2:folder_name", "video2");
+		folder_name = "/mnt/sdcard/timelapse";
 		playlist_ctx.lable = "延时摄影";
-		snprintf(playlist_ctx.list.path, sizeof(playlist_ctx.list.path), "%s/%s", "/mnt/sdcard", folder_name);
 	}
-	if (rkipc_storage_get_file_list(&playlist_ctx.list, g_sd_phandle, LIST_DESCENDING) != 0) {
-		LOG_WARN("File list not obtained.\n");
-		return 0;
+	if (rk_get_file_list(folder_name, &playlist_ctx.list) != 0) {
+		LOG_ERROR("get file list %s failed\n", folder_name);
+		return -1;
 	}
 
 	return 0;
 }
 
 static void playlist_param_deinit(void) {
-	rkipc_storage_free_file_list(&playlist_ctx.list);
-
+	rk_free_file_list(&playlist_ctx.list);
 	memset(&playlist_ctx, 0, sizeof(playlist_ctx));
 }
 
 static int32_t playlist_load_list(void) {
 	uint32_t track_id = 0;
-	for (track_id = 0; (track_id < playlist_ctx.list.file_num) && (track_id < LINE_NUM); track_id++)
+	for (track_id = 0; (track_id < playlist_ctx.list.count) && (track_id < LINE_NUM); track_id++)
 		add_list_btn(playlist_ctx.list_obj, track_id);
 
-	if (playlist_ctx.list.file_num > 0) {
+	if (playlist_ctx.list.count > 0) {
 		playlist_ctx.cur_btn = lv_obj_get_child(playlist_ctx.list_obj, 0);
 		lv_obj_add_style(playlist_ctx.cur_btn, &style_btn_chk, 0);
 	}

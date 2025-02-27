@@ -1696,6 +1696,13 @@ static int rk_storage_muxer_init_by_id(int id) {
 	if (output_data_type)
 		memcpy(rk_storage_muxer_group[id].g_video_param.codec, output_data_type,
 		       strlen(output_data_type));
+	LOG_INFO("width %d, height %d, fps %d/%d, type %s\n"
+			, rk_storage_muxer_group[id].g_video_param.width
+			, rk_storage_muxer_group[id].g_video_param.height
+			, rk_storage_muxer_group[id].g_video_param.frame_rate_num
+			, rk_storage_muxer_group[id].g_video_param.frame_rate_den
+			, rk_storage_muxer_group[id].g_video_param.codec
+	);
 	snprintf(entry, 127, "video.%d:h264_profile", id);
 	const char *h264_profile = rk_param_get_string(entry, "high");
 	if (!strcmp(h264_profile, "high"))

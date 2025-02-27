@@ -113,7 +113,6 @@ int main(int argc, char **argv) {
 
 	// init
 	rk_param_init(rkipc_ini_path_);
-	rk_init_mode();
 
 	rk_network_init(NULL);
 	rk_system_init();
@@ -140,6 +139,7 @@ int main(int argc, char **argv) {
 
 	if (rk_param_get_int("audio.0:enable", 0))
 		rkipc_audio_init();
+	rk_init_mode();
 	rk_isp_init(0, "/etc/iqfiles");
 	rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));
 	ui_init();

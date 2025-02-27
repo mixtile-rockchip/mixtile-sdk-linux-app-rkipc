@@ -88,7 +88,8 @@ target_link_libraries(${PROJECT_NAME}
 		pthread rockit rkaiq rtsp freetype wpa_client rkmuxer m rga RkEis lvgl png drm rkdemuxer rkfsmk rkaudio)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
-install(FILES rkipc.ini DESTINATION share)
+file(GLOB RKIPC_INI_FILES rkipc-*)
+install(FILES ${RKIPC_INI_FILES} DESTINATION share)
 file(GLOB EIS_CONFIG_FILES video/rkeis_config*)
 install(FILES ${EIS_CONFIG_FILES} DESTINATION share)
 install(PROGRAMS RkLunch.sh DESTINATION bin)
