@@ -2240,6 +2240,9 @@ int rkipc_gdc_init() {
 		memcpy(stAttr.cfgFile,
 		       "/usr/share/rkeis_config_imx386_horizon_4032x3016_3840x2160_30fps.json",
 		       strlen("/usr/share/rkeis_config_imx386_horizon_4032x3016_3840x2160_30fps.json"));
+	} else if (g_current_eis_mode == RK_DISTORTION_CORRECTION) {
+		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_4032x2256_3840x2160_30fps-distortion.json",
+		       strlen("/usr/share/rkeis_config_imx386_4032x2256_3840x2160_30fps-distortion.json"));
 	} else if (rk_param_get_int("isp.0.adjustment:fps", 30) == 58) {
 		memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_4032x2256_3840x2160_60fps.json",
 		       strlen("/usr/share/rkeis_config_imx386_4032x2256_3840x2160_60fps.json"));
@@ -2277,9 +2280,12 @@ int rkipc_gdc_init() {
 			memcpy(stAttr.cfgFile,
 			       "/usr/share/rkeis_config_imx386_horizon_704x512_672x368_30fps.json",
 			       strlen("/usr/share/rkeis_config_imx386_horizon_704x512_672x368_30fps.json"));
+		} else if (g_current_eis_mode == RK_DISTORTION_CORRECTION) {
+			memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_704x384_704x384_30fps-distortion.json",
+			       strlen("/usr/share/rkeis_config_imx386_704x384_704x384_30fps-distortion.json"));
 		} else {
-			memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_704x512_704x512_30fps.json",
-			       strlen("/usr/share/rkeis_config_imx386_704x512_704x512_30fps.json"));
+			memcpy(stAttr.cfgFile, "/usr/share/rkeis_config_imx386_704x384_704x384_30fps.json",
+			       strlen("/usr/share/rkeis_config_imx386_704x384_704x384_30fps.json"));
 		}
 		ret = RK_MPI_GDC_CreateChn(1, &stAttr);
 	}

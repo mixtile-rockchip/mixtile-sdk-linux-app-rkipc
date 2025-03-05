@@ -140,8 +140,8 @@ static void btn_event_cb(lv_event_t *e) {
 			destroy_eis_config_box();
 			return;
 		}
-		if (rk_get_mode() != RK_VIDEO_MODE) {
-			ui_dialog_create("WARNING", "请先切换到录像模式!");
+		if (rk_get_mode() != RK_VIDEO_MODE && rk_get_mode() != RK_PHOTO_MODE) {
+			ui_dialog_create("WARNING", "请先切换到录像或拍照模式!");
 			return ;
 		}
 		child_cnt = lv_obj_get_child_cnt(parent);
@@ -180,7 +180,8 @@ static void create_radio_buttons(lv_obj_t *parent, lv_group_t *g) {
 	const char *options[] = {
 		"关闭防抖",
 		"普通防抖",
-		"地平线防抖"
+		"地平线防抖",
+		"畸变校正",
 	};
 	int select_btn_idx = 0;
 	lv_obj_t *btn = NULL, *label = NULL;
@@ -201,7 +202,7 @@ static void create_radio_buttons(lv_obj_t *parent, lv_group_t *g) {
 	lv_style_set_outline_opa(&btn_focus_style, LV_OPA_TRANSP);
 	lv_style_set_radius(&btn_focus_style, 10);
 
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 4; i++) {
 		//btn = lv_btn_create(parent);
 		btn = lv_checkbox_create(parent);
 		lv_obj_set_size(btn, lv_pct(80), lv_pct(25));

@@ -35,6 +35,7 @@ typedef enum {
 	RK_EIS_OFF = 0,
 	RK_NORMAL_STEADY,
 	RK_HORIZON_STEADY,
+	RK_DISTORTION_CORRECTION,
 } RK_EIS_MODE_E;
 
 int rk_init_mode(void);
