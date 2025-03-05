@@ -29,6 +29,7 @@
 #include "ui_player.h"
 #include "ui_resource_manage.h"
 #include "video.h"
+#include "filelist.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -39,26 +40,6 @@
 /**********************
  *  STATIC PROTOTYPES
  **********************/
-struct file_info {
-	char *name;
-	int is_directory;
-	off_t size;
-	time_t mtime;
-};
-
-struct file_list {
-	char *path;
-	struct file_info *files;
-	int count;
-	int capacity;
-	int error_code;
-};
-
-#define RK_FILE_OK 0
-#define RK_FILE_OPEN_FAIL (-1)
-#define RK_FILE_READ_FAIL (-2)
-#define RK_FILE_NO_MEM (-3)
-#define RK_FILE_STAT_FAIL (-4)
 
 typedef enum {
 	UI_CTRL_UP_ARROW = 0,
@@ -113,92 +94,6 @@ extern void *g_sd_phandle;
 /**********************
  *   STATIC FUNCTIONS
  **********************/
-static void init_file_list(struct file_list *list) {
-	list->path = NULL;
-	list->files = NULL;
-	list->count = 0;
-	list->capacity = 0;
-	list->error_code = RK_FILE_OK;
-}
-
-void rk_free_file_list(struct file_list *list) {
-	if (list) {
-		free(list->path);
-		for (int i = 0; i < list->count; ++i) {
-			free(list->files[i].name);
-		}
-		free(list->files);
-		init_file_list(list);
-	}
-}
-
-static int expand_capacity(struct file_list *list) {
-	const int new_cap = (list->capacity == 0) ? 16 : list->capacity * 2;
-	struct file_info *new_files = realloc(list->files, new_cap * sizeof(struct file_info));
-	if (!new_files) {
-		list->error_code = RK_FILE_NO_MEM;
-		return -1;
-	}
-	list->files = new_files;
-	list->capacity = new_cap;
-	return 0;
-}
-
-int rk_get_file_list(const char *path, struct file_list *list) {
-	if (!path || !list)
-		return -1;
-	DIR *dir = opendir(path);
-	if (!dir) {
-		list->error_code = RK_FILE_OPEN_FAIL;
-		return -1;
-	}
-
-	init_file_list(list);
-	list->path = strdup(path);
-	if (!list->path) {
-		list->error_code = RK_FILE_NO_MEM;
-		closedir(dir);
-		return -1;
-	}
-
-	struct dirent *entry;
-	while ((entry = readdir(dir)) != NULL) {
-		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-			continue;
-		}
-
-		if (list->count >= list->capacity) {
-			if (expand_capacity(list) != 0)
-				break;
-		}
-
-		char full_path[PATH_MAX];
-		snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
-
-		struct stat st;
-		if (lstat(full_path, &st) != 0) {
-			list->error_code = RK_FILE_STAT_FAIL;
-			continue;
-		}
-
-		struct file_info *info = &list->files[list->count];
-		info->name = strdup(entry->d_name);
-		info->is_directory = S_ISDIR(st.st_mode);
-		info->size = st.st_size;
-		info->mtime = st.st_mtime;
-
-		if (!info->name) {
-			list->error_code = RK_FILE_NO_MEM;
-			break;
-		}
-
-		list->count++;
-	}
-
-	closedir(dir);
-	return (list->error_code == RK_FILE_OK) ? 0 : -1;
-}
-
 static void list_btn_check_next() {
 	if (NULL == playlist_ctx.cur_btn)
 		return;
@@ -604,7 +499,7 @@ static void playlist_page_enter(lv_obj_t *page_obj) {
 	playlist_add_indev();
 }
 
-static void playlit_page_exit(lv_obj_t *page_obj) {
+static void playlist_page_exit(lv_obj_t *page_obj) {
 	LOG_INFO("enter\n");
 	playlist_delete_indev();
 }
@@ -620,6 +515,6 @@ static UI_PAGE_HANDLER_T playlist_page = {.name = "playlist",
                                           .create = playlist_page_create,
                                           .enter = playlist_page_enter,
                                           .destroy = playlist_page_destroy,
-                                          .exit = playlit_page_exit};
+                                          .exit = playlist_page_exit};
 
 UI_PAGE_REGISTER(playlist_page)

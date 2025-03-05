@@ -29,6 +29,7 @@
 #include "common.h"
 #include "player.h"
 #include "storage.h"
+#include "filelist.h"
 #include <rk_comm_video.h>
 
 #include <limits.h>
@@ -53,7 +54,7 @@ typedef struct {
 
 	lv_group_t *group;
 	int cur_file_index;
-	rkipc_filelist list;
+	struct file_list list;
 } ui_photo_player_context_t;
 
 typedef enum { UI_CTRL_ESC = 0, UI_CTRL_PREV, UI_CTRL_NEXT, UI_CTRL_BUTT } UI_CTRL_ID_E;
@@ -125,7 +126,6 @@ static int32_t photo_play(void) {
 	ptr = strrchr(photo_player_ctx.file_info.path, '/');
 	if (NULL != ptr)
 		lv_label_set_text(photo_player_ctx.name_obj, ptr + 1);
-
 	return 0;
 }
 
@@ -133,7 +133,7 @@ static void menu_event_cb(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
 	UI_CTRL_ID_E ctrl_id = (UI_CTRL_ID_E)lv_event_get_user_data(e);
-	uint32_t file_num = photo_player_ctx.list.file_num;
+	uint32_t file_num = photo_player_ctx.list.count;
 	uint32_t cur_index = photo_player_ctx.cur_file_index;
 
 	if (code == LV_EVENT_CLICKED) {
@@ -152,14 +152,14 @@ static void menu_event_cb(lv_event_t *e) {
 				photo_player_ctx.cur_file_index = file_num - 1;
 			snprintf(photo_player_ctx.file_info.path, sizeof(photo_player_ctx.file_info.path),
 			         "%s/%s", photo_player_ctx.list.path,
-			         photo_player_ctx.list.file[photo_player_ctx.cur_file_index].filename);
+			         photo_player_ctx.list.files[photo_player_ctx.cur_file_index].name);
 			photo_play();
 			break;
 		case UI_CTRL_NEXT:
 			photo_player_ctx.cur_file_index = (cur_index + 1) % file_num;
 			snprintf(photo_player_ctx.file_info.path, sizeof(photo_player_ctx.file_info.path),
 			         "%s/%s", photo_player_ctx.list.path,
-			         photo_player_ctx.list.file[photo_player_ctx.cur_file_index].filename);
+			         photo_player_ctx.list.files[photo_player_ctx.cur_file_index].name);
 			photo_play();
 			break;
 		default:
@@ -288,23 +288,18 @@ static void photo_player_destroy_ctrl(void) {
 }
 
 static void photo_player_param_init(lv_obj_t *page_obj) {
-	const char *mount_path = rk_param_get_string("storage:mount_path", "/mnt/sdcard");
-	const char *photo_folder_name = rk_param_get_string("storage.3:folder_name", "photo");
 	memset(&photo_player_ctx, 0, sizeof(photo_player_ctx));
-
-	snprintf(photo_player_ctx.list.path, sizeof(photo_player_ctx.list.path), "%s/%s", mount_path,
-	         photo_folder_name);
-	if (rkipc_storage_get_file_list(&photo_player_ctx.list, g_sd_phandle, LIST_DESCENDING) != 0) {
+	if (rk_get_file_list("/mnt/sdcard/photo", &photo_player_ctx.list) != 0) {
 		LOG_WARN("File list not obtained.\n");
 		return;
 	}
 	photo_player_ctx.cur_file_index = (uint64_t)lv_obj_get_user_data(page_obj);
 
-	if (photo_player_ctx.cur_file_index < photo_player_ctx.list.file_num) {
+	if (photo_player_ctx.cur_file_index < photo_player_ctx.list.count) {
 		LOG_INFO("load file index %d\n", photo_player_ctx.cur_file_index);
 		snprintf(photo_player_ctx.file_info.path, sizeof(photo_player_ctx.file_info.path), "%s/%s",
 		         photo_player_ctx.list.path,
-		         photo_player_ctx.list.file[photo_player_ctx.cur_file_index].filename);
+		         photo_player_ctx.list.files[photo_player_ctx.cur_file_index].name);
 	}
 }
 
@@ -321,7 +316,7 @@ static void photo_player_add_indev(void) {
 }
 
 static void photo_player_param_deinit(void) {
-	rkipc_storage_free_file_list(&photo_player_ctx.list);
+	rk_free_file_list(&photo_player_ctx.list);
 }
 
 static void photo_player_delete_indev(void) {
