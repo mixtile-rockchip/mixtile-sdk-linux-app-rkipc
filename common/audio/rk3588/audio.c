@@ -59,8 +59,16 @@ void *save_aenc_thread(void *ptr) {
 	AUDIO_STREAM_S pstStream;
 	RK_S32 eos = 0;
 	RK_S32 count = 0;
-	const char *encode_type = rk_param_get_string("audio.0:encode_type", NULL);
+	char encode_type[16] = {'\0'};
+	prctl(PR_SET_NAME, "save_aenc_thread", 0, 0, 0);
+	LOG_INFO("enter\n");
 
+	const char *tmp = rk_param_get_string("audio.0:encode_type", NULL);
+	if (tmp == NULL) {
+		LOG_ERROR("not found audio.0:encode_type\n");
+		return NULL;
+	}
+	strncpy(encode_type, tmp, strlen(tmp));
 	// file = fopen("/tmp/aenc.mp2", "wb+");
 	// if (file == RK_NULL) {
 	// 	RK_LOGE("failed to open /tmp/aenc.mp2, error: %s\n", strerror(errno));
@@ -106,6 +114,7 @@ void *save_aenc_thread(void *ptr) {
 	// 	fclose(file);
 	// 	file = RK_NULL;
 	// }
+	LOG_INFO("exit\n");
 
 	return RK_NULL;
 }
@@ -385,6 +394,7 @@ int rkipc_aenc_deinit() {
 
 int rkipc_audio_init() {
 	LOG_INFO("%s\n", __func__);
+	g_audio_run_ = 1;
 	int ret = rkipc_ai_init();
 	ret |= rkipc_aenc_init();
 	// bind ai to aenc

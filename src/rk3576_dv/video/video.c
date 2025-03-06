@@ -2476,7 +2476,6 @@ int rk_video_set_fps(int new_fps) {
 	fps = new_fps;
 	rk_video_deinit();
 	rk_isp_deinit(0);
-	rk_storage_deinit();
 	rk_param_deinit();
 	if (fps == 30)
 		rk_param_init("/usr/share/rkipc-imx386-800w-30fps.ini");
@@ -2484,7 +2483,6 @@ int rk_video_set_fps(int new_fps) {
 		rk_param_init("/usr/share/rkipc-imx386-800w-58fps.ini");
 	set_soc_freq();
 	set_camera_format();
-	rk_storage_init();
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_isp_set_frame_rate_without_ini(0, fps);
 	rk_video_init();

@@ -102,6 +102,7 @@ int rk_param_init(char *ini_path) {
 	char cmd[256];
 	pthread_mutex_lock(&g_param_mutex);
 	g_ini_d_ = NULL;
+	memset(g_ini_path_, 0, sizeof(g_ini_path_));
 	if (ini_path)
 		memcpy(g_ini_path_, ini_path, strlen(ini_path));
 	else
