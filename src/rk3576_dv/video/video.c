@@ -2558,7 +2558,7 @@ int rk_set_eis_debug(bool enable) {
 	rk_video_deinit();
 	rk_isp_deinit(0);
 	usleep(100 * 1000);
-	enable_eis_debug = enable;
+	rk_param_set_int("video.source:enable_eis_debug", enable);
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_video_init();
 	LOG_INFO("%s eis debug mode\n", enable ? "enable" : "disable");
