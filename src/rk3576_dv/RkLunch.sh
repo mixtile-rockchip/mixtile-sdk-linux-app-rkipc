@@ -103,10 +103,6 @@ post_chk()
 	export rt_vo_disable_vop=0
 	modetest -e
 	# change to 58fps, need v4l2-ctl 58fps, ini fps=58, echo 1200000 > cpu0/cpufreq/scaling_setspeed
-	amixer -c 0 sset 'hp switch' on
-	amixer -c 0 sset 'spk switch' on
-	amixer -c 0 sset OUT1 on
-	amixer -c 0 sset OUT2 on
 	rkipc &
 }
 

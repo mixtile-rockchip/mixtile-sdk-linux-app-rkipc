@@ -583,6 +583,15 @@ static int create_ao(PLAYER_CTX_S *ctx) {
 	aoAttr.u32EXFlag = 0;
 	aoAttr.u32ChnCnt = 2;
 
+	// FIXME: just for rk3576, move these code to common/audio
+	ret = RK_MPI_AMIX_SetControl(aoDevId, "spk switch", (char *)"on");
+	ret |= RK_MPI_AMIX_SetControl(aoDevId, "hp switch", (char *)"on");
+	ret |= RK_MPI_AMIX_SetControl(aoDevId, "OUT1 Switch", (char *)"on");
+	ret |= RK_MPI_AMIX_SetControl(aoDevId, "OUT2 Switch", (char *)"on");
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_AMIX_SetControl failed %#X\n", ret);
+		return RK_FAILURE;
+	}
 	RK_MPI_AO_SetPubAttr(aoDevId, &aoAttr);
 	ret = RK_MPI_AO_Enable(aoDevId);
 	if (ret != RK_SUCCESS) {
@@ -649,6 +658,10 @@ static int destroy_ao(void) {
 	RK_MPI_AO_DisableReSmp(0, 0);
 	RK_MPI_AO_DisableChn(0, 0);
 	RK_MPI_AO_Disable(0);
+	RK_MPI_AMIX_SetControl(0, "spk switch", (char *)"off");
+	RK_MPI_AMIX_SetControl(0, "hp switch", (char *)"off");
+	RK_MPI_AMIX_SetControl(0, "OUT1 Switch", (char *)"off");
+	RK_MPI_AMIX_SetControl(0, "OUT2 Switch", (char *)"off");
 }
 
 static int create_adec(PLAYER_CTX_S *ctx) {
