@@ -601,6 +601,24 @@ static int create_ao(PLAYER_CTX_S *ctx) {
 		RK_MPI_AO_SetTrackMode(aoDevId, AUDIO_TRACK_OUT_STEREO);
 	else
 		RK_MPI_AO_SetTrackMode(aoDevId, AUDIO_TRACK_NORMAL);
+	if (rk_param_get_int("audio.0:enable_ao_vqe", 0)) {
+		const char *vqe_file_path = rk_param_get_string("audio.0:ao_vqe_file", NULL);
+		if (vqe_file_path) {
+			AO_VQE_CONFIG_S vqe_config = {};
+			strncpy(vqe_config.aCfgFile, vqe_file_path, strlen(vqe_file_path));
+			vqe_config.enCfgMode = AIO_VQE_CONFIG_LOAD_FILE;
+			ret = RK_MPI_AO_SetVqeAttr(aoDevId, aoChn, &vqe_config);
+			if (ret != RK_SUCCESS) {
+				LOG_ERROR("RK_MPI_AO_SetVqeAttr failed %#X\n", ret);
+				return RK_FAILURE;
+			}
+			ret = RK_MPI_AO_EnableVqe(aoDevId, aoChn);
+			if (ret != RK_SUCCESS) {
+				LOG_ERROR("RK_MPI_AO_EnableVqe failed %#X\n", ret);
+				return RK_FAILURE;
+			}
+		}
+	}
 	/*==============================================================================*/
 	ret = RK_MPI_AO_EnableChn(aoDevId, aoChn);
 	if (ret != 0) {
@@ -626,6 +644,8 @@ static int create_ao(PLAYER_CTX_S *ctx) {
 }
 
 static int destroy_ao(void) {
+	if (rk_param_get_int("audio.0:enable_ao_vqe", 0))
+		RK_MPI_AO_DisableVqe(0, 0);
 	RK_MPI_AO_DisableReSmp(0, 0);
 	RK_MPI_AO_DisableChn(0, 0);
 	RK_MPI_AO_Disable(0);
@@ -639,6 +659,10 @@ static int create_adec(PLAYER_CTX_S *ctx) {
 	ADEC_CHN_ATTR_S pstChnAttr;
 	memset(&pstChnAttr, 0, sizeof(ADEC_CHN_ATTR_S));
 
+	if (encode_type == NULL) {
+		LOG_ERROR("bad audio file format!\n");
+		return -1;
+	}
 	ret = register_adec_mp3();
 	if (ret != 0) {
 		LOG_ERROR("register_adec_mp3 failed %#X\n", ret);
