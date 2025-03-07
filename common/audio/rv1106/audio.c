@@ -516,8 +516,8 @@ int rkipc_aenc_init() {
 int rkipc_aenc_deinit() {
 	int ret = RK_MPI_AENC_DestroyChn(aenc_chn_id);
 	if (ret)
-		LOG_ERROR("RK_MPI_AI_DisableChn fail\n");
-	LOG_DEBUG("RK_MPI_AI_DisableChn success\n");
+		LOG_ERROR("RK_MPI_AENC_DestroyChn fail\n");
+	LOG_DEBUG("RK_MPI_AENC_DestroyChn success\n");
 
 	return 0;
 }
