@@ -194,6 +194,14 @@ int rkipc_audio_vqe_init() {
 	stAiVqeConfig.s32WorkSampleRate = rk_param_get_int("audio.0:sample_rate", 16000);
 	stAiVqeConfig.s32FrameSample =
 	    rk_param_get_int("audio.0:sample_rate", 16000) * vqe_gap_ms / 1000;
+
+	if (rk_param_get_int("audio.0:channels", 2) == 4) {
+		stAiVqeConfig.s64RefChannelType = 0x04;
+		stAiVqeConfig.s64RecChannelType = 0x03;
+	} else {
+		stAiVqeConfig.s64RefChannelType = 0x02;
+		stAiVqeConfig.s64RecChannelType = 0x01;
+	}
 	result = RK_MPI_AI_SetVqeAttr(ai_dev_id, ai_chn_id, 0, 0, &stAiVqeConfig);
 	if (result != 0) {
 		LOG_ERROR("RK_MPI_AI_SetVqeAttr(%d,%d) failed with %#x", ai_dev_id, ai_chn_id, result);

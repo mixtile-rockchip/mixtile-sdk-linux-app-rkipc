@@ -95,6 +95,7 @@ install(FILES ${EIS_CONFIG_FILES} DESTINATION share)
 install(PROGRAMS RkLunch.sh DESTINATION bin)
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)
 install(FILES res/font/PuHuiTi.ttf DESTINATION share)
+install(FILES asound.conf DESTINATION etc)
 
 file(GLOB ICON_FILES res/ui/*)
 install(FILES ${ICON_FILES} DESTINATION share/res/ui/)
