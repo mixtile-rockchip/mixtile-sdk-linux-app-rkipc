@@ -18,6 +18,7 @@
 #endif
 #define LOG_TAG "ui_advanced_setup.c"
 
+#include "audio.h"
 #include "common.h"
 #include "evdev.h"
 #include "lvgl/porting/lv_port_indev.h"
@@ -48,6 +49,7 @@ typedef struct {
 	lv_obj_t *eis_label_obj;
 	lv_obj_t *hdr_obj;
 	lv_obj_t *debug_obj;
+	lv_obj_t *audio_obj;
 
 	lv_group_t *group;
 
@@ -83,6 +85,34 @@ static void return_event_handler(lv_event_t *e) {
 
 	if (code == LV_EVENT_CLICKED) {
 		ui_page_pop_page();
+	}
+}
+
+static void audio_event_handler(lv_event_t *e) {
+	lv_event_code_t code = lv_event_get_code(e);
+	lv_obj_t *obj = lv_event_get_target(e);
+	if (code == LV_EVENT_CLICKED) {
+		if (evdev_get_current_code() == KEY_POWER) {
+			ui_page_pop_page();
+			return;
+		}
+		if (!rk_param_get_int("audio.0:enable", 0)) {
+			ui_dialog_create("WARNING", "当前模式不允许配置AI音频!");
+			// restore focus status
+			if (lv_obj_has_state(obj, LV_STATE_CHECKED))
+				lv_obj_clear_state(obj, LV_STATE_CHECKED);
+			else
+				lv_obj_add_state(obj, LV_STATE_CHECKED);
+			return ;
+		}
+		if (lv_obj_has_state(obj, LV_STATE_CHECKED)) {
+			rk_param_set_int("audio.0:enable_vqe", 1);
+			LOG_INFO("enable vqe\n");
+		} else {
+			rk_param_set_int("audio.0:enable_vqe", 0);
+			LOG_INFO("disable vqe\n");
+		}
+		rk_audio_restart();
 	}
 }
 
@@ -142,6 +172,7 @@ static void btn_event_cb(lv_event_t *e) {
 		}
 		if (rk_get_mode() != RK_VIDEO_MODE && rk_get_mode() != RK_PHOTO_MODE) {
 			ui_dialog_create("WARNING", "请先切换到录像或拍照模式!");
+			lv_obj_clear_state(btn, LV_STATE_CHECKED);
 			return ;
 		}
 		child_cnt = lv_obj_get_child_cnt(parent);
@@ -297,6 +328,13 @@ static void advanced_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_add_event_cb(advanced_setup_ctrl.debug_obj, debug_event_handler, LV_EVENT_CLICKED, NULL);
 	lv_obj_add_event_cb(advanced_setup_ctrl.debug_obj, debug_event_handler, LV_EVENT_FOCUSED, NULL);
 	lv_obj_add_event_cb(advanced_setup_ctrl.debug_obj, debug_event_handler, LV_EVENT_DEFOCUSED, NULL);
+
+	advanced_setup_ctrl.audio_obj = lv_checkbox_create(cont_obj);
+	lv_obj_add_flag(advanced_setup_ctrl.audio_obj, LV_OBJ_FLAG_CHECKABLE);
+	lv_obj_set_size(advanced_setup_ctrl.audio_obj, lv_pct(100), lv_pct(20));
+	lv_obj_add_event_cb(advanced_setup_ctrl.audio_obj, audio_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(advanced_setup_ctrl.audio_obj, audio_event_handler, LV_EVENT_FOCUSED, NULL);
+	lv_obj_add_event_cb(advanced_setup_ctrl.audio_obj, audio_event_handler, LV_EVENT_DEFOCUSED, NULL);
 }
 
 static void advanced_setup_set_text() {
@@ -365,6 +403,14 @@ static void advanced_setup_set_text() {
 	lv_obj_set_style_pad_top(advanced_setup_ctrl.debug_obj, 8, 0);
 	if (rk_get_eis_debug())
 		lv_obj_add_state(advanced_setup_ctrl.debug_obj, LV_STATE_CHECKED);
+
+	lv_checkbox_set_text(advanced_setup_ctrl.audio_obj, "AI音频降噪");
+	lv_obj_add_style(advanced_setup_ctrl.audio_obj, &option_style, 0);
+	lv_obj_add_style(advanced_setup_ctrl.audio_obj, &option_focus_style, LV_PART_MAIN | LV_STATE_FOCUS_KEY);
+	lv_obj_set_style_radius(advanced_setup_ctrl.audio_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
+	lv_obj_set_style_pad_top(advanced_setup_ctrl.audio_obj, 8, 0);
+	if (rk_param_get_int("audio.0:enable_vqe", 0))
+		lv_obj_add_state(advanced_setup_ctrl.audio_obj, LV_STATE_CHECKED);
 }
 
 static void advanced_setup_destroy_ctrl(void) {
@@ -382,6 +428,11 @@ static void advanced_setup_destroy_ctrl(void) {
 		ui_common_remove_stype_all(advanced_setup_ctrl.debug_obj);
 		lv_obj_del(advanced_setup_ctrl.debug_obj);
 		advanced_setup_ctrl.debug_obj = NULL;
+	}
+	if (NULL != advanced_setup_ctrl.audio_obj) {
+		ui_common_remove_stype_all(advanced_setup_ctrl.audio_obj);
+		lv_obj_del(advanced_setup_ctrl.audio_obj);
+		advanced_setup_ctrl.audio_obj = NULL;
 	}
 	if (NULL != advanced_setup_ctrl.exit_obj) {
 		ui_common_remove_stype_all(advanced_setup_ctrl.exit_obj);
@@ -411,6 +462,7 @@ static void advanced_setup_add_indev(void) {
 	lv_group_add_obj(group, advanced_setup_ctrl.eis_obj);
 	lv_group_add_obj(group, advanced_setup_ctrl.hdr_obj);
 	lv_group_add_obj(group, advanced_setup_ctrl.debug_obj);
+	lv_group_add_obj(group, advanced_setup_ctrl.audio_obj);
 
 	advanced_setup_ctrl.group = group;
 }
