@@ -187,7 +187,8 @@ void draw_argb8888_text(unsigned char *buffer, int buf_w, int buf_h, const wchar
 	// wprintf("wstr is %ls\n", wstr);
 	// LOG_DEBUG("len is %d\n", len);
 	pen_.x = 0;
-	pen_.y = 0;
+	// 向上偏移字体高度的1/4，乘以64是因为FreeType使用26.6定点数格式
+	pen_.y = (face_->size->metrics.height >> 6) / 4 * 64;
 	for (int i = 0; i < len; i++) {
 		draw_argb8888_wchar(buffer, buf_w, buf_h, wstr[i]);
 		pen_.x += slot_->advance.x;

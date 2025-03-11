@@ -17,7 +17,7 @@
 #endif
 #define LOG_TAG "osd.c"
 
-#define FONT_LIBRARY_PATH "/usr/share/simsun_en.ttf"
+#define FONT_LIBRARY_PATH "/usr/share/SourceHanSansEN.ttf"
 
 #define MAX_OSD_NUM 8
 

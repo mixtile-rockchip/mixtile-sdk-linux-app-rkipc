@@ -384,7 +384,7 @@ graph LR
 │   ├── network # Network modules
 │   ├── osd # OSD modules
 │   │   ├── image.bmp # Logo image
-│   │   └── simsun_en.ttf # Font library
+│   │   └── SourceHanSansEN.ttf # Font library
 │   ├── param # Parameter management modules
 │   ├── region_clip # Region clip module
 │   ├── rockiva # Boundary algorithm module, face and body recognition
@@ -1441,7 +1441,7 @@ font_color_mode = customize ; Font color mode
 font_color = fff799 ; Font color
 alignment = customize ; Alignment mode
 boundary = 0 ; Alignment boundary
-font_path = /oem/usr/share/simsun_en.ttf ; Font library path
+font_path = /oem/usr/share/SourceHanSansEN.ttf ; Font library path
 normalized_screen_width = 704 ; Normalized screen width for the web frontend
 normalized_screen_height = 480 ; Normalized screen height for the web frontend
 

@@ -390,7 +390,7 @@ graph LR
 │   ├── network # 网络模块
 │   ├── osd # OSD模块
 │   │   ├── image.bmp # logo图片
-│   │   └── simsun_en.ttf # 字体库
+│   │   └── SourceHanSansEN.ttf # 字体库
 │   ├── param # 参数管理模块
 │   ├── region_clip # 区域裁剪模块
 │   ├── rockiva # 周界算法模块，人脸人形识别
@@ -1448,7 +1448,7 @@ font_color_mode = customize ; 字体颜色模式
 font_color = fff799 ; 字体颜色
 alignment = customize ; 对齐模式
 boundary = 0 ; 对齐边界
-font_path = /oem/usr/share/simsun_en.ttf ; 字库路径
+font_path = /oem/usr/share/SourceHanSansEN.ttf ; 字库路径
 normalized_screen_width = 704 ; web前端归一化宽度
 normalized_screen_height = 480 ; web前端归一化高度
 
