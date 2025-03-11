@@ -232,8 +232,10 @@ static void capture_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER)
+		if (evdev_get_current_code() == KEY_POWER) {
+			rk_enter_sleep();
 			return;
+		}
 		switch (rkipc_storage_dev_mount_status_get()) {
 		case DISK_UNMOUNTED:
 			ui_nosdcard_dialog_create();
@@ -266,8 +268,10 @@ static void record_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER)
-			return;
+		if (evdev_get_current_code() == KEY_POWER) {
+			rk_enter_sleep();
+			return ;
+		}
 		switch (rkipc_storage_dev_mount_status_get()) {
 		case DISK_UNMOUNTED:
 			ui_nosdcard_dialog_create();
@@ -319,8 +323,10 @@ static void media_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER)
+		if (evdev_get_current_code() == KEY_POWER) {
+			rk_enter_sleep();
 			return;
+		}
 		switch (rkipc_storage_dev_mount_status_get()) {
 		case DISK_UNMOUNTED:
 			ui_nosdcard_dialog_create();
@@ -351,8 +357,10 @@ static void set_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER)
+		if (evdev_get_current_code() == KEY_POWER) {
+			rk_enter_sleep();
 			return;
+		}
 		ui_page_push_page("settings", NULL);
 	} else if (code == LV_EVENT_FOCUSED) {
 		lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, index_icon_set_p, NULL);

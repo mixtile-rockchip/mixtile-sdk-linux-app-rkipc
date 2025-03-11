@@ -116,7 +116,8 @@ echo 0 > /sys/devices/system/cpu/cpu4/online
 echo 0 > /sys/devices/system/cpu/cpu5/online
 echo 0 > /sys/devices/system/cpu/cpu6/online
 echo 0 > /sys/devices/system/cpu/cpu7/online
-echo 1 > /sys/kernel/debug/regulator/vdd_cpu_big_s0/force_disable
+# INFO: close power for big kernel can save consumption about 30mW, but the suspend-resume function will be affected
+# echo 1 > /sys/kernel/debug/regulator/vdd_cpu_big_s0/force_disable
 
 echo userspace > /sys/class/devfreq/27800000.gpu/governor
 echo 300000000 > /sys/class/devfreq/27800000.gpu/min_freq

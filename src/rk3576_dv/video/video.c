@@ -2563,3 +2563,31 @@ int rk_set_eis_debug(bool enable) {
 }
 
 int rk_get_eis_debug(void) { return enable_eis_debug; }
+
+int rk_enter_sleep(void) {
+	LOG_INFO("enter\n");
+	static struct timespec last_sleep_time = {};
+	struct timespec current_time;
+	clock_gettime(CLOCK_MONOTONIC, &current_time);
+	LOG_INFO("last_sleep_time is %ld, current_time is %ld\n", last_sleep_time.tv_sec, current_time.tv_sec);
+
+	// FIXME: need to unbind all node and make sure VO has no remaining frame
+	// but gdc not support rebind in runtime now...
+	if (last_sleep_time.tv_sec == 0) {
+		rk_video_stop_record();
+		// enter sleep
+		write_sysfs_string("state", "/sys/power", "mem");
+		clock_gettime(CLOCK_MONOTONIC, &last_sleep_time);
+		return 0;
+	}
+	if (current_time.tv_sec - last_sleep_time.tv_sec < 5) {
+		LOG_INFO("exit, skip sleep\n");
+		return 0;
+	}
+	rk_video_stop_record();
+	// enter sleep
+	write_sysfs_string("state", "/sys/power", "mem");
+	clock_gettime(CLOCK_MONOTONIC, &last_sleep_time);
+	LOG_INFO("exit\n");
+	return 0;
+}
