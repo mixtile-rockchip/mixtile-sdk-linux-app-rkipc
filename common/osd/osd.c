@@ -395,6 +395,15 @@ int rk_osd_init() {
 			if (!strcmp(osd_type, "channelName") || !strcmp(osd_type, "character")) {
 				snprintf(entry, 127, "osd.%d:display_text", i);
 				const char *display_text = rk_param_get_string(entry, NULL);
+				// judge image depend on ini or json
+				if (display_text && !strcmp(display_text, "isp config:")) {
+					char temp_text[128] = {0};
+					strncpy(temp_text, display_text, sizeof(temp_text) - 1);
+					int init_from_ini = rk_param_get_int("isp:init_from_ini", 1);
+					strcat(temp_text, init_from_ini ? "ini" : "json");
+					display_text = temp_text;
+					LOG_INFO("display_text is %s\n", display_text);
+				}
 				if (iconv_utf8_to_wchar(display_text, osd_data.text.wch))
 					continue;
 				osd_data.width = UPALIGNTO16(wstr_get_actual_advance_x(osd_data.text.wch));
