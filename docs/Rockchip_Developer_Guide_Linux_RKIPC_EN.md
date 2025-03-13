@@ -16,7 +16,7 @@ THIS DOCUMENT IS PROVIDED “AS IS”. ROCKCHIP ELECTRONICS CO., LTD.(“ROCKCHI
 
 "Rockchip", "瑞芯微", "瑞芯" shall be Rockchip’s registered trademarks and owned by Rockchip. All the other trademarks or registered trademarks mentioned in this document shall be owned by their respective owners.
 
-**All rights reserved. ©2024 Rockchip Electronics Co., Ltd.**
+**All rights reserved. ©2025 Rockchip Electronics Co., Ltd.**
 
 Beyond the scope of fair use, neither any entity nor individual shall extract, copy, or distribute this document in any form in whole or in part without the written approval of Rockchip.
 
@@ -132,7 +132,7 @@ graph LR
 	VENC_0-->RTSP_RTMP_0
 	VENC_0--combo-->VENC_JPEG
 	VI_1--bind-->VENC_1_and_OSD_draw_NN_result-->RTSP_RTMP_1
-	VI_2--get and sned-->NPU
+	VI_2--get and send-->NPU
 	VI_2--bind-->IVS_for_OD_MD
 ```
 
@@ -145,7 +145,7 @@ graph LR
 	VI_0--get-->TDE_process--send-->VENC_JPEG
 	VENC_0_and_OSD_draw_NN_result-->RTSP_RTMP_0
 	VI_1--bind-->VENC_1-->RTSP_RTMP_1
-	VI_2--get and sned-->NPU
+	VI_2--get and send-->NPU
 	VI_2--bind-->IVS_for_OD_MD
 ```
 
@@ -159,7 +159,7 @@ graph LR
 	VENC_0-->RTSP_RTMP_0
 	VENC_0--combo-->VENC_JPEG
 	VI_1--bind-->VENC_1_and_OSD_draw_NN_result-->RTSP_RTMP_1
-	VI_2--get and sned-->NPU
+	VI_2--get and send-->NPU
 	VI_3--bind-->IVS_for_OD_MD
 ```
 

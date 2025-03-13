@@ -20,7 +20,7 @@
 
 本文档可能提及的其他所有注册商标或商标，由其各自拥有者所有。
 
-**版权所有 © 2024瑞芯微电子股份有限公司**
+**版权所有 © 2025瑞芯微电子股份有限公司**
 
 超越合理使用范畴，非经本公司书面许可，任何单位和个人不得擅自摘抄、复制本文档内容的部分或全部，并不得以任何形式传播。
 
@@ -138,7 +138,7 @@ graph LR
 	VENC_0-->RTSP_RTMP_0
 	VENC_0--combo-->VENC_JPEG
 	VI_1--bind-->VENC_1_and_OSD_draw_NN_result-->RTSP_RTMP_1
-	VI_2--get and sned-->NPU
+	VI_2--get and send-->NPU
 	VI_2--bind-->IVS_for_OD_MD
 ```
 
@@ -151,7 +151,7 @@ graph LR
 	VI_0--get-->TDE_process--send-->VENC_JPEG
 	VENC_0_and_OSD_draw_NN_result-->RTSP_RTMP_0
 	VI_1--bind-->VENC_1-->RTSP_RTMP_1
-	VI_2--get and sned-->NPU
+	VI_2--get and send-->NPU
 	VI_2--bind-->IVS_for_OD_MD
 ```
 
@@ -165,7 +165,7 @@ graph LR
 	VENC_0-->RTSP_RTMP_0
 	VENC_0--combo-->VENC_JPEG
 	VI_1--bind-->VENC_1_and_OSD_draw_NN_result-->RTSP_RTMP_1
-	VI_2--get and sned-->NPU
+	VI_2--get and send-->NPU
 	VI_3--bind-->IVS_for_OD_MD
 ```
 
