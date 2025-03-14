@@ -1,8 +1,13 @@
 // Copyright 2021 Rockchip Electronics Co., Ltd. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+#include <stdint.h>
 int rkipc_audio_init();
 int rkipc_audio_deinit();
+int rkipc_audio_player_init(int sample_rate, int channels, const char *encode_type);
+int rkipc_audio_player_deinit();
+int rkipc_audio_player_send(uint8_t *data, uint32_t len, uint64_t pts);
+
 // export api
 int rk_audio_restart();
 int rk_audio_get_bit_rate(int stream_id, int *value);

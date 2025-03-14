@@ -5,22 +5,26 @@
 #include "log.h"
 #include "rtsp.h"
 #include "storage.h"
+#include "rkaudio_mp3.h"
 
 #include <rk_debug.h>
+#include <rk_mpi_adec.h>
 #include <rk_mpi_aenc.h>
 #include <rk_mpi_ai.h>
 #include <rk_mpi_ao.h>
+#include <rk_mpi_amix.h>
 #include <rk_mpi_mb.h>
 #include <rk_mpi_sys.h>
-
-#include "mp3_enc_table1.h"
-#include "mp3_enc_table2.h"
-#include "mp3_enc_types.h"
+#include <stdint.h>
 
 #ifdef LOG_TAG
 #undef LOG_TAG
 #endif
 #define LOG_TAG "audio.c"
+
+#define ADEC_CHN_ID 0
+#define AO_CHN_ID 0
+#define AO_DEV_ID 0
 
 pthread_t save_ai_tid, save_aenc_tid, ai_get_detect_result_tid;
 static int ai_dev_id = 0;
@@ -346,145 +350,6 @@ int rkipc_ai_deinit() {
 	return 0;
 }
 
-// mp3
-static RK_S32 extCodecHandle = -1;
-
-typedef struct _RK_AENC_MP3_CTX_S {
-	mp3_enc *pMp3Enc;
-	int frameLength;
-} RK_AENC_MP3_CTX_S;
-
-int rkaudio_mp3_encoder_close(RK_VOID *pEncoder) {
-	RK_AENC_MP3_CTX_S *ctx = (RK_AENC_MP3_CTX_S *)pEncoder;
-	if (ctx == NULL)
-		return 0;
-
-	Mp3EncodeDeinit(ctx->pMp3Enc);
-	free(ctx);
-	ctx = NULL;
-	return 0;
-}
-
-int rkaudio_mp3_encoder_open(RK_VOID *pEncoderAttr, RK_VOID **ppEncoder) {
-	int bitrate = 0;
-	if (pEncoderAttr == NULL) {
-		LOG_ERROR("pEncoderAttr is NULL");
-		return RK_FAILURE;
-	}
-
-	AENC_ATTR_CODEC_S *attr = (AENC_ATTR_CODEC_S *)pEncoderAttr;
-	if (attr->enType != RK_AUDIO_ID_MP3) {
-		LOG_ERROR("Invalid enType[%d]", attr->enType);
-		return RK_FAILURE;
-	}
-
-	RK_AENC_MP3_CTX_S *ctx = (RK_AENC_MP3_CTX_S *)malloc(sizeof(RK_AENC_MP3_CTX_S));
-	if (!ctx) {
-		LOG_ERROR("malloc aenc mp3 ctx failed");
-		return RK_FAILURE;
-	}
-
-	memset(ctx, 0, sizeof(RK_AENC_MP3_CTX_S));
-	if (attr->u32Resv[0] > 1152) {
-		LOG_ERROR("error: MP3 FrameLength is too large, FrameLength = %d", attr->u32Resv[0]);
-		goto __FAILED;
-	}
-
-	ctx->frameLength = attr->u32Resv[0];
-	bitrate = attr->u32Resv[1] / 1000;
-	LOG_DEBUG("MP3Encode: sample_rate = %d, channel = %d, bitrate = %d.", attr->u32SampleRate,
-	          attr->u32Channels, bitrate);
-	ctx->pMp3Enc = Mp3EncodeVariableInit(attr->u32SampleRate, attr->u32Channels, bitrate);
-	if (ctx->pMp3Enc->frame_size <= 0) {
-		LOG_ERROR("MP3Encode init failed! r:%d c:%d\n", attr->u32SampleRate, attr->u32Channels);
-		goto __FAILED;
-	}
-
-	LOG_DEBUG("MP3Encode FrameSize = %d", ctx->pMp3Enc->frame_size);
-	*ppEncoder = (RK_VOID *)ctx;
-
-	return 0;
-
-__FAILED:
-	rkaudio_mp3_encoder_close((RK_VOID *)ctx);
-	*ppEncoder = RK_NULL;
-	return RK_FAILURE;
-}
-
-int rkaudio_mp3_encoder_encode(RK_VOID *pEncoder, RK_VOID *pEncParam) {
-	RK_AENC_MP3_CTX_S *ctx = (RK_AENC_MP3_CTX_S *)pEncoder;
-	AUDIO_ADENC_PARAM_S *pParam = (AUDIO_ADENC_PARAM_S *)pEncParam;
-
-	if (ctx == NULL || pParam == NULL) {
-		LOG_ERROR("Invalid ctx or pParam");
-		return AENC_ENCODER_ERROR;
-	}
-
-	RK_U32 u32EncSize = 0;
-	RK_U8 *inData = pParam->pu8InBuf;
-	RK_U64 inPts = pParam->u64InTimeStamp;
-	RK_U32 inbufSize = 0;
-	RK_U32 copySize = 0;
-
-	// if input buffer is NULL, this means eos(end of stream)
-	if (inData == NULL) {
-		pParam->u64OutTimeStamp = inPts;
-	}
-
-	inbufSize = 2 * ctx->pMp3Enc->frame_size;
-	copySize = (pParam->u32InLen > inbufSize) ? inbufSize : pParam->u32InLen;
-	memcpy(ctx->pMp3Enc->config.in_buf, inData, copySize);
-	pParam->u32InLen = pParam->u32InLen - copySize;
-
-	u32EncSize = L3_compress(ctx->pMp3Enc, 0, (unsigned char **)(&ctx->pMp3Enc->config.out_buf));
-
-	u32EncSize = (u32EncSize > pParam->u32OutLen) ? pParam->u32OutLen : u32EncSize;
-	memcpy(pParam->pu8OutBuf, ctx->pMp3Enc->config.out_buf, u32EncSize);
-	pParam->u64OutTimeStamp = inPts;
-	pParam->u32OutLen = u32EncSize;
-
-	return AENC_ENCODER_OK;
-}
-
-int register_aenc_mp3(void) {
-	int ret;
-	AENC_ENCODER_S aencCtx;
-	memset(&aencCtx, 0, sizeof(AENC_ENCODER_S));
-
-	extCodecHandle = -1;
-	aencCtx.enType = RK_AUDIO_ID_MP3;
-	snprintf((RK_CHAR *)(aencCtx.aszName), sizeof(aencCtx.aszName), "rkaudio");
-	aencCtx.u32MaxFrmLen = 2048;
-	aencCtx.pfnOpenEncoder = rkaudio_mp3_encoder_open;
-	aencCtx.pfnEncodeFrm = rkaudio_mp3_encoder_encode;
-	aencCtx.pfnCloseEncoder = rkaudio_mp3_encoder_close;
-
-	LOG_DEBUG("register external aenc(%s)", aencCtx.aszName);
-	ret = RK_MPI_AENC_RegisterEncoder(&extCodecHandle, &aencCtx);
-	if (ret != 0) {
-		LOG_ERROR("aenc %s register decoder fail %x", aencCtx.aszName, ret);
-		return RK_FAILURE;
-	}
-
-	return 0;
-}
-
-int unregister_aenc_mp3(void) {
-	if (extCodecHandle == -1) {
-		return 0;
-	}
-
-	LOG_DEBUG("unregister external aenc");
-	int ret = RK_MPI_AENC_UnRegisterEncoder(extCodecHandle);
-	if (ret != 0) {
-		LOG_ERROR("aenc unregister decoder fail %x", ret);
-		return RK_FAILURE;
-	}
-	extCodecHandle = -1;
-
-	return 0;
-}
-
 int rkipc_aenc_init() {
 	AENC_CHN_ATTR_S stAencAttr;
 	const char *encode_type = rk_param_get_string("audio.0:encode_type", NULL);
@@ -538,65 +403,272 @@ int rkipc_aenc_deinit() {
 	return 0;
 }
 
-int rkipc_ao_init() {
-	int ret;
-	AIO_ATTR_S aoAttr;
-	memset(&aoAttr, 0, sizeof(AIO_ATTR_S));
+static bool check_rk730_sound_card(void)
+{
+	FILE *fp;
+	char line[256];
+	bool found = false;
 
+	fp = fopen("/proc/asound/cards", "r");
+	if (fp == NULL) {
+		printf("Failed to open /proc/asound/cards\n");
+		return false;
+	}
+
+	while (fgets(line, sizeof(line), fp)) {
+		if (strstr(line, "rk730") != NULL) {
+			found = true;
+			break;
+		}
+	}
+
+	fclose(fp);
+	return found;
+}
+
+int rkipc_ao_init(void) {
+	int ret = 0;
+	int sample_rate = rk_param_get_int("audio.0:sample_rate", 16000);
+	int channels = rk_param_get_int("audio.0:channels", 2);
 	const char *card_name = rk_param_get_string("audio.0:card_name", "default");
-	snprintf(aoAttr.u8CardName, sizeof(aoAttr.u8CardName), "%s", card_name);
-	LOG_INFO("aoAttr.u8CardName is %s\n", aoAttr.u8CardName);
+	AUDIO_DEV aoDevId = 0;
+	AO_CHN aoChn = 0;
+	AIO_ATTR_S aoAttr;
+	AO_CHN_PARAM_S pstParams;
 
-	aoAttr.soundCard.channels = 2;
-	aoAttr.soundCard.sampleRate = rk_param_get_int("audio.0:sample_rate", 8000);
+	memset(&pstParams, 0, sizeof(AO_CHN_PARAM_S));
+	memset(&aoAttr, 0, sizeof(AIO_ATTR_S));
+	sprintf((char *)aoAttr.u8CardName, "%s", card_name);
 
+	aoAttr.soundCard.channels = channels;
+	aoAttr.soundCard.sampleRate = sample_rate;
 	const char *format = rk_param_get_string("audio.0:format", NULL);
 	if (!strcmp(format, "S16")) {
 		aoAttr.soundCard.bitWidth = AUDIO_BIT_WIDTH_16;
-		aoAttr.enBitwidth = AUDIO_BIT_WIDTH_16;
 	} else if (!strcmp(format, "U8")) {
 		aoAttr.soundCard.bitWidth = AUDIO_BIT_WIDTH_8;
-		aoAttr.enBitwidth = AUDIO_BIT_WIDTH_8;
 	} else {
 		LOG_ERROR("not support %s\n", format);
+		return RK_FAILURE;
+	}
+	aoAttr.enSamplerate = (AUDIO_SAMPLE_RATE_E)sample_rate;
+
+	if (channels == 1)
+		aoAttr.enSoundmode = AUDIO_SOUND_MODE_MONO;
+	else if (channels == 2)
+		aoAttr.enSoundmode = AUDIO_SOUND_MODE_STEREO;
+	else {
+		LOG_ERROR("unsupport = %d\n", channels);
+		return RK_FAILURE;
 	}
 
-	aoAttr.enSamplerate = rk_param_get_int("audio.0:sample_rate", 16000);
-	if (rk_param_get_int("audio.0:channels", 2) == 2)
-		aoAttr.enSoundmode = AUDIO_SOUND_MODE_STEREO;
-	else
-		aoAttr.enSoundmode = AUDIO_SOUND_MODE_MONO;
+	aoAttr.u32PtNumPerFrm = rk_param_get_int("audio.0:ao_frame_size", 1024);
 	aoAttr.u32FrmNum = 4;
-	aoAttr.u32PtNumPerFrm = rk_param_get_int("audio.0:frame_size", 1024);
 	aoAttr.u32EXFlag = 0;
 	aoAttr.u32ChnCnt = 2;
 
-	ret = RK_MPI_AO_SetPubAttr(0, &aoAttr);
-	if (ret)
-		LOG_ERROR("RK_MPI_AO_SetPubAttr fail %#x\n", ret);
-	ret = RK_MPI_AO_Enable(0);
-	if (ret)
-		LOG_ERROR("RK_MPI_AO_Enable fail %#x\n", ret);
-	ret = RK_MPI_AO_EnableChn(0, 0);
-	if (ret)
-		LOG_ERROR("RK_MPI_AO_EnableChn fail %#x\n", ret);
-	ret = RK_MPI_AO_SetTrackMode(0, AUDIO_TRACK_OUT_STEREO);
-	if (ret)
-		LOG_ERROR("RK_MPI_AO_EnableChn fail %#x\n", ret);
+	if (check_rk730_sound_card()) {
+		ret = RK_MPI_AMIX_SetControl(aoDevId, "spk switch", (char *)"on");
+		ret |= RK_MPI_AMIX_SetControl(aoDevId, "hp switch", (char *)"on");
+		ret |= RK_MPI_AMIX_SetControl(aoDevId, "OUT1 Switch", (char *)"on");
+		ret |= RK_MPI_AMIX_SetControl(aoDevId, "OUT2 Switch", (char *)"on");
+		if (ret != RK_SUCCESS) {
+			LOG_ERROR("RK_MPI_AMIX_SetControl failed %#X\n", ret);
+			return RK_FAILURE;
+		}
+	}
+	RK_MPI_AO_SetPubAttr(aoDevId, &aoAttr);
+	ret = RK_MPI_AO_Enable(aoDevId);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_AO_Enable failed %#X\n", ret);
+		return RK_FAILURE;
+	}
+	/*==============================================================================*/
+	pstParams.enLoopbackMode = AUDIO_LOOPBACK_NONE;
+	ret = RK_MPI_AO_SetChnParams(aoDevId, aoChn, &pstParams);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("ao set channel params, aoChn = %d", aoChn);
+		return RK_FAILURE;
+	}
 
+	if (channels == 1)
+		RK_MPI_AO_SetTrackMode(aoDevId, AUDIO_TRACK_OUT_STEREO);
+	else
+		RK_MPI_AO_SetTrackMode(aoDevId, AUDIO_TRACK_NORMAL);
+	if (rk_param_get_int("audio.0:enable_ao_vqe", 0)) {
+		const char *vqe_file_path = rk_param_get_string("audio.0:ao_vqe_file", NULL);
+		if (vqe_file_path) {
+			AO_VQE_CONFIG_S vqe_config = {};
+			strncpy(vqe_config.aCfgFile, vqe_file_path, strlen(vqe_file_path));
+			vqe_config.enCfgMode = AIO_VQE_CONFIG_LOAD_FILE;
+			ret = RK_MPI_AO_SetVqeAttr(aoDevId, aoChn, &vqe_config);
+			if (ret != RK_SUCCESS) {
+				LOG_ERROR("RK_MPI_AO_SetVqeAttr failed %#X\n", ret);
+				return RK_FAILURE;
+			}
+			ret = RK_MPI_AO_EnableVqe(aoDevId, aoChn);
+			if (ret != RK_SUCCESS) {
+				LOG_ERROR("RK_MPI_AO_EnableVqe failed %#X\n", ret);
+				return RK_FAILURE;
+			}
+		}
+	}
+	/*==============================================================================*/
+	ret = RK_MPI_AO_EnableChn(aoDevId, aoChn);
+	if (ret != 0) {
+		LOG_ERROR("ao enable channel fail, aoChn = %d, reason = %x", aoChn, ret);
+		return RK_FAILURE;
+	}
+	/*==============================================================================*/
+	// set sample rate of input data
+	ret = RK_MPI_AO_EnableReSmp(aoDevId, aoChn, (AUDIO_SAMPLE_RATE_E)sample_rate);
+	if (ret != 0) {
+		LOG_ERROR("ao enable channel fail, reason = %x, aoChn = %d", ret, aoChn);
+		return RK_FAILURE;
+	}
+
+	ret = RK_MPI_AO_SetVolume(aoDevId, rk_param_get_int("audio.0:volume", 100));
+	if (ret != 0) {
+		LOG_ERROR("RK_MPI_AO_SetVolume failed %#X\n", ret);
+		return RK_FAILURE;
+	}
+	LOG_INFO("create ao success\n");
+
+	return RK_SUCCESS;
+}
+
+int rkipc_ao_deinit(void) {
+	if (rk_param_get_int("audio.0:enable_ao_vqe", 0))
+		RK_MPI_AO_DisableVqe(0, 0);
+	RK_MPI_AO_DisableReSmp(0, 0);
+	RK_MPI_AO_DisableChn(0, 0);
+	RK_MPI_AO_Disable(0);
+	if (check_rk730_sound_card()) {
+		RK_MPI_AMIX_SetControl(0, "spk switch", (char *)"off");
+		RK_MPI_AMIX_SetControl(0, "hp switch", (char *)"off");
+		RK_MPI_AMIX_SetControl(0, "OUT1 Switch", (char *)"off");
+		RK_MPI_AMIX_SetControl(0, "OUT2 Switch", (char *)"off");
+	}
+}
+
+int rkipc_adec_init(int sample_rate, int channels, const char *encode_type) {
+	int ret = 0;
+	ADEC_CHN_ATTR_S pstChnAttr;
+	memset(&pstChnAttr, 0, sizeof(ADEC_CHN_ATTR_S));
+
+	if (encode_type == NULL) {
+		LOG_ERROR("bad audio file format!\n");
+		return -1;
+	}
+	ret = register_adec_mp3();
+	if (ret != 0) {
+		LOG_ERROR("register_adec_mp3 failed %#X\n", ret);
+		return -1;
+	}
+	if (!strcmp(encode_type, "mp2")) {
+		pstChnAttr.enType = RK_AUDIO_ID_MP2;
+		pstChnAttr.stCodecAttr.enType = RK_AUDIO_ID_MP2;
+	} else if (!strcmp(encode_type, "mp3")) {
+		pstChnAttr.enType = RK_AUDIO_ID_MP3;
+		pstChnAttr.stCodecAttr.enType = RK_AUDIO_ID_MP3;
+	} else {
+		LOG_ERROR("not support %s\n", encode_type);
+		return -1;
+	}
+	pstChnAttr.stCodecAttr.u32Channels = channels; // default 1
+	pstChnAttr.stCodecAttr.u32SampleRate = sample_rate;
+
+	pstChnAttr.u32BufCount = 64;
+	pstChnAttr.u32BufSize = 50 * 1024;
+	ret = RK_MPI_ADEC_CreateChn(ADEC_CHN_ID, &pstChnAttr);
+	if (ret) {
+		LOG_ERROR("create adec chn %d err:0x%x\n", ADEC_CHN_ID, ret);
+		ret = RK_FAILURE;
+	}
+	LOG_INFO("create adec success\n");
+	return ret;
+}
+
+int rkipc_adec_deinit(void) {
+	RK_MPI_ADEC_DestroyChn(ADEC_CHN_ID);
+	unregister_adec_mp3();
 	return 0;
 }
 
-int rkipc_ao_deinit() {
-	int ret;
-	ret = RK_MPI_AO_DisableChn(0, 0);
-	if (ret)
-		LOG_ERROR("RK_MPI_AO_DisableChn fail %#x\n", ret);
-	ret = RK_MPI_AO_Disable(0);
-	if (ret)
-		LOG_ERROR("RK_MPI_AO_Disable fail %#x\n", ret);
+int rkipc_audio_player_init(int sample_rate, int channels, const char *encode_type) {
+	int ret = 0;
+	MPP_CHN_S src_chn = {}, dst_chn = {};
+	ret = rkipc_ao_init();
+	if (ret != RK_SUCCESS)
+		return ret;
+	ret = rkipc_adec_init(sample_rate, channels, encode_type);
+	if (ret != RK_SUCCESS)
+		return ret;
+	src_chn.enModId = RK_ID_ADEC;
+	src_chn.s32DevId = 0;
+	src_chn.s32ChnId = 0;
+	dst_chn.enModId = RK_ID_AO;
+	dst_chn.s32DevId = 0;
+	dst_chn.s32ChnId = 0;
+	ret = RK_MPI_SYS_Bind(&src_chn, &dst_chn);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_SYS_Bind failed %#X\n", ret);
+		return ret;
+	}
+	LOG_INFO("success\n");
+	return RK_SUCCESS;
+}
 
+int rkipc_audio_player_deinit(void) {
+	MPP_CHN_S src_chn = {}, dst_chn = {};
+	src_chn.enModId = RK_ID_ADEC;
+	src_chn.s32DevId = 0;
+	src_chn.s32ChnId = 0;
+	dst_chn.enModId = RK_ID_AO;
+	dst_chn.s32DevId = 0;
+	dst_chn.s32ChnId = 0;
+	RK_MPI_SYS_UnBind(&src_chn, &dst_chn);
+	rkipc_adec_deinit();
+	rkipc_ao_deinit();
+	LOG_INFO("success\n");
+}
+
+static int buffer_free_cb(void *opaque) {
+	if (opaque) {
+		free(opaque);
+		opaque = NULL;
+	}
 	return 0;
+}
+
+int rkipc_audio_player_send(uint8_t *data, uint32_t len, uint64_t pts) {
+	int ret = 0;
+	AUDIO_STREAM_S audio_stream = {};
+	MB_EXT_CONFIG_S mb_ext_config = {};
+	if (len == 0) {
+		RK_MPI_ADEC_SendEndOfStream(ADEC_CHN_ID, RK_FALSE);
+	} else {
+		audio_stream.u32Len = len;
+		audio_stream.u64TimeStamp = pts;
+		audio_stream.bBypassMbBlk = RK_TRUE;
+
+		memset(&mb_ext_config, 0, sizeof(MB_EXT_CONFIG_S));
+		mb_ext_config.pFreeCB = buffer_free_cb;
+		mb_ext_config.pOpaque = (void *)data;
+		mb_ext_config.pu8VirAddr = (RK_U8 *)data;
+		mb_ext_config.u64Size = len;
+		RK_MPI_SYS_CreateMB(&(audio_stream.pMbBlk), &mb_ext_config);
+
+		ret = RK_MPI_ADEC_SendStream(ADEC_CHN_ID, &audio_stream, RK_TRUE);
+		if (ret != RK_SUCCESS)
+			LOG_ERROR("RK_MPI_ADEC_SendStream failed[%x]\n", ret);
+		RK_MPI_MB_ReleaseMB(audio_stream.pMbBlk);
+	}
+	LOG_DEBUG("send stream pts %lld, len %d, data %p %s\n"
+			, pts, len, data
+			, ret ? "failed" : "success"
+		);
+	return ret;
 }
 
 int rkipc_ao_write(unsigned char *data, int data_len) {

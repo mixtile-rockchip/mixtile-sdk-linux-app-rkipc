@@ -17,6 +17,7 @@ aux_source_directory(./ SRCS)
 aux_source_directory(video SRCS)
 aux_source_directory(server SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/ SRCS)
+aux_source_directory(${PROJECT_SOURCE_DIR}/common/audio SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/audio/rv1106 SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/socket_server SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/param SRCS)
@@ -35,6 +36,7 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/common/venc SRCS)
 include_directories(video
 					server
 					${PROJECT_SOURCE_DIR}/common
+					${PROJECT_SOURCE_DIR}/common/audio
 					${PROJECT_SOURCE_DIR}/common/audio/rv1106
 					${PROJECT_SOURCE_DIR}/common/socket_server
 					${PROJECT_SOURCE_DIR}/common/rtsp
