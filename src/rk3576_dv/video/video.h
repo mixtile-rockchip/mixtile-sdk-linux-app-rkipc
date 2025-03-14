@@ -101,3 +101,5 @@ int rk_video_get_jpeg_resolution(char **value);
 int rk_video_set_jpeg_resolution(const char *value);
 int rk_take_photo();
 int rk_get_photo_task_num();
+
+int rk_enter_sleep(void);

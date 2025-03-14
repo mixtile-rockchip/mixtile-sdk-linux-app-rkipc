@@ -2190,13 +2190,14 @@ RK_S32 RKGdcVframeCB(RK_VOID *pUsr, GDC_VFAME_INFO_S *pInfo) {
 	// 		pInfo->u64ExtraPts, pInfo->u32RsSkew, pInfo->u32ExpTime, pInfo->u32Again,
 	//		pInfo->u32Dgain, pInfo->u32Ispgain, pInfo->dIso);
 
-	// 为保证imu数据记录早于vi数据，丢弃vi的前30帧
-	gdc_debug_cnt++;
-	if (gdc_debug_cnt < 30) {
+	if (!g_start_record_) {
 		RK_MPI_MB_ReleaseMB(pInfo->pMbBlk);
 		return GDC_INFO_CB_SUCCESS;
 	}
-	if (!g_start_record_) {
+	// 为保证imu数据记录早于vi数据，丢弃vi的前30帧
+	gdc_debug_cnt++;
+	if (gdc_debug_cnt < 30) {
+		LOG_INFO("drop gdc frame cnt %d\n", gdc_debug_cnt);
 		RK_MPI_MB_ReleaseMB(pInfo->pMbBlk);
 		return GDC_INFO_CB_SUCCESS;
 	}
@@ -2437,16 +2438,16 @@ int rk_set_mode(RK_MODE_E mode) {
 	rk_storage_deinit();
 	rk_param_deinit();
 	if (mode == RK_VIDEO_MODE) {
-		g_current_mode = RK_NORMAL_STEADY;
+		g_current_eis_mode = RK_NORMAL_STEADY;
 		rk_param_init("/usr/share/rkipc-imx386-800w-30fps.ini");
 	} else if (mode == RK_PHOTO_MODE) {
-		g_current_mode = RK_EIS_OFF;
+		g_current_eis_mode = RK_EIS_OFF;
 		rk_param_init("/usr/share/rkipc-imx386-800w-30fps.ini");
 	} else if (mode == RK_SLOW_MOTION_MODE) {
-		g_current_mode = RK_EIS_OFF;
+		g_current_eis_mode = RK_EIS_OFF;
 		rk_param_init("/usr/share/rkipc-imx386-200w-120fps.ini");
 	} else if (mode == RK_TIME_LAPSE_MODE) {
-		g_current_mode = RK_EIS_OFF;
+		g_current_eis_mode = RK_EIS_OFF;
 		rk_param_init("/usr/share/rkipc-imx386-800w-30fps-timelapse.ini");
 	}
 	rk_storage_init();

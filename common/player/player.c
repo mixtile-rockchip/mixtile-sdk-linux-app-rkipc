@@ -13,6 +13,7 @@
 #include <rk_debug.h>
 #include <rk_mpi_adec.h>
 #include <rk_mpi_ao.h>
+#include <rk_mpi_amix.h>
 #include <rk_mpi_cal.h>
 #include <rk_mpi_mb.h>
 #include <rk_mpi_mmz.h>
