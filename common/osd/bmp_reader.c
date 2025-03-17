@@ -70,7 +70,14 @@ int bmp_check(FILE *pfile, BITMAPFILEHEADER *bitHead, BITMAPINFOHEADER *bitInfoH
 		LOG_ERROR("bmp must be 24/32 depth!");
 		return -1;
 	}
-	LOG_INFO("bitInfoHead->biBitCount is %d\n", bitInfoHead->biBitCount);
+
+	// 检查数据偏移量是否合理
+	if (bitHead->bfOffBits < (sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER))) {
+		LOG_ERROR("Invalid data offset!");
+		return -1;
+	}
+	LOG_INFO("bitInfoHead->biBitCount is %d, offset is %d\n",
+				bitInfoHead->biBitCount, bitHead->bfOffBits);
 
 	return 0;
 }
@@ -97,6 +104,10 @@ int load_bmp_form_file(osd_data_s *data) {
 	int height = bitInfoHead.biHeight;
 	int pitch = WIDTHBYTES(width * bitInfoHead.biBitCount);
 	long dataSize = pitch * height;
+
+	// 移动文件指针到实际数据开始位置
+	fseek(pfile, bitHead.bfOffBits, SEEK_SET);
+
 	bmp_data = (uint8_t *)malloc(dataSize);
 	if (bmp_data == NULL) {
 		printf("bmp_data malloc fail!\n");
