@@ -6,8 +6,8 @@
 #include "file_common.h"
 #include "file_msg.h"
 #ifdef RKFSMK
-#include <sys/mount.h>
 #include <rkfsmk.h>
+#include <sys/mount.h>
 #endif
 
 #ifdef LOG_TAG
@@ -128,7 +128,7 @@ int rkipc_storage_set_dev_attr(rkipc_str_dev_attr *pstDevAttr) {
 	pstDevAttr->folder_attr[2].sort_cond = SORT_FILE_NAME;
 	sprintf(pstDevAttr->folder_attr[2].folder_path, folder_name);
 
-	folder_name = rk_param_get_string("storage.3:folder_name", "capture");
+	folder_name = rk_param_get_string("storage.3:folder_name", "photo");
 	pstDevAttr->folder_attr[3].sort_cond = SORT_FILE_NAME;
 	sprintf(pstDevAttr->folder_attr[3].folder_path, folder_name);
 
@@ -1696,13 +1696,12 @@ static int rk_storage_muxer_init_by_id(int id) {
 	if (output_data_type)
 		memcpy(rk_storage_muxer_group[id].g_video_param.codec, output_data_type,
 		       strlen(output_data_type));
-	LOG_INFO("width %d, height %d, fps %d/%d, type %s\n"
-			, rk_storage_muxer_group[id].g_video_param.width
-			, rk_storage_muxer_group[id].g_video_param.height
-			, rk_storage_muxer_group[id].g_video_param.frame_rate_num
-			, rk_storage_muxer_group[id].g_video_param.frame_rate_den
-			, rk_storage_muxer_group[id].g_video_param.codec
-	);
+	LOG_INFO("width %d, height %d, fps %d/%d, type %s\n",
+	         rk_storage_muxer_group[id].g_video_param.width,
+	         rk_storage_muxer_group[id].g_video_param.height,
+	         rk_storage_muxer_group[id].g_video_param.frame_rate_num,
+	         rk_storage_muxer_group[id].g_video_param.frame_rate_den,
+	         rk_storage_muxer_group[id].g_video_param.codec);
 	snprintf(entry, 127, "video.%d:h264_profile", id);
 	const char *h264_profile = rk_param_get_string(entry, "high");
 	if (!strcmp(h264_profile, "high"))
@@ -1810,7 +1809,8 @@ int rk_storage_init() {
 		setenv("file_cache_env", "1", 1);
 		memset(&stFileCacheAttr, 0, sizeof(FILE_CACHE_ARG));
 		stFileCacheAttr.sdcard_path = rk_param_get_string("storage:dev_path", "/dev/mmcblk1p1");
-		stFileCacheAttr.total_cache = rk_param_get_int("storage:file_total_cache", 36) * 1024 * 1024;
+		stFileCacheAttr.total_cache =
+		    rk_param_get_int("storage:file_total_cache", 36) * 1024 * 1024;
 		stFileCacheAttr.write_cache = rk_param_get_int("storage:file_write_cache", 6) * 1024 * 1024;
 		stFileCacheAttr.write_thread_arg.sched_policy = FILE_SCHED_FIFO;
 		stFileCacheAttr.write_thread_arg.priority = 99;
@@ -1906,26 +1906,70 @@ int rk_storage_record_statue_get(int id, int *value) {
 	return 0;
 }
 
-
-#ifdef RKFSMK
 // INFO: Call these function after rk_storage_deinit has been called.
 int rk_storage_format() {
 	int ret = 0;
-	const char* mount_path = rk_param_get_string("storage:mount_path", "/mnt/sdcard");
-	const char* dev_path = rk_param_get_string("storage:dev_path", "/dev/mmcblk1p1");
-	ret = umount2(mount_path, MNT_DETACH);
-	if (ret != 0) {
-		LOG_ERROR("unmount failed %s\n", strerror(errno));
-		return ret;
+	const char *mount_path = rk_param_get_string("storage:mount_path", "/mnt/sdcard");
+	const char *dev_path = rk_param_get_string("storage:dev_path", "/dev/mmcblk1p1");
+	const char *fs_type = rk_param_get_string("storage:fs_type", "vfat");
+	const char *label = rk_param_get_string("storage:label", "rkipc");
+	char cmd[256] = {0};
+
+	// Unmount device with safety check
+	if (umount2(mount_path, MNT_DETACH) != 0 && errno != EINVAL) {
+		LOG_ERROR("Unmount failed %s: %s\n", mount_path, strerror(errno));
+		return -1;
 	}
-	ret = rkfsmk_format((char *)dev_path, NULL);
-	if (ret != 0) {
-		LOG_ERROR("rkfsmk_format failed %d\n", ret);
-		return ret;
+
+	// Build filesystem creation command
+	if (strcasecmp(fs_type, "exfat") == 0) {
+		snprintf(cmd, sizeof(cmd), "mkfs.exfat -n %.11s %s", label, dev_path);
+	} else if (strcasecmp(fs_type, "vfat") == 0) {
+		snprintf(cmd, sizeof(cmd), "mkfs.vfat -F 32 -n %.11s %s", label, dev_path);
+	} else if (strcasecmp(fs_type, "ext4") == 0) {
+		snprintf(cmd, sizeof(cmd), "mkfs.ext4 -F -L %.16s %s", label, dev_path);
+	} else {
+		LOG_ERROR("Unsupported filesystem type: %s\n", fs_type);
+		ret = -1;
+		goto __error_return;
 	}
-	ret = mount("/dev/mmcblk1p1", "/mnt/sdcard", "vfat", MS_NOATIME | MS_NOSUID, NULL);
-	if (ret != 0)
-		LOG_ERROR("unmount failed %s\n", strerror(errno));
-	return ret;
+
+	// Execute filesystem creation command
+	FILE *fp = popen(cmd, "re");
+	if (!fp) {
+		LOG_ERROR("Failed to execute format command: %s\n", cmd);
+		ret = -1;
+		goto __error_return;
+	}
+
+	// Capture command output
+	char buffer[128];
+	while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+		LOG_DEBUG("Format output: %s\n", buffer);
+	}
+
+	// Check command execution status
+	int status = pclose(fp);
+	if (WIFEXITED(status)) {
+		if (WEXITSTATUS(status) != 0) {
+			LOG_ERROR("Format failed with exit code: %d, cmd: %s\n", WEXITSTATUS(status), cmd);
+			ret = -1;
+			goto __error_return;
+		}
+	} else {
+		LOG_ERROR("Format process terminated abnormally, cmd: %s\n", cmd);
+		ret = -1;
+		goto __error_return;
+	}
+
+__error_return:
+	// Remount the device
+	unsigned long mount_flags = MS_NOATIME | MS_NOSUID | MS_NODEV;
+	if (mount(dev_path, mount_path, fs_type, mount_flags, NULL) != 0) {
+		LOG_ERROR("Mount failed: %s\n", strerror(errno));
+		return -1;
+	}
+
+	LOG_INFO("Successfully formatted %s as %s and mounted to %s\n", dev_path, fs_type, mount_path);
+	return 0;
 }
-#endif // RKFSMK
