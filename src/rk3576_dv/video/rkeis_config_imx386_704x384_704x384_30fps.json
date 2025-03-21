@@ -20,7 +20,7 @@
         "delay_num": 0,
         "ois_mode": 0,
         "dvs_mode": 3,
-        "horizon_mode": 1,
+        "horizon_mode": 0,
         "use_async": 1,
         "view_angle": 0.0,
         "frame_rate": 30.0,
