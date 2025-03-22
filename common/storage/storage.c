@@ -1914,6 +1914,7 @@ int rk_storage_format() {
 	const char *fs_type = rk_param_get_string("storage:fs_type", "vfat");
 	const char *label = rk_param_get_string("storage:label", "rkipc");
 	char cmd[256] = {0};
+	unsigned long mount_flags;
 
 	// Unmount device with safety check
 	if (umount2(mount_path, MNT_DETACH) != 0 && errno != EINVAL) {
@@ -1964,7 +1965,7 @@ int rk_storage_format() {
 
 __error_return:
 	// Remount the device
-	unsigned long mount_flags = MS_NOATIME | MS_NOSUID | MS_NODEV;
+	mount_flags = MS_NOATIME | MS_NOSUID | MS_NODEV;
 	if (mount(dev_path, mount_path, fs_type, mount_flags, NULL) != 0) {
 		LOG_ERROR("Mount failed: %s\n", strerror(errno));
 		return -1;
