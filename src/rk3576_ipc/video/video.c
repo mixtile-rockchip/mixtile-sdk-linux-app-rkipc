@@ -30,6 +30,7 @@
 #define RK3576_VO_DEV_HDMI 0
 #define RK3576_VO_DEV_MIPI 1
 #define RK3576_VOP_LAYER_CLUSTER0 0
+#define RV1126B_VOP_LAYER_CLUSTER1 1
 #define RK3576_VOP_LAYER_ESMART1 5
 
 #define RTSP_URL_0 "/live/0"
@@ -45,7 +46,7 @@ int g_vi_for_vo_chn_id = 1;
 
 static int take_photo_one = 0;
 static int enable_jpeg, enable_venc_0, enable_venc_1, enable_venc_2, enable_npu;
-int g_enable_vo, g_vo_dev_id;
+int g_enable_vo, g_vo_dev_id, g_vo_layer_id;
 static int g_video_run_ = 1;
 static int g_nn_osd_run_ = 0;
 static const char *tmp_output_data_type = "H.264";
@@ -58,7 +59,6 @@ static pthread_t venc_thread_0, venc_thread_1, venc_thread_2, jpeg_venc_thread_i
     super_resolution_thread_id, get_vpss_2_send_npu_thread, get_nn_update_osd_thread_id;
 
 static MPP_CHN_S vi_chn, vpss_in_chn, vi_for_vo_chn, vo_chn, vpss_out_chn[4], venc_chn[4];
-static VO_DEV VoLayer = RK3576_VOP_LAYER_ESMART1;
 
 // static void *test_get_vi(void *arg) {
 // 	printf("#Start %s thread, arg:%p\n", __func__, arg);
@@ -361,7 +361,7 @@ int rkipc_vi_chn_init() {
 	int ret;
 	int video_width = rk_param_get_int("video.0:width", -1);
 	int video_height = rk_param_get_int("video.0:height", -1);
-	int buf_cnt = 6;
+	int buf_cnt = 3;
 	// VI init
 	VI_CHN_ATTR_S vi_chn_attr;
 	memset(&vi_chn_attr, 0, sizeof(vi_chn_attr));
@@ -370,7 +370,7 @@ int rkipc_vi_chn_init() {
 	vi_chn_attr.stSize.u32Width = video_width;
 	vi_chn_attr.stSize.u32Height = video_height;
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
-	vi_chn_attr.u32Depth = 2;
+	vi_chn_attr.u32Depth = 0;
 	ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_chn_id, &vi_chn_attr);
 	ret |= RK_MPI_VI_EnableChn(pipe_id_, g_vi_chn_id);
 	if (ret) {
@@ -410,6 +410,15 @@ int rkipc_vpss_init() {
 	stVpssGrpAttr.stFrameRate.s32SrcFrameRate = -1;
 	stVpssGrpAttr.stFrameRate.s32DstFrameRate = -1;
 	stVpssGrpAttr.enCompressMode = COMPRESS_MODE_NONE;
+
+	const char *vpss_proc_dev = rk_param_get_string("video.source:vpss_proc_dev", "vpss");
+	if (!strcmp(vpss_proc_dev, "gpu")) {
+		stVpssGrpAttr.enVProcDev = VIDEO_PROC_DEV_GPU;
+	} else if (!strcmp(vpss_proc_dev, "rga")) {
+		stVpssGrpAttr.enVProcDev = VIDEO_PROC_DEV_RGA;
+	} else {
+		stVpssGrpAttr.enVProcDev = VIDEO_PROC_DEV_VPSS;
+	}
 	ret = RK_MPI_VPSS_CreateGrp(VpssGrp, &stVpssGrpAttr);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("RK_MPI_VPSS_CreateGrp error! ret is %#x\n", ret);
@@ -425,6 +434,7 @@ int rkipc_vpss_init() {
 		stVpssChnAttr[0].u32Width = rk_param_get_int("video.0:width", -1);
 		stVpssChnAttr[0].u32Height = rk_param_get_int("video.0:height", -1);
 		stVpssChnAttr[0].enCompressMode = COMPRESS_MODE_NONE;
+		stVpssChnAttr[0].u32FrameBufCnt = 3;
 		ret = RK_MPI_VPSS_SetChnAttr(VpssGrp, VpssChn[0], &stVpssChnAttr[0]);
 		if (ret != RK_SUCCESS)
 			LOG_ERROR("0: RK_MPI_VPSS_SetChnAttr error! ret is %#x\n", ret);
@@ -1272,11 +1282,9 @@ int rkipc_pipe_vi_vo_init() {
 	if (g_vo_dev_id == 0) {
 		VoPubAttr.enIntfType = VO_INTF_HDMI;
 		VoPubAttr.enIntfSync = VO_OUTPUT_1080P60;
-		VoLayer = RK3576_VOP_LAYER_CLUSTER0;
 	} else {
 		VoPubAttr.enIntfType = VO_INTF_MIPI;
 		VoPubAttr.enIntfSync = VO_OUTPUT_DEFAULT;
-		VoLayer = RK3576_VOP_LAYER_ESMART1;
 	}
 	ret = RK_MPI_VO_SetPubAttr(g_vo_dev_id, &VoPubAttr);
 	if (ret != RK_SUCCESS) {
@@ -1292,18 +1300,18 @@ int rkipc_pipe_vi_vo_init() {
 	}
 	LOG_INFO("RK_MPI_VO_Enable success\n");
 
-	ret = RK_MPI_VO_GetLayerDispBufLen(VoLayer, &u32DispBufLen);
+	ret = RK_MPI_VO_GetLayerDispBufLen(g_vo_layer_id, &u32DispBufLen);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("Get display buf len failed with error code %d!\n", ret);
 		return ret;
 	}
-	LOG_INFO("Get VoLayer %d disp buf len is %d.\n", VoLayer, u32DispBufLen);
+	LOG_INFO("Get g_vo_layer_id %d disp buf len is %d.\n", g_vo_layer_id, u32DispBufLen);
 	u32DispBufLen = 3;
-	ret = RK_MPI_VO_SetLayerDispBufLen(VoLayer, u32DispBufLen);
+	ret = RK_MPI_VO_SetLayerDispBufLen(g_vo_layer_id, u32DispBufLen);
 	if (ret != RK_SUCCESS) {
 		return ret;
 	}
-	LOG_INFO("Agin Get VoLayer %d disp buf len is %d.\n", VoLayer, u32DispBufLen);
+	LOG_INFO("Agin Get g_vo_layer_id %d disp buf len is %d.\n", g_vo_layer_id, u32DispBufLen);
 
 	/* get vo attribute*/
 	ret = RK_MPI_VO_GetPubAttr(g_vo_dev_id, &VoPubAttr);
@@ -1328,8 +1336,8 @@ int rkipc_pipe_vi_vo_init() {
 	stLayerAttr.stDispRect.u32Height = VoPubAttr.stSyncInfo.u16Vact;
 	stLayerAttr.stImageSize.u32Width = VoPubAttr.stSyncInfo.u16Hact;
 	stLayerAttr.stImageSize.u32Height = VoPubAttr.stSyncInfo.u16Vact;
-	LOG_INFO("stLayerAttr W=%d, H=%d\n", stLayerAttr.stDispRect.u32Width,
-	         stLayerAttr.stDispRect.u32Height);
+	LOG_INFO("stLayerAttr W=%d, H=%d, format is %d\n", stLayerAttr.stDispRect.u32Width,
+	         stLayerAttr.stDispRect.u32Height, stLayerAttr.enPixFormat);
 
 	stLayerAttr.u32DispFrmRt = 25;
 	stLayerAttr.enPixFormat = RK_FMT_RGB888;
@@ -1341,35 +1349,35 @@ int rkipc_pipe_vi_vo_init() {
 	RK_S32 u32VoChn = 0;
 
 	/*bind layer0 to device hd0*/
-	ret = RK_MPI_VO_BindLayer(VoLayer, g_vo_dev_id, VO_LAYER_MODE_GRAPHIC);
+	ret = RK_MPI_VO_BindLayer(g_vo_layer_id, g_vo_dev_id, VO_LAYER_MODE_GRAPHIC);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("RK_MPI_VO_BindLayer VoLayer = %d error\n", VoLayer);
+		LOG_ERROR("RK_MPI_VO_BindLayer g_vo_layer_id = %d error\n", g_vo_layer_id);
 		return ret;
 	}
 	LOG_INFO("RK_MPI_VO_BindLayer success\n");
 
-	ret = RK_MPI_VO_SetLayerAttr(VoLayer, &stLayerAttr);
+	ret = RK_MPI_VO_SetLayerAttr(g_vo_layer_id, &stLayerAttr);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("RK_MPI_VO_SetLayerAttr VoLayer = %d error\n", VoLayer);
+		LOG_ERROR("RK_MPI_VO_SetLayerAttr g_vo_layer_id = %d error\n", g_vo_layer_id);
 		return ret;
 	}
 	LOG_INFO("RK_MPI_VO_SetLayerAttr success\n");
 
-	ret = RK_MPI_VO_SetLayerSpliceMode(VoLayer, VO_SPLICE_MODE_RGA);
+	ret = RK_MPI_VO_SetLayerSpliceMode(g_vo_layer_id, VO_SPLICE_MODE_RGA);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("RK_MPI_VO_SetLayerSpliceMode VoLayer = %d error\n", VoLayer);
+		LOG_ERROR("RK_MPI_VO_SetLayerSpliceMode g_vo_layer_id = %d error\n", g_vo_layer_id);
 		return ret;
 	}
 	LOG_INFO("RK_MPI_VO_SetLayerSpliceMode success\n");
 
-	ret = RK_MPI_VO_EnableLayer(VoLayer);
+	ret = RK_MPI_VO_EnableLayer(g_vo_layer_id);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("RK_MPI_VO_EnableLayer VoLayer = %d error\n", VoLayer);
+		LOG_ERROR("RK_MPI_VO_EnableLayer g_vo_layer_id = %d error\n", g_vo_layer_id);
 		return ret;
 	}
 	LOG_INFO("RK_MPI_VO_EnableLayer success\n");
 
-	ret = RK_MPI_VO_SetLayerCSC(VoLayer, &VideoCSC);
+	ret = RK_MPI_VO_SetLayerCSC(g_vo_layer_id, &VideoCSC);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("RK_MPI_VO_SetLayerCSC error\n");
 		return ret;
@@ -1384,11 +1392,11 @@ int rkipc_pipe_vi_vo_init() {
 	VoChnAttr.stRect.u32Height = stLayerAttr.stDispRect.u32Height;
 	if (g_vo_dev_id == RK3576_VO_DEV_MIPI)
 		VoChnAttr.enRotation = ROTATION_90;
-	ret = RK_MPI_VO_SetChnAttr(VoLayer, 0, &VoChnAttr);
+	ret = RK_MPI_VO_SetChnAttr(g_vo_layer_id, 0, &VoChnAttr);
 
-	ret = RK_MPI_VO_EnableChn(VoLayer, u32VoChn);
+	ret = RK_MPI_VO_EnableChn(g_vo_layer_id, u32VoChn);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("create %d layer %d ch vo failed!\n", VoLayer, u32VoChn);
+		LOG_ERROR("create %d layer %d ch vo failed!\n", g_vo_layer_id, u32VoChn);
 		return ret;
 	}
 	LOG_INFO("RK_MPI_VO_EnableChn success\n");
@@ -1398,7 +1406,7 @@ int rkipc_pipe_vi_vo_init() {
 	vi_for_vo_chn.s32ChnId = g_vi_for_vo_chn_id;
 
 	vo_chn.enModId = RK_ID_VO;
-	vo_chn.s32DevId = VoLayer;
+	vo_chn.s32DevId = g_vo_layer_id;
 	vo_chn.s32ChnId = 0;
 
 	ret = RK_MPI_SYS_Bind(&vi_for_vo_chn, &vo_chn);
@@ -1419,12 +1427,12 @@ int rkipc_pipe_vi_vo_deinit() {
 		return ret;
 	}
 
-	ret = RK_MPI_VO_DisableChn(VoLayer, u32VoChn);
+	ret = RK_MPI_VO_DisableChn(g_vo_layer_id, u32VoChn);
 	if (ret) {
 		LOG_ERROR("RK_MPI_VO_DisableChn failed, ret is %#x\n", ret);
 		return -1;
 	}
-	ret = RK_MPI_VO_DisableLayer(VoLayer);
+	ret = RK_MPI_VO_DisableLayer(g_vo_layer_id);
 	if (ret) {
 		LOG_ERROR("RK_MPI_VO_DisableLayer failed, ret is %#x\n", ret);
 		return -1;
@@ -1434,7 +1442,7 @@ int rkipc_pipe_vi_vo_deinit() {
 		LOG_ERROR("RK_MPI_VO_Disable failed, ret is %#x\n", ret);
 		return -1;
 	}
-	ret = RK_MPI_VO_UnBindLayer(VoLayer, g_vo_dev_id);
+	ret = RK_MPI_VO_UnBindLayer(g_vo_layer_id, g_vo_dev_id);
 	if (ret) {
 		LOG_ERROR("RK_MPI_VO_UnBindLayer failed, ret is %#x\n", ret);
 		return -1;
@@ -1657,7 +1665,7 @@ static void *rkipc_get_vi_super_resolution_vo(void *arg) {
 				RK_MPI_VI_ReleaseChnFrame(0, 0, &stViFrame);
 			}
 
-			RK_MPI_VO_SendFrame(VoLayer, u32VoChn, &DstFrame, 1000);
+			RK_MPI_VO_SendFrame(g_vo_layer_id, u32VoChn, &DstFrame, 1000);
 			// 7.release the frame
 			ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, VIDEO_PIPE_0, &stViFrame);
 			if (ret != RK_SUCCESS) {
@@ -1695,11 +1703,11 @@ int rkipc_pipe_super_resolution_init() {
 	if (g_vo_dev_id == 0) {
 		VoPubAttr.enIntfType = VO_INTF_HDMI;
 		VoPubAttr.enIntfSync = VO_OUTPUT_3840x2160_30;
-		VoLayer = RK3576_VOP_LAYER_CLUSTER0;
+		g_vo_layer_id = RK3576_VOP_LAYER_CLUSTER0;
 	} else {
 		VoPubAttr.enIntfType = VO_INTF_MIPI;
 		VoPubAttr.enIntfSync = VO_OUTPUT_DEFAULT;
-		VoLayer = RK3576_VOP_LAYER_ESMART1;
+		g_vo_layer_id = RK3576_VOP_LAYER_ESMART1;
 	}
 	ret = RK_MPI_VO_SetPubAttr(g_vo_dev_id, &VoPubAttr);
 	if (ret != RK_SUCCESS) {
@@ -1715,18 +1723,18 @@ int rkipc_pipe_super_resolution_init() {
 	}
 	LOG_INFO("RK_MPI_VO_Enable success\n");
 
-	ret = RK_MPI_VO_GetLayerDispBufLen(VoLayer, &u32DispBufLen);
+	ret = RK_MPI_VO_GetLayerDispBufLen(g_vo_layer_id, &u32DispBufLen);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("Get display buf len failed with error code %d!\n", ret);
 		return ret;
 	}
-	LOG_INFO("Get VoLayer %d disp buf len is %d.\n", VoLayer, u32DispBufLen);
+	LOG_INFO("Get g_vo_layer_id %d disp buf len is %d.\n", g_vo_layer_id, u32DispBufLen);
 	u32DispBufLen = 3;
-	ret = RK_MPI_VO_SetLayerDispBufLen(VoLayer, u32DispBufLen);
+	ret = RK_MPI_VO_SetLayerDispBufLen(g_vo_layer_id, u32DispBufLen);
 	if (ret != RK_SUCCESS) {
 		return ret;
 	}
-	LOG_INFO("Agin Get VoLayer %d disp buf len is %d.\n", VoLayer, u32DispBufLen);
+	LOG_INFO("Agin Get g_vo_layer_id %d disp buf len is %d.\n", g_vo_layer_id, u32DispBufLen);
 
 	/* get vo attribute*/
 	ret = RK_MPI_VO_GetPubAttr(g_vo_dev_id, &VoPubAttr);
@@ -1764,28 +1772,28 @@ int rkipc_pipe_super_resolution_init() {
 	RK_S32 u32VoChn = 0;
 
 	/*bind layer0 to device hd0*/
-	ret = RK_MPI_VO_BindLayer(VoLayer, g_vo_dev_id, VO_LAYER_MODE_GRAPHIC);
+	ret = RK_MPI_VO_BindLayer(g_vo_layer_id, g_vo_dev_id, VO_LAYER_MODE_GRAPHIC);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("RK_MPI_VO_BindLayer VoLayer = %d error\n", VoLayer);
+		LOG_ERROR("RK_MPI_VO_BindLayer g_vo_layer_id = %d error\n", g_vo_layer_id);
 		return ret;
 	}
 	LOG_INFO("RK_MPI_VO_BindLayer success\n");
 
-	ret = RK_MPI_VO_SetLayerAttr(VoLayer, &stLayerAttr);
+	ret = RK_MPI_VO_SetLayerAttr(g_vo_layer_id, &stLayerAttr);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("RK_MPI_VO_SetLayerAttr VoLayer = %d error\n", VoLayer);
+		LOG_ERROR("RK_MPI_VO_SetLayerAttr g_vo_layer_id = %d error\n", g_vo_layer_id);
 		return ret;
 	}
 	LOG_INFO("RK_MPI_VO_SetLayerAttr success\n");
 
-	ret = RK_MPI_VO_EnableLayer(VoLayer);
+	ret = RK_MPI_VO_EnableLayer(g_vo_layer_id);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("RK_MPI_VO_EnableLayer VoLayer = %d error\n", VoLayer);
+		LOG_ERROR("RK_MPI_VO_EnableLayer g_vo_layer_id = %d error\n", g_vo_layer_id);
 		return ret;
 	}
 	LOG_INFO("RK_MPI_VO_EnableLayer success\n");
 
-	ret = RK_MPI_VO_SetLayerCSC(VoLayer, &VideoCSC);
+	ret = RK_MPI_VO_SetLayerCSC(g_vo_layer_id, &VideoCSC);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("RK_MPI_VO_SetLayerCSC error\n");
 		return ret;
@@ -1798,11 +1806,11 @@ int rkipc_pipe_super_resolution_init() {
 	VoChnAttr.stRect.s32Y = 0;
 	VoChnAttr.stRect.u32Width = stLayerAttr.stDispRect.u32Width;
 	VoChnAttr.stRect.u32Height = stLayerAttr.stDispRect.u32Height;
-	ret = RK_MPI_VO_SetChnAttr(VoLayer, 0, &VoChnAttr);
+	ret = RK_MPI_VO_SetChnAttr(g_vo_layer_id, 0, &VoChnAttr);
 
-	ret = RK_MPI_VO_EnableChn(VoLayer, u32VoChn);
+	ret = RK_MPI_VO_EnableChn(g_vo_layer_id, u32VoChn);
 	if (ret != RK_SUCCESS) {
-		LOG_ERROR("create %d layer %d ch vo failed!\n", VoLayer, u32VoChn);
+		LOG_ERROR("create %d layer %d ch vo failed!\n", g_vo_layer_id, u32VoChn);
 		return ret;
 	}
 	LOG_INFO("RK_MPI_VO_EnableChn success\n");
@@ -2988,8 +2996,9 @@ int rk_video_init() {
 	g_vi_chn_id = rk_param_get_int("video.source:vi_chn_id", 0);
 	g_enable_vo = rk_param_get_int("video.source:enable_vo", 1);
 	g_vo_dev_id = rk_param_get_int("video.source:vo_dev_id", 3);
-	LOG_INFO("g_vi_chn_id is %d, g_enable_vo is %d, g_vo_dev_id is %d\n", g_vi_chn_id, g_enable_vo,
-	         g_vo_dev_id);
+	g_vo_layer_id = rk_param_get_int("video.source:vo_layer_id", 0);
+	LOG_INFO("g_vi_chn_id is %d, g_enable_vo is %d, g_vo_dev_id is %d, g_vo_layer_id is %d\n",
+				g_vi_chn_id, g_enable_vo, g_vo_dev_id, g_vo_layer_id);
 	g_video_run_ = 1;
 	ret |= rkipc_vi_dev_init();
 	ret |= rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
