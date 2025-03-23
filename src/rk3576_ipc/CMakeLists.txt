@@ -61,6 +61,10 @@ include_directories(video
 					${PROJECT_SOURCE_DIR}/common/sysutil
 					)
 
+if(COMPILE_FOR_RV1126B)
+add_definitions(-DRKIPC_RV1126B)
+endif()
+
 message(STATUS "RK_APP_ARCH_TYPE is ${RK_APP_ARCH_TYPE}")
 if(RK_APP_ARCH_TYPE STREQUAL "arm")
 	link_directories(${PROJECT_SOURCE_DIR}/lib/arm-rockchip830-linux-gnueabihf)

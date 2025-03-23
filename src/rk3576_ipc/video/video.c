@@ -1256,7 +1256,7 @@ int rkipc_pipe_vi_vo_init() {
 	// VI init
 	VI_CHN_ATTR_S vi_chn_attr;
 	memset(&vi_chn_attr, 0, sizeof(vi_chn_attr));
-	vi_chn_attr.stIspOpt.u32BufCount = 2;
+	vi_chn_attr.stIspOpt.u32BufCount = 3;
 	vi_chn_attr.stIspOpt.enMemoryType = VI_V4L2_MEMORY_TYPE_DMABUF;
 	vi_chn_attr.stSize.u32Width = 1920;
 	vi_chn_attr.stSize.u32Height = 1080;
@@ -1286,6 +1286,10 @@ int rkipc_pipe_vi_vo_init() {
 		VoPubAttr.enIntfType = VO_INTF_MIPI;
 		VoPubAttr.enIntfSync = VO_OUTPUT_DEFAULT;
 	}
+#if defined(RKIPC_RV1126B)
+	VoPubAttr.enIntfType = VO_INTF_MIPI;
+	VoPubAttr.enIntfSync = VO_OUTPUT_DEFAULT;
+#endif
 	ret = RK_MPI_VO_SetPubAttr(g_vo_dev_id, &VoPubAttr);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("RK_MPI_VO_SetPubAttr %x\n", ret);
@@ -1306,7 +1310,7 @@ int rkipc_pipe_vi_vo_init() {
 		return ret;
 	}
 	LOG_INFO("Get g_vo_layer_id %d disp buf len is %d.\n", g_vo_layer_id, u32DispBufLen);
-	u32DispBufLen = 3;
+	u32DispBufLen = 2;
 	ret = RK_MPI_VO_SetLayerDispBufLen(g_vo_layer_id, u32DispBufLen);
 	if (ret != RK_SUCCESS) {
 		return ret;
@@ -1339,7 +1343,7 @@ int rkipc_pipe_vi_vo_init() {
 	LOG_INFO("stLayerAttr W=%d, H=%d, format is %d\n", stLayerAttr.stDispRect.u32Width,
 	         stLayerAttr.stDispRect.u32Height, stLayerAttr.enPixFormat);
 
-	stLayerAttr.u32DispFrmRt = 25;
+	stLayerAttr.u32DispFrmRt = 30;
 	stLayerAttr.enPixFormat = RK_FMT_RGB888;
 	VideoCSC.enCscMatrix = VO_CSC_MATRIX_IDENTITY;
 	VideoCSC.u32Contrast = 50;
@@ -1390,7 +1394,7 @@ int rkipc_pipe_vi_vo_init() {
 	VoChnAttr.stRect.s32Y = 0;
 	VoChnAttr.stRect.u32Width = stLayerAttr.stDispRect.u32Width;
 	VoChnAttr.stRect.u32Height = stLayerAttr.stDispRect.u32Height;
-	if (g_vo_dev_id == RK3576_VO_DEV_MIPI)
+	if (VoPubAttr.enIntfType == VO_INTF_MIPI)
 		VoChnAttr.enRotation = ROTATION_90;
 	ret = RK_MPI_VO_SetChnAttr(g_vo_layer_id, 0, &VoChnAttr);
 
