@@ -86,7 +86,8 @@ target_link_libraries(${PROJECT_NAME}
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 if(COMPILE_FOR_RV1126B)
-	install(FILES rkipc-rv1126b.ini DESTINATION share RENAME rkipc.ini)
+	install(FILES rkipc-2688x1520-rv1126b.ini DESTINATION share RENAME rkipc-2688x1520.ini)
+	install(FILES rkipc-3840x2160-rv1126b.ini DESTINATION share RENAME rkipc-3840x2160.ini)
 	install(PROGRAMS RkLunch-rv1126b.sh DESTINATION bin RENAME RkLunch.sh)
 else()
 	install(FILES rkipc.ini DESTINATION share)

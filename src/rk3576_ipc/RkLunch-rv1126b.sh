@@ -76,10 +76,35 @@ post_chk()
 	# if /data/rkipc not exist, cp /usr/share
 	rkipc_ini=/userdata/rkipc.ini
 	default_rkipc_ini=/tmp/rkipc-factory-config.ini
-	if [ ! -f $default_rkipc_ini ]; then
-		ln -s -f /oem/usr/share/rkipc.ini $default_rkipc_ini
+
+	if [ ! -f "/oem/usr/share/rkipc.ini" ]; then
+		lsmod | grep sc450ai
+		if [ $? -eq 0 ] ;then
+			ln -s -f /oem/usr/share/rkipc-2688x1520.ini $default_rkipc_ini
+		fi
+		lsmod | grep imx415
+		if [ $? -eq 0 ] ;then
+			ln -s -f /oem/usr/share/rkipc-3840x2160.ini $default_rkipc_ini
+		fi
+	fi
+	tmp_md5=/tmp/.rkipc-ini.md5sum
+	data_md5=/userdata/.rkipc-default.md5sum
+	md5sum $default_rkipc_ini > $tmp_md5
+	chk_rkipc=`cat $tmp_md5|awk '{print $1}'`
+	rm $tmp_md5
+	if [ ! -f $data_md5 ];then
+		md5sum $default_rkipc_ini > $data_md5
+	fi
+	grep -w $chk_rkipc $data_md5
+	if [ $? -ne 0 ] ;then
+		rm -f $rkipc_ini
+		echo "$chk_rkipc" > $data_md5
 	fi
 
+	if [ ! -f "$default_rkipc_ini" ];then
+		echo "Error: not found rkipc.ini !!!"
+		exit -1
+	fi
 	if [ ! -f "$rkipc_ini" ]; then
 		cp $default_rkipc_ini $rkipc_ini -f
 	fi
