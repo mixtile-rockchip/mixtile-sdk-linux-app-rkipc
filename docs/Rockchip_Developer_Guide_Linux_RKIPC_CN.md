@@ -2,9 +2,9 @@
 
 文件标识：RK-KF-YF-937
 
-发布版本：V1.7.1
+发布版本：V1.7.2
 
-日期：2025-02-12
+日期：2025-03-25
 
 文件密级：□绝密   □秘密   □内部资料   ■公开
 
@@ -95,6 +95,7 @@ Rockchip Electronics Co., Ltd.
 | V1.6.9     | Fenrir Lin | 2024-08-29   | 修改RV1106 Dual-IPC的流程框图。                              |
 | V1.7.0     | Fenrir Lin | 2025-01-06   | 新增RK3576 DV的流程框图                                      |
 | V1.7.1     | Yu Zheng   | 2025-02-12   | 修改RK3576DV的流程框图和部分参数说明<br/>增加播放显示模块API介绍 |
+| V1.7.2     | Fenrir Lin | 2025-03-25   | 新增RV1126B IPC的流程框图                                    |
 
 ---
 
@@ -128,6 +129,7 @@ Rockchip Electronics Co., Ltd.
 | rv1126_aiisp              | rockit、rkaiq    | 针对RV1126/RV1109平台的IPC产品，使用aiisp，支持网页和rtsp/rtmp预览，参数动态修改。 |
 | rk3576_ipc                | rockit、rkaiq    | 针对RK3576平台的单目IPC产品，支持网页和rtsp/rtmp预览，参数动态修改。 |
 | rk3576_muliti_ipc         | rockit、rkaiq    | 针对RK3576平台的多目IPC产品，支持网页和rtsp/rtmp预览，参数动态修改。 |
+| rv1126b_ipc               | rockit、rkaiq    | 针对RV1126B平台的单目IPC产品，支持网页和rtsp/rtmp预览，参数动态修改。 |
 
 ### RV1103 IPC
 
@@ -375,6 +377,20 @@ graph LR
 	VENC_0_normal-->RTSP_RTMP_0
 	GDC_0-.->VENC_3-.->JPEG
 	VI_1-->GDC_1-->VO
+```
+
+### RV1126B IPC
+
+```mermaid
+graph LR
+	AI-->AENC-->RTSP_RTMP_0
+	VI_0--wrap-->VENC_0_draw_nn_result-->MUXER-->MP4
+	VENC_0_draw_nn_result--combo-->JPEG
+	VI_1--get and send-->NPU
+	VI_1--bind-->IVS_for_OD_MD
+	VENC_0_draw_nn_result-->RTSP_RTMP_0
+	VI_ext_3--vpss-->VENC_1-->RTSP_RTMP_1
+	VI_ext_4--vpss-->VO
 ```
 
 ## 代码结构

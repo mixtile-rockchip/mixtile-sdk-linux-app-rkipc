@@ -24,6 +24,7 @@
 #include <rk_mpi_vi.h>
 #include <rk_mpi_vo.h>
 #include <rk_mpi_vpss.h>
+#include <rk_mpi_ivs.h>
 
 int rk_video_init();
 int rk_video_deinit();

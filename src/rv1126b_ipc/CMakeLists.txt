@@ -39,6 +39,7 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/common/event SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/rockiva SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/region_clip SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/sysutil SRCS)
+aux_source_directory(${PROJECT_SOURCE_DIR}/common/venc SRCS)
 
 include_directories(video
 					${PROJECT_SOURCE_DIR}/common
@@ -59,6 +60,7 @@ include_directories(video
 					${PROJECT_SOURCE_DIR}/common/rockiva
 					${PROJECT_SOURCE_DIR}/common/region_clip
 					${PROJECT_SOURCE_DIR}/common/sysutil
+					${PROJECT_SOURCE_DIR}/common/venc
 					)
 
 add_definitions(-DRKIPC_RV1126B)
