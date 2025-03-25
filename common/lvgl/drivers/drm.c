@@ -2,7 +2,7 @@
  * @file drm.c
  *
  */
-
+#ifndef DRAW_UI_BY_VO
 /*********************
  *      INCLUDES
  *********************/
@@ -1043,3 +1043,4 @@ disp_ops_t drm_ops = {
     drm_get_sizes,
     drm_flush,
 };
+#endif

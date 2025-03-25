@@ -23,6 +23,7 @@
 #include "common.h"
 #include "list.h"
 
+#include <stddef.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>

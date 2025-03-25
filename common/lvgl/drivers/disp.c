@@ -27,17 +27,19 @@ typedef struct {
 /**********************
  *  GLOBAL VARIABLES
  **********************/
-extern disp_ops_t drm_ops;
 #if defined(DRAW_UI_BY_VO)
 extern disp_ops_t rk_ui_ops;
+#else
+extern disp_ops_t drm_ops;
 #endif
 /**********************
  *  STATIC VARIABLES
  **********************/
 static disp_ops_list ops_list[] = {
-    {"DRM", &drm_ops},
 #if defined(DRAW_UI_BY_VO)
     {"RK_UI", &rk_ui_ops},
+#else
+	{"DRM", &drm_ops},
 #endif
 };
 
