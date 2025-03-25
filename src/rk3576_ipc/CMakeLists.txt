@@ -61,18 +61,7 @@ include_directories(video
 					${PROJECT_SOURCE_DIR}/common/sysutil
 					)
 
-if(COMPILE_FOR_RV1126B)
-add_definitions(-DRKIPC_RV1126B)
-endif()
-
-message(STATUS "RK_APP_ARCH_TYPE is ${RK_APP_ARCH_TYPE}")
-if(RK_APP_ARCH_TYPE STREQUAL "arm")
-	link_directories(${PROJECT_SOURCE_DIR}/lib/arm-rockchip1240-linux-gnueabihf)
-	install(FILES ${PROJECT_SOURCE_DIR}/lib/arm-rockchip1240-linux-gnueabihf/libwpa_client.so DESTINATION lib)
-else()
-	link_directories(${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1240-linux-gnu)
-	install(FILES ${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1240-linux-gnu/libwpa_client.so DESTINATION lib)
-endif()
+link_directories(${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1031-linux-gnu)
 
 add_definitions(-DISP_HW_V39)
 add_definitions(-g -ggdb)
@@ -85,14 +74,9 @@ target_link_libraries(${PROJECT_NAME}
 						pthread rockit rkaiq rtsp freetype wpa_client rkmuxer m rockiva rga rkaudio)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
-if(COMPILE_FOR_RV1126B)
-	install(FILES rkipc-2688x1520-rv1126b.ini DESTINATION share RENAME rkipc-2688x1520.ini)
-	install(FILES rkipc-3840x2160-rv1126b.ini DESTINATION share RENAME rkipc-3840x2160.ini)
-	install(PROGRAMS RkLunch-rv1126b.sh DESTINATION bin RENAME RkLunch.sh)
-else()
-	install(FILES rkipc.ini DESTINATION share)
-	install(PROGRAMS RkLunch.sh DESTINATION bin)
-endif()
+install(FILES rkipc.ini DESTINATION share)
+install(PROGRAMS RkLunch.sh DESTINATION bin)
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)
+install(FILES ${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1031-linux-gnu/libwpa_client.so DESTINATION lib)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/image.bmp DESTINATION share)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/SourceHanSansCN.ttf DESTINATION share)

@@ -1286,10 +1286,6 @@ int rkipc_pipe_vi_vo_init() {
 		VoPubAttr.enIntfType = VO_INTF_MIPI;
 		VoPubAttr.enIntfSync = VO_OUTPUT_DEFAULT;
 	}
-#if defined(RKIPC_RV1126B)
-	VoPubAttr.enIntfType = VO_INTF_MIPI;
-	VoPubAttr.enIntfSync = VO_OUTPUT_DEFAULT;
-#endif
 	ret = RK_MPI_VO_SetPubAttr(g_vo_dev_id, &VoPubAttr);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("RK_MPI_VO_SetPubAttr %x\n", ret);
