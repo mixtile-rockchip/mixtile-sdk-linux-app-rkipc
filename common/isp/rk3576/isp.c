@@ -8,6 +8,7 @@
 #include <rk_aiq_user_api2_camgroup.h>
 #include <rk_aiq_user_api2_imgproc.h>
 #include <rk_aiq_user_api2_sysctl.h>
+#include <rk_aiq_user_api2_isp.h>
 
 #ifdef LOG_TAG
 #undef LOG_TAG
@@ -114,8 +115,16 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 #endif
 	// if (MultiCam)
 	// 	rk_aiq_uapi2_sysctl_setMulCamConc(aiq_ctx, true);
+
+#if defined(RKIPC_RV1126B)
+	ainr_api_attrib_t ainr_attr;
+	rk_aiq_user_api2_ainr_GetAttrib(aiq_ctx, &ainr_attr);
+	ainr_attr.en = rk_param_get_int("video.source:enable_aiisp", 0);
+	rk_aiq_user_api2_ainr_SetAttrib(aiq_ctx, &ainr_attr);
+#else
 	if (rk_param_get_int("video.source:enable_aiisp", 0))
 		rk_aiq_uapi2_sysctl_initAiisp(aiq_ctx, NULL, NULL);
+#endif
 	g_aiq_ctx[cam_id] = aiq_ctx;
 
 	return 0;
