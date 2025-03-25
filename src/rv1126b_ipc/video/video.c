@@ -448,7 +448,7 @@ int rkipc_vpss_init() {
 		if (ret != RK_SUCCESS)
 			LOG_ERROR("1: RK_MPI_VPSS_EnableChn error! ret is %#x\n", ret);
 	}
-	if (enable_venc_2) {
+	if (enable_venc_2 || enable_npu) {
 		stVpssChnAttr[2].enChnMode = VPSS_CHN_MODE_AUTO;
 		stVpssChnAttr[2].enDynamicRange = DYNAMIC_RANGE_SDR8;
 		stVpssChnAttr[2].enPixelFormat = RK_FMT_YUV420SP;
@@ -2086,8 +2086,8 @@ int rkipc_osd_bmp_create(int id, osd_data_s *osd_data) {
 
 	// create overlay regions
 	memset(&stRgnAttr, 0, sizeof(stRgnAttr));
-	stRgnAttr.enType = OVERLAY_EX_RGN;
-	stRgnAttr.unAttr.stOverlay.enVProcDev = VIDEO_PROC_DEV_RGA;
+	stRgnAttr.enType = OVERLAY_RGN;
+	// stRgnAttr.unAttr.stOverlay.enVProcDev = VIDEO_PROC_DEV_RGA;
 	stRgnAttr.unAttr.stOverlay.enPixelFmt = RK_FMT_ARGB8888;
 	stRgnAttr.unAttr.stOverlay.stSize.u32Width = osd_data->width;
 	stRgnAttr.unAttr.stOverlay.stSize.u32Height = osd_data->height;
@@ -2102,21 +2102,63 @@ int rkipc_osd_bmp_create(int id, osd_data_s *osd_data) {
 	// display overlay regions to venc groups
 	memset(&stRgnChnAttr, 0, sizeof(stRgnChnAttr));
 	stRgnChnAttr.bShow = osd_data->enable;
-	stRgnChnAttr.enType = OVERLAY_EX_RGN;
+	stRgnChnAttr.enType = OVERLAY_RGN;
 	stRgnChnAttr.unChnAttr.stOverlayChn.stPoint.s32X = osd_data->origin_x;
 	stRgnChnAttr.unChnAttr.stOverlayChn.stPoint.s32Y = osd_data->origin_y;
 	stRgnChnAttr.unChnAttr.stOverlayChn.u32BgAlpha = 128;
 	stRgnChnAttr.unChnAttr.stOverlayChn.u32FgAlpha = 128;
 	stRgnChnAttr.unChnAttr.stOverlayChn.u32Layer = id;
-	stMppChn.enModId = RK_ID_VPSS;
+	stMppChn.enModId = RK_ID_VENC;
 	stMppChn.s32DevId = 0;
-	stMppChn.s32ChnId = VPSS_GRP_ID;
-	ret = RK_MPI_RGN_AttachToChn(RgnHandle, &stMppChn, &stRgnChnAttr);
-	if (RK_SUCCESS != ret) {
-		LOG_ERROR("RK_MPI_RGN_AttachToChn (%d) to vpss failed with %#x\n", RgnHandle, ret);
-		return RK_FAILURE;
+
+	if (enable_venc_0) {
+		stMppChn.s32ChnId = 0;
+		ret = RK_MPI_RGN_AttachToChn(RgnHandle, &stMppChn, &stRgnChnAttr);
+		if (RK_SUCCESS != ret) {
+			LOG_ERROR("RK_MPI_RGN_AttachToChn (%d) to venc0 failed with %#x\n", RgnHandle, ret);
+			return RK_FAILURE;
+		}
+		LOG_DEBUG("RK_MPI_RGN_AttachToChn to venc0 success\n");
 	}
-	LOG_INFO("RK_MPI_RGN_AttachToChn to vpss success\n");
+	if (enable_venc_1) {
+		stRgnChnAttr.unChnAttr.stOverlayChn.stPoint.s32X =
+		    UPALIGNTO16(osd_data->origin_x * rk_param_get_int("video.1:width", 1) /
+		                rk_param_get_int("video.0:width", 1));
+		stRgnChnAttr.unChnAttr.stOverlayChn.stPoint.s32Y =
+		    UPALIGNTO16(osd_data->origin_y * rk_param_get_int("video.1:height", 1) /
+		                rk_param_get_int("video.0:height", 1));
+		stMppChn.s32ChnId = 1;
+		ret = RK_MPI_RGN_AttachToChn(RgnHandle, &stMppChn, &stRgnChnAttr);
+		if (RK_SUCCESS != ret) {
+			LOG_ERROR("RK_MPI_RGN_AttachToChn (%d) to venc1 failed with %#x\n", RgnHandle, ret);
+			return RK_FAILURE;
+		}
+		LOG_DEBUG("RK_MPI_RGN_AttachToChn to venc1 success\n");
+	}
+	if (enable_venc_2) {
+		stRgnChnAttr.unChnAttr.stOverlayChn.stPoint.s32X =
+		    UPALIGNTO16(osd_data->origin_x * rk_param_get_int("video.2:width", 1) /
+		                rk_param_get_int("video.0:width", 1));
+		stRgnChnAttr.unChnAttr.stOverlayChn.stPoint.s32Y =
+		    UPALIGNTO16(osd_data->origin_y * rk_param_get_int("video.2:height", 1) /
+		                rk_param_get_int("video.0:height", 1));
+		stMppChn.s32ChnId = 2;
+		ret = RK_MPI_RGN_AttachToChn(RgnHandle, &stMppChn, &stRgnChnAttr);
+		if (RK_SUCCESS != ret) {
+			LOG_ERROR("RK_MPI_RGN_AttachToChn (%d) to venc2 failed with %#x\n", RgnHandle, ret);
+			return RK_FAILURE;
+		}
+		LOG_DEBUG("RK_MPI_RGN_AttachToChn to venc2 success\n");
+	}
+	if (enable_jpeg) {
+		stMppChn.s32ChnId = JPEG_VENC_CHN;
+		ret = RK_MPI_RGN_AttachToChn(RgnHandle, &stMppChn, &stRgnChnAttr);
+		if (RK_SUCCESS != ret) {
+			LOG_ERROR("RK_MPI_RGN_AttachToChn (%d) to jpeg failed with %#x\n", RgnHandle, ret);
+			return RK_FAILURE;
+		}
+		LOG_DEBUG("RK_MPI_RGN_AttachToChn to jpeg success\n");
+	}
 
 	// set bitmap
 	stBitmap.enPixelFormat = RK_FMT_ARGB8888;
@@ -2138,14 +2180,32 @@ int rkipc_osd_bmp_destroy(int id) {
 	// Detach osd from chn
 	MPP_CHN_S stMppChn;
 	RGN_HANDLE RgnHandle = id;
-	stMppChn.enModId = RK_ID_VPSS;
+	stMppChn.enModId = RK_ID_VENC;
 	stMppChn.s32DevId = 0;
-	stMppChn.s32ChnId = VPSS_GRP_ID;
-	ret = RK_MPI_RGN_DetachFromChn(RgnHandle, &stMppChn);
-	if (RK_SUCCESS != ret) {
-		LOG_ERROR("RK_MPI_RGN_DetachFrmChn (%d) to vpss failed with %#x\n", RgnHandle, ret);
+	if (enable_venc_0) {
+		stMppChn.s32ChnId = 0;
+		ret = RK_MPI_RGN_DetachFromChn(RgnHandle, &stMppChn);
+		if (RK_SUCCESS != ret)
+			LOG_DEBUG("RK_MPI_RGN_DetachFrmChn (%d) to venc0 failed with %#x\n", RgnHandle, ret);
 	}
-	LOG_INFO("RK_MPI_RGN_DetachFromChn to vpss success\n");
+	if (enable_venc_1) {
+		stMppChn.s32ChnId = 1;
+		ret = RK_MPI_RGN_DetachFromChn(RgnHandle, &stMppChn);
+		if (RK_SUCCESS != ret)
+			LOG_DEBUG("RK_MPI_RGN_DetachFrmChn (%d) to venc1 failed with %#x\n", RgnHandle, ret);
+	}
+	if (enable_venc_2) {
+		stMppChn.s32ChnId = 2;
+		ret = RK_MPI_RGN_DetachFromChn(RgnHandle, &stMppChn);
+		if (RK_SUCCESS != ret)
+			LOG_DEBUG("RK_MPI_RGN_DetachFrmChn (%d) to venc2 failed with %#x\n", RgnHandle, ret);
+	}
+	if (enable_jpeg) {
+		stMppChn.s32ChnId = JPEG_VENC_CHN;
+		ret = RK_MPI_RGN_DetachFromChn(RgnHandle, &stMppChn);
+		if (RK_SUCCESS != ret)
+			LOG_DEBUG("RK_MPI_RGN_DetachFrmChn (%d) to jpeg failed with %#x\n", RgnHandle, ret);
+	}
 
 	// destory region
 	ret = RK_MPI_RGN_Destroy(RgnHandle);
@@ -2531,8 +2591,8 @@ int rkipc_osd_draw_nn_init() {
 
 	// create overlay regions
 	memset(&stRgnAttr, 0, sizeof(stRgnAttr));
-	stRgnAttr.enType = OVERLAY_EX_RGN;
-	stRgnAttr.unAttr.stOverlay.enVProcDev = VIDEO_PROC_DEV_RGA;
+	stRgnAttr.enType = OVERLAY_RGN;
+	//stRgnAttr.unAttr.stOverlay.enVProcDev = VIDEO_PROC_DEV_RGA;
 	stRgnAttr.unAttr.stOverlay.enPixelFmt = RK_FMT_ABGR8888;
 	stRgnAttr.unAttr.stOverlay.u32CanvasNum = 1;
 	stRgnAttr.unAttr.stOverlay.stSize.u32Width = rk_param_get_int("video.0:width", -1);
@@ -2556,15 +2616,15 @@ int rkipc_osd_draw_nn_init() {
 	// display overlay regions to venc groups
 	memset(&stRgnChnAttr, 0, sizeof(stRgnChnAttr));
 	stRgnChnAttr.bShow = RK_TRUE;
-	stRgnChnAttr.enType = OVERLAY_EX_RGN;
+	stRgnChnAttr.enType = OVERLAY_RGN;
 	stRgnChnAttr.unChnAttr.stOverlayChn.stPoint.s32X = 0;
 	stRgnChnAttr.unChnAttr.stOverlayChn.stPoint.s32Y = 0;
 	stRgnChnAttr.unChnAttr.stOverlayChn.u32BgAlpha = 0;
 	stRgnChnAttr.unChnAttr.stOverlayChn.u32FgAlpha = 255;
 	stRgnChnAttr.unChnAttr.stOverlayChn.u32Layer = DRAW_NN_OSD_ID;
-	stMppChn.enModId = RK_ID_VPSS;
+	stMppChn.enModId = RK_ID_VENC;
 	stMppChn.s32DevId = 0;
-	stMppChn.s32ChnId = DRAW_NN_VPSS_CHN_ID;
+	stMppChn.s32ChnId = 0;
 	ret = RK_MPI_RGN_AttachToChn(RgnHandle, &stMppChn, &stRgnChnAttr);
 	if (RK_SUCCESS != ret) {
 		LOG_ERROR("RK_MPI_RGN_AttachToChn (%d) to venc0 failed with %#x\n", RgnHandle, ret);
@@ -2587,9 +2647,9 @@ int rkipc_osd_draw_nn_deinit() {
 	// Detach osd from chn
 	MPP_CHN_S stMppChn;
 	RGN_HANDLE RgnHandle = DRAW_NN_OSD_ID;
-	stMppChn.enModId = RK_ID_VPSS;
+	stMppChn.enModId = RK_ID_VENC;
 	stMppChn.s32DevId = 0;
-	stMppChn.s32ChnId = DRAW_NN_VPSS_CHN_ID;
+	stMppChn.s32ChnId = 0;
 	ret = RK_MPI_RGN_DetachFromChn(RgnHandle, &stMppChn);
 	if (RK_SUCCESS != ret)
 		LOG_ERROR("RK_MPI_RGN_DetachFrmChn (%d) to venc0 failed with %#x\n", RgnHandle, ret);
