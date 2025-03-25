@@ -5,10 +5,7 @@
 #include "file_cache.h"
 #include "file_common.h"
 #include "file_msg.h"
-#ifdef RKFSMK
-#include <rkfsmk.h>
 #include <sys/mount.h>
-#endif
 
 #ifdef LOG_TAG
 #undef LOG_TAG

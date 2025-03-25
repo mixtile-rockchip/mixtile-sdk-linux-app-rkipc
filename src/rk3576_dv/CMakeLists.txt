@@ -24,7 +24,6 @@ aux_source_directory(./ SRCS)
 aux_source_directory(video SRCS)
 aux_source_directory(ui SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/ui/common SRCS)
-aux_source_directory(${PROJECT_SOURCE_DIR}/common/ui/320x240 SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/lvgl/common SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/lvgl/drivers SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/lvgl/porting SRCS)
@@ -52,7 +51,6 @@ include_directories(video
 					${PROJECT_SOURCE_DIR}/common
 					${PROJECT_SOURCE_DIR}/common/player
 					${PROJECT_SOURCE_DIR}/common/ui/common
-					${PROJECT_SOURCE_DIR}/common/ui/320x240
 					${PROJECT_SOURCE_DIR}/common/lvgl/common
 					${PROJECT_SOURCE_DIR}/common/lvgl/drivers
 					${PROJECT_SOURCE_DIR}/common/lvgl/porting
@@ -80,14 +78,13 @@ link_directories(${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1031-linux-gnu)
 add_definitions(-DISP_HW_V39)
 add_definitions(-g -ggdb)
 add_definitions(-DDRAW_UI_BY_VO=1)
-add_definitions(-DRKFSMK=1)
 
 add_executable(${PROJECT_NAME} ${SRCS})
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-result -Wno-unused-but-set-variable -Wno-unused-variable")
 
 target_link_libraries(${PROJECT_NAME}
-		pthread rockit rkaiq rtsp freetype wpa_client rkmuxer m rga RkEis lvgl png drm rkdemuxer rkfsmk rkaudio)
+		pthread rockit rkaiq rtsp freetype wpa_client rkmuxer m rga RkEis lvgl png drm rkdemuxer rkaudio)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 file(GLOB RKIPC_INI_FILES rkipc-*)
