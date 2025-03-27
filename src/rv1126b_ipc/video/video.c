@@ -926,13 +926,14 @@ static void *rkipc_get_vi_2_send(void *arg) {
 	long long before_time, cost_time;
 	while (g_video_run_) {
 		before_time = rkipc_get_curren_time_ms();
-		ret = RK_MPI_VI_GetChnFrame(pipe_id_, VIDEO_PIPE_2, &stViFrame, 1000);
+		ret = RK_MPI_VI_GetChnFrame(pipe_id_, g_vi_for_npu_ivs_id, &stViFrame, 1000);
 		if (ret == RK_SUCCESS) {
 			void *data = RK_MPI_MB_Handle2VirAddr(stViFrame.stVFrame.pMbBlk);
-			uint8_t *phy_addr = (uint8_t *)RK_MPI_MB_Handle2PhysAddr(stViFrame.stVFrame.pMbBlk);
-			rkipc_rockiva_write_nv12_frame_by_phy_addr(
-			    stViFrame.stVFrame.u32Width, stViFrame.stVFrame.u32Height, loopCount, phy_addr);
-			ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, VIDEO_PIPE_2, &stViFrame);
+			// 1126b 32bit rga only support fd
+			rkipc_rockiva_write_nv12_frame_by_fd( stViFrame.stVFrame.u32Width,
+					stViFrame.stVFrame.u32Height, loopCount,
+					RK_MPI_MB_Handle2Fd(stViFrame.stVFrame.pMbBlk));
+			ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, g_vi_for_npu_ivs_id, &stViFrame);
 			if (ret != RK_SUCCESS)
 				LOG_ERROR("RK_MPI_VI_ReleaseChnFrame fail %x", ret);
 			loopCount++;
@@ -1437,37 +1438,6 @@ int rkipc_pipe_vi_vo_deinit() {
 	}
 
 	return 0;
-}
-
-static void *rkipc_get_vpss_2_send_npu(void *arg) {
-	LOG_DEBUG("#Start %s thread, arg:%p\n", __func__, arg);
-	prctl(PR_SET_NAME, "RkipcGetVpss2", 0, 0, 0);
-	int ret;
-	int32_t loopCount = 0;
-	VIDEO_FRAME_INFO_S stViFrame;
-	int npu_cycle_time_ms = 1000 / rk_param_get_int("video.source:npu_fps", 10);
-
-	long long before_time, cost_time;
-	while (g_video_run_) {
-		before_time = rkipc_get_curren_time_ms();
-		ret = RK_MPI_VPSS_GetChnFrame(0, 2, &stViFrame, 1000);
-		if (ret == RK_SUCCESS) {
-			void *data = RK_MPI_MB_Handle2VirAddr(stViFrame.stVFrame.pMbBlk);
-			int fd = RK_MPI_MB_Handle2Fd(stViFrame.stVFrame.pMbBlk);
-			rkipc_rockiva_write_nv12_frame_by_fd(stViFrame.stVFrame.u32Width,
-			                                     stViFrame.stVFrame.u32Height, loopCount, fd);
-			ret = RK_MPI_VPSS_ReleaseChnFrame(0, 2, &stViFrame);
-			if (ret != RK_SUCCESS)
-				LOG_ERROR("RK_MPI_VPSS_ReleaseChnFrame fail %x", ret);
-			loopCount++;
-		} else {
-			LOG_ERROR("RK_MPI_VPSS_GetChnFrame timeout %x", ret);
-		}
-		cost_time = rkipc_get_curren_time_ms() - before_time;
-		if ((cost_time > 0) && (cost_time < npu_cycle_time_ms))
-			usleep((npu_cycle_time_ms - cost_time) * 1000);
-	}
-	return NULL;
 }
 
 // export API
@@ -2683,10 +2653,6 @@ int rk_video_init() {
 	rk_roi_set_all();
 	rk_region_clip_set_callback_register(rk_region_clip_set);
 	rk_region_clip_set_all();
-	if (enable_npu) {
-		pthread_create(&get_vpss_2_send_npu_thread, NULL, rkipc_get_vpss_2_send_npu, NULL);
-		rkipc_osd_draw_nn_init();
-	}
 	LOG_INFO("over\n");
 
 	return ret;
