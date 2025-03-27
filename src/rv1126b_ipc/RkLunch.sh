@@ -116,8 +116,14 @@ post_chk()
 		cp -fa /oem/usr/share/image.bmp /userdata/
 	fi
 
+	# swap sdi0 and sdi1
 	amixer -c 0 sset 'SAI2 Receive PATH0 Source Select' 'From SDI1'
 	amixer -c 0 sset 'SAI2 Receive PATH1 Source Select' 'From SDI0'
+
+	# enable loopback for sdi1
+	amixer -c 0 sset "SAI2 SDI1 Loopback I2S LR" "Enable"
+	amixer -c 0 sset "SAI2 SDI1 Loopback" "Enable"
+
 	if [ -d "/oem/usr/share/iqfiles" ];then
 		rkipc -a /oem/usr/share/iqfiles &
 	else
