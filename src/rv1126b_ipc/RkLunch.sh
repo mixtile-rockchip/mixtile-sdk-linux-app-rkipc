@@ -116,6 +116,8 @@ post_chk()
 		cp -fa /oem/usr/share/image.bmp /userdata/
 	fi
 
+	amixer -c 0 sset 'SAI2 Receive PATH0 Source Select' 'From SDI1'
+	amixer -c 0 sset 'SAI2 Receive PATH1 Source Select' 'From SDI0'
 	if [ -d "/oem/usr/share/iqfiles" ];then
 		rkipc -a /oem/usr/share/iqfiles &
 	else
