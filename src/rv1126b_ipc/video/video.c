@@ -1002,6 +1002,34 @@ int rkipc_pipe_npu_ivs_init() {
 	}
 }
 
+int rkipc_pipe_npu_ivs_deinit() {
+	int ret;
+	if (enable_npu) {
+		rkipc_osd_draw_nn_deinit();
+		pthread_join(get_vi_2_send_thread, NULL);
+	}
+	if (enable_ivs) {
+		// unbind
+		vi_chn.enModId = RK_ID_VI;
+		vi_chn.s32DevId = 0;
+		vi_chn.s32ChnId = g_vi_for_npu_ivs_id;
+		ivs_chn.enModId = RK_ID_IVS;
+		ivs_chn.s32DevId = 0;
+		ivs_chn.s32ChnId = 0;
+		ret = RK_MPI_SYS_UnBind(&vi_chn, &ivs_chn);
+		if (ret)
+			LOG_ERROR("Unbind VI and IVS error! ret=%#x\n", ret);
+		else
+			LOG_DEBUG("Unbind VI and IVS success\n");
+		rkipc_ivs_deinit();
+	}
+	ret = RK_MPI_VI_DisableChn(pipe_id_, g_vi_for_npu_ivs_id);
+	if (ret)
+		LOG_ERROR("ERROR: Destroy VI error! ret=%#x\n", ret);
+
+	return 0;
+}
+
 int rkipc_pipe_2_deinit() {
 	int ret;
 	if (enable_npu) {
@@ -1784,6 +1812,12 @@ int rk_video_set_resolution(int stream_id, const char *value) {
 	rk_param_set_int(entry, width);
 	snprintf(entry, 127, "video.%d:height", stream_id);
 	rk_param_set_int(entry, height);
+	if (enable_jpeg && (stream_id == 0)) {
+		snprintf(entry, 127, "video.jpeg:width");
+		rk_param_set_int(entry, width);
+		snprintf(entry, 127, "video.jpeg:height");
+		rk_param_set_int(entry, height);
+	}
 	rk_video_restart();
 
 	return 0;
@@ -2648,7 +2682,8 @@ int rk_video_init() {
 	}
 	if (g_enable_vo)
 		ret |= rkipc_pipe_vi_vo_init();
-	ret |= rkipc_osd_init();
+	if (enable_osd)
+		ret |= rkipc_osd_init();
 	rk_roi_set_callback_register(rk_roi_set);
 	rk_roi_set_all();
 	rk_region_clip_set_callback_register(rk_region_clip_set);
@@ -2662,13 +2697,12 @@ int rk_video_deinit() {
 	LOG_INFO("%s\n", __func__);
 	g_video_run_ = 0;
 	int ret = 0;
-	if (enable_npu) {
-		rkipc_osd_draw_nn_deinit();
-		pthread_join(get_vpss_2_send_npu_thread, NULL);
-	}
+	if (enable_npu || enable_ivs)
+		rkipc_pipe_npu_ivs_deinit();
 	rk_region_clip_set_callback_register(NULL);
 	rk_roi_set_callback_register(NULL);
-	ret |= rkipc_osd_deinit();
+	if (enable_osd)
+		ret |= rkipc_osd_deinit();
 	if (g_enable_vo)
 		ret |= rkipc_pipe_vi_vo_deinit();
 	if (enable_venc_0) {
@@ -2688,8 +2722,10 @@ int rk_video_deinit() {
 		ret |= rkipc_pipe_jpeg_deinit();
 	}
 	ret |= rkipc_vi_dev_deinit();
-	ret |= rkipc_rtmp_deinit();
-	ret |= rkipc_rtsp_deinit();
+	if (enable_rtmp)
+		ret |= rkipc_rtmp_deinit();
+	if (enable_rtsp)
+		ret |= rkipc_rtsp_deinit();
 
 	return ret;
 }
