@@ -21,6 +21,8 @@
 #define VPSS_GRP_ID VPSS_MAX_CHN_NUM
 #define DRAW_NN_VENC_CHN_ID 0
 #define DRAW_NN_OSD_ID 7
+#define RED_COLOR 0x0000FF
+#define BLUE_COLOR 0xFF0000
 
 #define RV1126B_VOP_LAYER_CLUSTER1 1
 
@@ -55,6 +57,10 @@ static pthread_t venc_thread_0, venc_thread_1, venc_thread_2, jpeg_venc_thread_i
 				get_ivs_result_thread, cycle_snapshot_thread_id;
 
 static MPP_CHN_S vi_chn, vpss_in_chn, vi_for_vo_chn, vo_chn, vpss_out_chn[4], venc_chn, ivs_chn;
+typedef enum rkCOLOR_INDEX_E {
+	RGN_COLOR_LUT_INDEX_0 = 0,
+	RGN_COLOR_LUT_INDEX_1 = 1,
+} COLOR_INDEX_E;
 
 // static void *test_get_vi(void *arg) {
 // 	printf("#Start %s thread, arg:%p\n", __func__, arg);
@@ -2444,34 +2450,80 @@ static int rga_nv12_border(rga_buffer_t buf, int x, int y, int width, int height
 	return STATUS == IM_STATUS_SUCCESS ? 0 : 1;
 }
 
+static RK_U8 rgn_color_lut_0_left_value[4] = {0x03, 0xf, 0x3f, 0xff};
+static RK_U8 rgn_color_lut_0_right_value[4] = {0xc0, 0xf0, 0xfc, 0xff};
+static RK_U8 rgn_color_lut_1_left_value[4] = {0x02, 0xa, 0x2a, 0xaa};
+static RK_U8 rgn_color_lut_1_right_value[4] = {0x80, 0xa0, 0xa8, 0xaa};
+RK_S32 draw_rect_2bpp(RK_U8 *buffer, RK_U32 width, RK_U32 height, int rgn_x, int rgn_y, int rgn_w,
+                      int rgn_h, int line_pixel, COLOR_INDEX_E color_index) {
+	int i;
+	RK_U8 *ptr = buffer;
+	RK_U8 value = 0;
+	if (color_index == RGN_COLOR_LUT_INDEX_0)
+		value = 0xff;
+	if (color_index == RGN_COLOR_LUT_INDEX_1)
+		value = 0xaa;
+
+	if (line_pixel > 4) {
+		printf("line_pixel > 4, not support\n", line_pixel);
+		return -1;
+	}
+
+	// printf("YUV %dx%d, rgn (%d,%d,%d,%d), line pixel %d\n", width, height, rgn_x, rgn_y, rgn_w,
+	// rgn_h, line_pixel); draw top line
+	ptr += (width * rgn_y + rgn_x) >> 2;
+	for (i = 0; i < line_pixel; i++) {
+		memset(ptr, value, (rgn_w + 3) >> 2);
+		ptr += width >> 2;
+	}
+	// draw letft/right line
+	for (i = 0; i < (rgn_h - line_pixel * 2); i++) {
+		if (color_index == RGN_COLOR_LUT_INDEX_1) {
+			*ptr = rgn_color_lut_1_left_value[line_pixel - 1];
+			*(ptr + ((rgn_w + 3) >> 2)) = rgn_color_lut_1_right_value[line_pixel - 1];
+		} else {
+			*ptr = rgn_color_lut_0_left_value[line_pixel - 1];
+			*(ptr + ((rgn_w + 3) >> 2)) = rgn_color_lut_0_right_value[line_pixel - 1];
+		}
+		ptr += width >> 2;
+	}
+	// draw bottom line
+	for (i = 0; i < line_pixel; i++) {
+		memset(ptr, value, (rgn_w + 3) >> 2);
+		ptr += width >> 2;
+	}
+	return 0;
+}
+
 static void *rkipc_get_nn_update_osd(void *arg) {
 	g_nn_osd_run_ = 1;
 	LOG_DEBUG("#Start %s thread, arg:%p\n", __func__, arg);
 	prctl(PR_SET_NAME, "RkipcNpuOsd", 0, 0, 0);
 
 	int ret = 0;
-	int line_pixel = 16;
+	int line_pixel = 2;
 	int change_to_nothing_flag = 0;
 	int video_width = 0;
 	int video_height = 0;
 	int rotation = 0;
-	long long last_ba_result_time = 0;
+	long long last_ba_result_time;
 	RockIvaBaResult ba_result;
 	RockIvaBaObjectInfo *object;
 	RGN_HANDLE RgnHandle = DRAW_NN_OSD_ID;
 	RGN_CANVAS_INFO_S stCanvasInfo;
-	im_handle_param_t param;
-	rga_buffer_handle_t handle;
-	rga_buffer_t src;
 
 	memset(&stCanvasInfo, 0, sizeof(RGN_CANVAS_INFO_S));
 	memset(&ba_result, 0, sizeof(ba_result));
-	memset(&param, 0, sizeof(im_handle_param_t));
 	while (g_nn_osd_run_) {
-		usleep(100 * 1000);
+		usleep(40 * 1000);
 		rotation = rk_param_get_int("video.source:rotation", 0);
-		video_width = rk_param_get_int("video.0:width", -1);
-		video_height = rk_param_get_int("video.0:height", -1);
+		if (rotation == 90 || rotation == 270) {
+			video_width = rk_param_get_int("video.0:height", -1);
+			video_height = rk_param_get_int("video.0:width", -1);
+		} else {
+			video_width = rk_param_get_int("video.0:width", -1);
+			video_height = rk_param_get_int("video.0:height", -1);
+		}
 		ret = rkipc_rknn_object_get(&ba_result);
 		// LOG_DEBUG("ret is %d, ba_result.objNum is %d\n", ret, ba_result.objNum);
 
@@ -2485,18 +2537,16 @@ static void *rkipc_get_nn_update_osd(void *arg) {
 			RK_LOGE("RK_MPI_RGN_GetCanvasInfo failed with %#x!", ret);
 			continue;
 		}
-		param.width = stCanvasInfo.u32VirWidth;
-		param.height = stCanvasInfo.u32VirHeight;
-		param.format = RK_FORMAT_ABGR_8888;
-		// handle = importbuffer_virtualaddr(stCanvasInfo.u64VirAddr, &param);
-		handle = importbuffer_fd(RK_MPI_MB_Handle2Fd(stCanvasInfo.canvasBlk), &param);
-		src = wrapbuffer_handle_t(handle, stCanvasInfo.u32VirWidth, stCanvasInfo.u32VirHeight,
-		                          stCanvasInfo.u32VirWidth, stCanvasInfo.u32VirHeight,
-		                          RK_FORMAT_ABGR_8888);
-		// memset((void *)stCanvasInfo.u64VirAddr, 0,
-		//        stCanvasInfo.u32VirWidth * stCanvasInfo.u32VirHeight * 4);
-		im_rect rect_all = {0, 0, video_width, video_height};
-		imfill(src, rect_all, 0x00000000); // clean buffer
+		if ((stCanvasInfo.stSize.u32Width != UPALIGNTO2(video_width)) ||
+		    (stCanvasInfo.stSize.u32Height != UPALIGNTO2(video_height))) {
+			LOG_WARN("canvas is %d*%d, not equal %d*%d, maybe in the process of switching,"
+			         "skip this time\n",
+			         stCanvasInfo.stSize.u32Width, stCanvasInfo.stSize.u32Height,
+			         UPALIGNTO2(video_width), UPALIGNTO2(video_height));
+			continue;
+		}
+		memset((void *)stCanvasInfo.u64VirAddr, 0,
+		       stCanvasInfo.u32VirWidth * stCanvasInfo.u32VirHeight >> 2);
 		// draw
 		for (int i = 0; i < ba_result.objNum; i++) {
 			int x, y, w, h;
@@ -2513,15 +2563,15 @@ static void *rkipc_get_nn_update_osd(void *arg) {
 			    (object->objInfo.rect.bottomRight.x - object->objInfo.rect.topLeft.x) / 10000;
 			h = video_height *
 			    (object->objInfo.rect.bottomRight.y - object->objInfo.rect.topLeft.y) / 10000;
-			// venc ex overlay先叠加，后旋转
 			x = x / 16 * 16;
 			y = y / 16 * 16;
-			w = w / 16 * 16;
-			h = h / 16 * 16;
-			while (x + w >= video_width) {
+			w = (w + 3) / 16 * 16;
+			h = (h + 3) / 16 * 16;
+
+			while (x + w + line_pixel >= video_width) {
 				w -= 8;
 			}
-			while (y + h >= video_height) {
+			while (y + h + line_pixel >= video_height) {
 				h -= 8;
 			}
 			if (x < 0 || y < 0 || w <= 0 || h <= 0) {
@@ -2529,13 +2579,13 @@ static void *rkipc_get_nn_update_osd(void *arg) {
 			}
 			// LOG_DEBUG("i is %d, x,y,w,h is %d,%d,%d,%d\n", i, x, y, w, h);
 			if (object->objInfo.type == ROCKIVA_OBJECT_TYPE_PERSON) {
-				rga_nv12_border(src, x, y, w, h, line_pixel, 0xff0000ff);
+				draw_rect_2bpp((RK_U8 *)stCanvasInfo.u64VirAddr, stCanvasInfo.u32VirWidth,
+				               stCanvasInfo.u32VirHeight, x, y, w, h, line_pixel,
+				               RGN_COLOR_LUT_INDEX_0);
 			} else if (object->objInfo.type == ROCKIVA_OBJECT_TYPE_FACE) {
-				rga_nv12_border(src, x, y, w, h, line_pixel, 0xff00ff00);
-			} else if (object->objInfo.type == ROCKIVA_OBJECT_TYPE_VEHICLE) {
-				rga_nv12_border(src, x, y, w, h, line_pixel, 0xffff0000);
-			} else if (object->objInfo.type == ROCKIVA_OBJECT_TYPE_NON_VEHICLE) {
-				rga_nv12_border(src, x, y, w, h, line_pixel, 0xffff0000);
+				draw_rect_2bpp((RK_U8 *)stCanvasInfo.u64VirAddr, stCanvasInfo.u32VirWidth,
+				               stCanvasInfo.u32VirHeight, x, y, w, h, line_pixel,
+				               RGN_COLOR_LUT_INDEX_1);
 			}
 			// LOG_INFO("draw rect time-consuming is %lld\n",(rkipc_get_curren_time_ms() -
 			// 	last_ba_result_time));
@@ -2544,10 +2594,6 @@ static void *rkipc_get_nn_update_osd(void *arg) {
 			// 			object->firstTrigger.ruleID,
 			// 			object->firstTrigger.triggerType);
 		}
-		releasebuffer_handle(handle);
-		// FILE *fp = fopen("/data/osd.argb", "wb");
-		// fwrite((void *)stCanvasInfo.u64VirAddr, 1, stCanvasInfo.u32VirWidth *
-		// stCanvasInfo.u32VirHeight * 4, fp); fflush(fp); fclose(fp);
 		ret = RK_MPI_RGN_UpdateCanvas(RgnHandle);
 		if (ret != RK_SUCCESS) {
 			RK_LOGE("RK_MPI_RGN_UpdateCanvas failed with %#x!", ret);
@@ -2557,6 +2603,7 @@ static void *rkipc_get_nn_update_osd(void *arg) {
 
 	return 0;
 }
+
 
 int rkipc_osd_draw_nn_init() {
 	LOG_DEBUG("start\n");
@@ -2571,11 +2618,15 @@ int rkipc_osd_draw_nn_init() {
 	// create overlay regions
 	memset(&stRgnAttr, 0, sizeof(stRgnAttr));
 	stRgnAttr.enType = OVERLAY_RGN;
-	//stRgnAttr.unAttr.stOverlay.enVProcDev = VIDEO_PROC_DEV_RGA;
-	stRgnAttr.unAttr.stOverlay.enPixelFmt = RK_FMT_ABGR8888;
+	stRgnAttr.unAttr.stOverlay.enPixelFmt = RK_FMT_2BPP;
 	stRgnAttr.unAttr.stOverlay.u32CanvasNum = 1;
-	stRgnAttr.unAttr.stOverlay.stSize.u32Width = rk_param_get_int("video.0:width", -1);
-	stRgnAttr.unAttr.stOverlay.stSize.u32Height = rk_param_get_int("video.0:height", -1);
+	if (rotation == 90 || rotation == 270) {
+		stRgnAttr.unAttr.stOverlay.stSize.u32Width = rk_param_get_int("video.0:max_height", -1);
+		stRgnAttr.unAttr.stOverlay.stSize.u32Height = rk_param_get_int("video.0:max_width", -1);
+	} else {
+		stRgnAttr.unAttr.stOverlay.stSize.u32Width = rk_param_get_int("video.0:max_width", -1);
+		stRgnAttr.unAttr.stOverlay.stSize.u32Height = rk_param_get_int("video.0:max_height", -1);
+	}
 	ret = RK_MPI_RGN_Create(RgnHandle, &stRgnAttr);
 	if (RK_SUCCESS != ret) {
 		LOG_ERROR("RK_MPI_RGN_Create (%d) failed with %#x\n", RgnHandle, ret);
@@ -2584,8 +2635,13 @@ int rkipc_osd_draw_nn_init() {
 	}
 	LOG_DEBUG("The handle: %d, create success\n", RgnHandle);
 	// after malloc max size, it needs to be set to the actual size
-	stRgnAttr.unAttr.stOverlay.stSize.u32Width = rk_param_get_int("video.0:width", -1);
-	stRgnAttr.unAttr.stOverlay.stSize.u32Height = rk_param_get_int("video.0:height", -1);
+	if (rotation == 90 || rotation == 270) {
+		stRgnAttr.unAttr.stOverlay.stSize.u32Width = rk_param_get_int("video.0:height", -1);
+		stRgnAttr.unAttr.stOverlay.stSize.u32Height = rk_param_get_int("video.0:width", -1);
+	} else {
+		stRgnAttr.unAttr.stOverlay.stSize.u32Width = rk_param_get_int("video.0:width", -1);
+		stRgnAttr.unAttr.stOverlay.stSize.u32Height = rk_param_get_int("video.0:height", -1);
+	}
 	ret = RK_MPI_RGN_SetAttr(RgnHandle, &stRgnAttr);
 	if (RK_SUCCESS != ret) {
 		LOG_ERROR("RK_MPI_RGN_SetAttr (%d) failed with %#x!", RgnHandle, ret);
@@ -2601,6 +2657,8 @@ int rkipc_osd_draw_nn_init() {
 	stRgnChnAttr.unChnAttr.stOverlayChn.u32BgAlpha = 0;
 	stRgnChnAttr.unChnAttr.stOverlayChn.u32FgAlpha = 255;
 	stRgnChnAttr.unChnAttr.stOverlayChn.u32Layer = DRAW_NN_OSD_ID;
+	stRgnChnAttr.unChnAttr.stOverlayChn.u32ColorLUT[RGN_COLOR_LUT_INDEX_0] = BLUE_COLOR;
+	stRgnChnAttr.unChnAttr.stOverlayChn.u32ColorLUT[RGN_COLOR_LUT_INDEX_1] = RED_COLOR;
 	stMppChn.enModId = RK_ID_VENC;
 	stMppChn.s32DevId = 0;
 	stMppChn.s32ChnId = DRAW_NN_VENC_CHN_ID;
@@ -2654,7 +2712,7 @@ int rk_video_init() {
 	enable_npu = rk_param_get_int("video.source:enable_npu", 0);
 	enable_ivs = rk_param_get_int("video.source:enable_ivs", 1);
 	enable_wrap = rk_param_get_int("video.source:enable_wrap", 0);
-	enable_osd = rk_param_get_int("osd.common:enable_osd", 0);
+	enable_osd = rk_param_get_int("osd.common:enable_osd", 1);
 	LOG_INFO("enable_jpeg is %d, enable_venc_0 is %d, enable_venc_1 is %d\n",
 	         enable_jpeg, enable_venc_0, enable_venc_1);
 
