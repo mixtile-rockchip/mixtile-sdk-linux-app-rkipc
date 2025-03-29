@@ -76,11 +76,11 @@ static int create_vo(void) {
 	uint32_t fps = rk_param_get_int("display:fps", 30);
 	const char *intf_type = rk_param_get_string("display:intf_type", "LCD");
 
-#ifndef DRAW_UI_BY_VO
 	memset(&VoPubAttr, 0, sizeof(VO_PUB_ATTR_S));
 	memset(&stLayerAttr, 0, sizeof(VO_VIDEO_LAYER_ATTR_S));
 	memset(&VideoCSC, 0, sizeof(VO_CSC_S));
 	memset(&VoChnAttr, 0, sizeof(VoChnAttr));
+#ifndef DRAW_UI_BY_VO
 	if (!strcmp(intf_type, "LCD"))
 		VoPubAttr.enIntfType = VO_INTF_LCD;
 	else if (!strcmp(intf_type, "MIPI"))
