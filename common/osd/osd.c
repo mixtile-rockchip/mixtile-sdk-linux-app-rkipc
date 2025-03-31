@@ -22,6 +22,7 @@
 #define MAX_OSD_NUM 8
 
 static int g_osd_server_run_ = 1;
+static int g_osd_time_server_run_ = 1;
 static int g_osd_font_already_set = 0;
 static double g_x_rate = 1.0;
 static double g_y_rate = 1.0;
@@ -290,7 +291,14 @@ static void *osd_time_server(void *arg) {
 	memset(osd_data.buffer, 0, osd_data.size);
 	fill_text(&osd_data);
 	// rk_osd_bmp_destroy_(osd_time_id);
-	rk_osd_bmp_create_(osd_time_id, &osd_data);
+	if(rk_osd_bmp_create_(osd_time_id, &osd_data)) {
+		LOG_ERROR("rk_osd_bmp_create_ fail\n");
+		g_osd_time_server_run_ = 0;
+		free(osd_data.buffer);
+		return -1;
+	}
+	g_osd_time_server_run_ = 1;
+
 	free(osd_data.buffer);
 
 	time(&rawtime);
@@ -452,7 +460,8 @@ int rk_osd_deinit() {
 	g_osd_server_run_ = 0;
 	if (g_osd_signal) {
 		rk_signal_give(g_osd_signal);
-		pthread_join(osd_time_thread_id_, NULL);
+		if (g_osd_time_server_run_)
+			pthread_join(osd_time_thread_id_, NULL);
 		rk_signal_destroy(g_osd_signal);
 		g_osd_signal = NULL;
 	}
