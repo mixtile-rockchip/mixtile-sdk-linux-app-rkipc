@@ -28,6 +28,7 @@ option(COMPILE_FOR_RK3576_MULTI_IPC "compile for rk3576 multi-ipc" OFF)
 option(COMPILE_FOR_RK3576_DV "compile for rk3576 dv" OFF)
 
 option(COMPILE_FOR_RV1126B "compile for rv1126b ipc" OFF)
+option(COMPILE_FOR_RV1126B_DUAL_IPC "compile for rv1126b dual-ipc" OFF)
 
 if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
 	message(STATUS "CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
@@ -130,6 +131,10 @@ endif()
 
 if(COMPILE_FOR_RV1126B)
   add_subdirectory(src/rv1126b_ipc)
+endif()
+
+if(COMPILE_FOR_RV1126B_DUAL_IPC)
+  add_subdirectory(src/rv1126b_dual_ipc)
 endif()
 
 if(COMPILE_FOR_BUILDROOT)

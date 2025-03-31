@@ -1273,6 +1273,12 @@ int rk_isp_set_ldch_level(int cam_id, int value) {
 	return ret;
 }
 
+int rk_isp_set_group_ldch_level_form_buffer(int cam_id, void *ldch_0, void *ldch_1, int ldch_size_0,
+                                            int ldch_size_1) {
+	// todo
+	return 0;
+}
+
 // video_adjustment
 int rk_isp_get_power_line_frequency_mode(int cam_id, const char **value) {
 	RK_ISP_CHECK_CAMERA_ID(cam_id);
