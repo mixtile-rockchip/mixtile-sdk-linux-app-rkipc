@@ -35,9 +35,11 @@
 
 int pipe_id_ = 0;
 int g_vi_chn_id = 0;
-int g_vi_for_venc_1_id = 3;
-int g_vi_for_vo_chn_id = 4;
-int g_vi_for_npu_ivs_id = 1;
+int g_vi_for_venc_0_id = 3;
+int g_vi_for_npu_ivs_id = 4;
+int g_vi_for_venc_1_id = 2;
+int g_vi_for_vo_chn_id = 5;
+
 
 static int take_photo_one = 0;
 static int enable_jpeg, enable_venc_0, enable_venc_1, enable_npu, enable_wrap,
@@ -406,8 +408,11 @@ int rkipc_pipe_0_init() {
 	vi_chn_attr.stSize.u32Height = video_height;
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.u32Depth = 0;
-	vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
-	ret = RK_MPI_VI_SetChnAttr(pipe_id_, VIDEO_PIPE_0, &vi_chn_attr);
+	if (rk_param_get_int("video.source:format", 0))
+		vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
+	else
+		vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
+	ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_for_venc_0_id, &vi_chn_attr);
 	if (ret) {
 		LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
 		return ret;
@@ -425,10 +430,10 @@ int rkipc_pipe_0_init() {
 		stViWrap.u32WrapBufferSize = stViWrap.u32BufLine * video_max_width * 3 / 2;
 		LOG_INFO("set vi channel wrap line: %d, wrapBuffSize = %d\n", stViWrap.u32BufLine,
 		         stViWrap.u32WrapBufferSize);
-		RK_MPI_VI_SetChnWrapBufAttr(pipe_id_, VIDEO_PIPE_0, &stViWrap);
+		RK_MPI_VI_SetChnWrapBufAttr(pipe_id_, g_vi_for_venc_0_id, &stViWrap);
 	}
 
-	ret = RK_MPI_VI_EnableChn(pipe_id_, VIDEO_PIPE_0);
+	ret = RK_MPI_VI_EnableChn(pipe_id_, g_vi_for_venc_0_id);
 	if (ret) {
 		LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
 		return ret;
@@ -637,7 +642,7 @@ int rkipc_pipe_0_init() {
 	// bind
 	vi_chn.enModId = RK_ID_VI;
 	vi_chn.s32DevId = 0;
-	vi_chn.s32ChnId = VIDEO_PIPE_0;
+	vi_chn.s32ChnId = g_vi_for_venc_0_id;
 	venc_chn.enModId = RK_ID_VENC;
 	venc_chn.s32DevId = 0;
 	venc_chn.s32ChnId = VIDEO_PIPE_0;
@@ -655,7 +660,7 @@ int rkipc_pipe_0_deinit() {
 	// unbind
 	vi_chn.enModId = RK_ID_VI;
 	vi_chn.s32DevId = 0;
-	vi_chn.s32ChnId = VIDEO_PIPE_0;
+	vi_chn.s32ChnId = g_vi_for_venc_0_id;
 	venc_chn.enModId = RK_ID_VENC;
 	venc_chn.s32DevId = 0;
 	venc_chn.s32ChnId = VIDEO_PIPE_0;
@@ -672,7 +677,7 @@ int rkipc_pipe_0_deinit() {
 	else
 		LOG_DEBUG("RK_MPI_VENC_DestroyChn success\n");
 	// VI
-	ret = RK_MPI_VI_DisableChn(pipe_id_, VIDEO_PIPE_0);
+	ret = RK_MPI_VI_DisableChn(pipe_id_, g_vi_for_venc_0_id);
 	if (ret)
 		LOG_ERROR("ERROR: Destroy VI error! ret=%#x\n", ret);
 
@@ -697,8 +702,6 @@ int rkipc_pipe_1_init() {
 	vi_chn_attr.stSize.u32Height = video_height;
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.u32Depth = 0;
-	if (g_enable_vo)
-		vi_chn_attr.u32Depth += 1;
 	ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_for_venc_1_id, &vi_chn_attr);
 	ret |= RK_MPI_VI_EnableChn(pipe_id_, g_vi_for_venc_1_id);
 	if (ret) {
@@ -1030,34 +1033,6 @@ int rkipc_pipe_npu_ivs_deinit() {
 		rkipc_ivs_deinit();
 	}
 	ret = RK_MPI_VI_DisableChn(pipe_id_, g_vi_for_npu_ivs_id);
-	if (ret)
-		LOG_ERROR("ERROR: Destroy VI error! ret=%#x\n", ret);
-
-	return 0;
-}
-
-int rkipc_pipe_2_deinit() {
-	int ret;
-	if (enable_npu) {
-		rkipc_osd_draw_nn_deinit();
-		pthread_join(get_vi_2_send_thread, NULL);
-	}
-	if (enable_ivs) {
-		// unbind
-		vi_chn.enModId = RK_ID_VI;
-		vi_chn.s32DevId = 0;
-		vi_chn.s32ChnId = VIDEO_PIPE_2;
-		ivs_chn.enModId = RK_ID_IVS;
-		ivs_chn.s32DevId = 0;
-		ivs_chn.s32ChnId = 0;
-		ret = RK_MPI_SYS_UnBind(&vi_chn, &ivs_chn);
-		if (ret)
-			LOG_ERROR("Unbind VI and IVS error! ret=%#x\n", ret);
-		else
-			LOG_DEBUG("Unbind VI and IVS success\n");
-		rkipc_ivs_deinit();
-	}
-	ret = RK_MPI_VI_DisableChn(pipe_id_, VIDEO_PIPE_2);
 	if (ret)
 		LOG_ERROR("ERROR: Destroy VI error! ret=%#x\n", ret);
 

@@ -386,13 +386,13 @@ graph LR
 ```mermaid
 graph LR
 	AI-->AENC-->RTSP_RTMP_0
-	VI_0--wrap-->VENC_0_draw_nn_result-->MUXER-->MP4
+	VI_ext_3--wrap-->VENC_0_draw_nn_result-->MUXER-->MP4
 	VENC_0_draw_nn_result--combo-->JPEG
-	VI_1--get and send-->NPU
-	VI_1--bind-->IVS_for_OD_MD
+	VI_ext_4--get and send-->NPU
+	VI_ext_4--bind-->IVS_for_OD_MD
 	VENC_0_draw_nn_result-->RTSP_RTMP_0
-	VI_ext_3--vpss scale1-->VENC_1-->RTSP_RTMP_1
-	VI_ext_4--vpss scale0-->VO
+	VI_ext_2-->VENC_1-->RTSP_RTMP_1
+	VI_ext_5-->VO
 ```
 
 ### RV1126 Dual-IPC
