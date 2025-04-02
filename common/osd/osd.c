@@ -295,7 +295,7 @@ static void *osd_time_server(void *arg) {
 		LOG_ERROR("rk_osd_bmp_create_ fail\n");
 		g_osd_time_server_run_ = 0;
 		free(osd_data.buffer);
-		return -1;
+		return NULL;
 	}
 	g_osd_time_server_run_ = 1;
 
@@ -325,7 +325,7 @@ static void *osd_time_server(void *arg) {
 	}
 	LOG_INFO("exit\n");
 
-	return 0;
+	return NULL;
 }
 
 int rk_osd_init() {
