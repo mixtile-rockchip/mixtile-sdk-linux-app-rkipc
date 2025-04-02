@@ -390,9 +390,9 @@ static void main_view_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_text_color(main_view_ctrl.bat_status_obj, lv_color_hex(0xffffff), 0);
 
 	main_view_ctrl.cap_obj = lv_label_create(page_obj);
-	lv_obj_set_style_text_font(main_view_ctrl.cap_obj, ttf_info_32.font, 0);
+	lv_obj_set_style_text_font(main_view_ctrl.cap_obj, &lv_font_montserrat_48, 0);
 	lv_obj_set_style_text_color(main_view_ctrl.cap_obj, lv_color_hex(0xffffff), 0);
-	lv_obj_set_style_width(main_view_ctrl.cap_obj, lv_pct(60), 0);
+	lv_obj_set_style_width(main_view_ctrl.cap_obj, lv_pct(20), 0);
 	lv_obj_align(main_view_ctrl.cap_obj, LV_ALIGN_CENTER, 0, 0);
 	lv_obj_set_style_bg_opa(main_view_ctrl.cap_obj, LV_OPA_TRANSP, 0);
 	lv_label_set_text_fmt(main_view_ctrl.cap_obj, "");

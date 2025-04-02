@@ -80,7 +80,7 @@ lv_obj_t *ui_dialog_create(const char *head_title, const char *content) {
 
 	bg_color = lv_color_hex(0xFF222D30);
 	obj_bg = obj = lv_obj_create(obj);
-	lv_obj_set_size(obj, lv_pct(50), lv_pct(50));
+	lv_obj_set_size(obj, lv_pct(50), lv_pct(40));
 	lv_obj_align(obj, LV_ALIGN_CENTER, 0, 0);
 	lv_obj_set_style_bg_color(obj, bg_color, 0);
 	lv_obj_set_style_border_color(obj, bg_color, 0);
@@ -105,6 +105,7 @@ lv_obj_t *ui_dialog_create(const char *head_title, const char *content) {
 
 	obj = lv_label_create(obj_bg);
 	lv_label_set_text(obj, LV_SYMBOL_WARNING);
+	lv_obj_set_style_text_font(obj, &lv_font_montserrat_48, 0);
 	lv_obj_set_style_text_color(obj, lv_palette_main(LV_PALETTE_YELLOW), 0);
 	lv_obj_add_flag(obj, LV_OBJ_FLAG_IGNORE_LAYOUT);
 	lv_obj_align(obj, LV_ALIGN_TOP_RIGHT, 0, 0);

@@ -81,6 +81,7 @@ static void return_event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
 
+	LOG_INFO("enter\n");
 	if (code == LV_EVENT_CLICKED) {
 		ui_page_pop_page();
 	}
@@ -90,10 +91,6 @@ static void audio_event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			ui_page_pop_page();
-			return;
-		}
 		if (!rk_param_get_int("audio.0:enable", 0)) {
 			ui_dialog_create("WARNING", "当前模式不允许配置AI音频!");
 			// restore focus status
@@ -118,10 +115,6 @@ static void eis_event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			ui_page_pop_page();
-			return;
-		}
 		create_eis_config_box();
 	}
 }
@@ -130,10 +123,6 @@ static void hdr_event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			ui_page_pop_page();
-			return;
-		}
 		if (lv_obj_has_state(obj, LV_STATE_CHECKED))
 			rk_set_hdr(true);
 		else
@@ -145,10 +134,6 @@ static void debug_event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			ui_page_pop_page();
-			return;
-		}
 		if (lv_obj_has_state(obj, LV_STATE_CHECKED))
 			rk_set_eis_debug(true);
 		else
@@ -164,10 +149,6 @@ static void btn_event_cb(lv_event_t *e) {
 	int child_idx = 0, child_cnt = 0;
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			destroy_eis_config_box();
-			return;
-		}
 		if (rk_get_mode() != RK_VIDEO_MODE && rk_get_mode() != RK_PHOTO_MODE) {
 			ui_dialog_create("WARNING", "请先切换到录像或拍照模式!");
 			lv_obj_clear_state(btn, LV_STATE_CHECKED);
@@ -256,7 +237,7 @@ static void create_radio_buttons(lv_obj_t *parent, lv_group_t *g) {
 		lv_checkbox_set_text(btn, options[i]);
 		lv_obj_set_style_text_font(btn, ttf_info_32.font, LV_PART_MAIN);
 		lv_obj_add_style(btn, &btn_style, LV_PART_MAIN);
-		lv_obj_add_style(btn, &btn_focus_style, LV_STATE_FOCUS_KEY);
+		lv_obj_add_style(btn, &btn_focus_style, LV_STATE_FOCUSED);
 
 		lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, LV_PART_INDICATOR);
 		lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
@@ -309,10 +290,6 @@ static void advanced_setup_create_ctrl(lv_obj_t *page_obj) {
 	advanced_setup_ctrl.exit_obj = lv_btn_create(page_obj);
 	lv_obj_set_style_bg_opa(advanced_setup_ctrl.exit_obj, LV_OPA_TRANSP, 0);
 	lv_obj_add_event_cb(advanced_setup_ctrl.exit_obj, return_event_handler, LV_EVENT_CLICKED, NULL);
-	lv_obj_add_event_cb(advanced_setup_ctrl.exit_obj, return_event_handler, LV_EVENT_FOCUSED, NULL);
-	lv_obj_add_event_cb(advanced_setup_ctrl.exit_obj, return_event_handler, LV_EVENT_DEFOCUSED,
-	                    NULL);
-	lv_obj_set_size(advanced_setup_ctrl.exit_obj, lv_pct(100), lv_pct(10));
 	advanced_setup_ctrl.exit_label_obj = lv_label_create(advanced_setup_ctrl.exit_obj);
 
 	advanced_setup_ctrl.container_obj = cont_obj = lv_obj_create(page_obj);
@@ -320,7 +297,6 @@ static void advanced_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_bg_opa(cont_obj, LV_OPA_TRANSP, 0);
 	lv_obj_set_style_border_opa(cont_obj, LV_OPA_TRANSP, 0);
 	lv_obj_set_style_radius(cont_obj, 0, 0);
-	lv_obj_align_to(cont_obj, advanced_setup_ctrl.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
 
 	advanced_setup_ctrl.eis_obj = lv_btn_create(cont_obj);
 	lv_obj_set_size(advanced_setup_ctrl.eis_obj, lv_pct(100), lv_pct(10));
@@ -394,7 +370,7 @@ static void advanced_setup_set_text() {
 	lv_style_set_text_align(&symbol_style, LV_TEXT_ALIGN_LEFT);
 	lv_style_set_outline_opa(&symbol_style, LV_OPA_TRANSP);
 	lv_style_set_outline_width(&symbol_style, 0);
-	lv_style_set_pad_all(&symbol_style, 15);
+	lv_style_set_pad_all(&symbol_style, 30);
 
 	lv_style_reset(&symbol_focus_style);
 	lv_style_init(&symbol_focus_style);
@@ -404,22 +380,25 @@ static void advanced_setup_set_text() {
 	lv_style_set_text_align(&symbol_focus_style, LV_TEXT_ALIGN_LEFT);
 	lv_style_set_outline_opa(&symbol_focus_style, LV_OPA_TRANSP);
 	lv_style_set_outline_width(&symbol_focus_style, 0);
-	lv_style_set_pad_all(&symbol_focus_style, 15);
+	lv_style_set_pad_all(&symbol_focus_style, 30);
 
 	lv_obj_remove_style_all(advanced_setup_ctrl.exit_obj);
 	lv_label_set_text(advanced_setup_ctrl.exit_label_obj, LV_SYMBOL_LEFT);
 	lv_obj_add_style(advanced_setup_ctrl.exit_obj, &symbol_style, 0);
-	lv_obj_add_style(advanced_setup_ctrl.exit_obj, &symbol_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(advanced_setup_ctrl.exit_obj, &symbol_focus_style, LV_STATE_FOCUSED);
 
+	// INFO: set align to the left of the parent after set text
+	lv_obj_align_to(advanced_setup_ctrl.container_obj
+		, advanced_setup_ctrl.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
 	lv_obj_add_style(advanced_setup_ctrl.eis_obj, &option_style, 0);
 	lv_obj_add_style(advanced_setup_ctrl.eis_obj, &option_focus_style,
-	                 LV_PART_MAIN | LV_STATE_FOCUS_KEY);
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_label_set_text(advanced_setup_ctrl.eis_label_obj, "EIS模式");
 
 	lv_checkbox_set_text(advanced_setup_ctrl.hdr_obj, "HDR模式");
 	lv_obj_add_style(advanced_setup_ctrl.hdr_obj, &option_style, 0);
 	lv_obj_add_style(advanced_setup_ctrl.hdr_obj, &option_focus_style,
-	                 LV_PART_MAIN | LV_STATE_FOCUS_KEY);
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_obj_set_style_radius(advanced_setup_ctrl.hdr_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
 	if (rk_get_hdr())
 		lv_obj_add_state(advanced_setup_ctrl.hdr_obj, LV_STATE_CHECKED);
@@ -427,7 +406,7 @@ static void advanced_setup_set_text() {
 	lv_checkbox_set_text(advanced_setup_ctrl.debug_obj, "开发者模式");
 	lv_obj_add_style(advanced_setup_ctrl.debug_obj, &option_style, 0);
 	lv_obj_add_style(advanced_setup_ctrl.debug_obj, &option_focus_style,
-	                 LV_PART_MAIN | LV_STATE_FOCUS_KEY);
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_obj_set_style_radius(advanced_setup_ctrl.debug_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
 	if (rk_get_eis_debug())
 		lv_obj_add_state(advanced_setup_ctrl.debug_obj, LV_STATE_CHECKED);
@@ -435,7 +414,7 @@ static void advanced_setup_set_text() {
 	lv_checkbox_set_text(advanced_setup_ctrl.audio_obj, "AI音频降噪");
 	lv_obj_add_style(advanced_setup_ctrl.audio_obj, &option_style, 0);
 	lv_obj_add_style(advanced_setup_ctrl.audio_obj, &option_focus_style,
-	                 LV_PART_MAIN | LV_STATE_FOCUS_KEY);
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_obj_set_style_radius(advanced_setup_ctrl.audio_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
 	if (rk_param_get_int("audio.0:enable_vqe", 0))
 		lv_obj_add_state(advanced_setup_ctrl.audio_obj, LV_STATE_CHECKED);

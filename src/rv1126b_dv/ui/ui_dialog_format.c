@@ -179,7 +179,7 @@ void ui_format_dialog_create(void) {
 
 	color = lv_palette_darken(LV_PALETTE_GREY, 4);
 	obj_bg = obj = lv_obj_create(obj);
-	lv_obj_set_size(obj, lv_pct(50), lv_pct(50));
+	lv_obj_set_size(obj, lv_pct(40), lv_pct(40));
 	lv_obj_set_style_bg_color(obj, color, 0);
 	lv_obj_set_style_border_color(obj, color, 0);
 	lv_obj_set_style_radius(obj, 0, 0);
@@ -211,12 +211,13 @@ void ui_format_dialog_create(void) {
 	lv_obj_add_event_cb(obj, format_dialog_destroy_event_cb, LV_EVENT_CLICKED, (void *)0);
 	lv_obj_add_event_cb(obj, format_dialog_destroy_event_cb, LV_EVENT_FOCUSED, NULL);
 	lv_obj_add_event_cb(obj, format_dialog_destroy_event_cb, LV_EVENT_DEFOCUSED, NULL);
-	lv_obj_set_size(obj, lv_pct(40), lv_pct(80));
+	lv_obj_set_size(obj, lv_pct(30), LV_SIZE_CONTENT);
 	lv_obj_align(obj, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 
 	obj = lv_label_create(obj);
 	lv_obj_add_style(obj, &symbol_style, 0);
 	lv_label_set_text(obj, LV_SYMBOL_CLOSE);
+	lv_obj_set_style_pad_left(obj, 60, 0);
 
 	obj = lv_btn_create(context_obj);
 	lv_group_add_obj(format_group, obj);
@@ -225,12 +226,13 @@ void ui_format_dialog_create(void) {
 	lv_obj_add_event_cb(obj, format_start_event_cb, LV_EVENT_CLICKED, (void *)0);
 	lv_obj_add_event_cb(obj, format_start_event_cb, LV_EVENT_FOCUSED, NULL);
 	lv_obj_add_event_cb(obj, format_start_event_cb, LV_EVENT_DEFOCUSED, NULL);
-	lv_obj_set_size(obj, lv_pct(40), lv_pct(80));
+	lv_obj_set_size(obj, lv_pct(30), LV_SIZE_CONTENT);
 	lv_obj_align(obj, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 
 	obj = lv_label_create(obj);
 	lv_obj_add_style(obj, &symbol_style, 0);
 	lv_label_set_text(obj, LV_SYMBOL_OK);
+	lv_obj_set_style_pad_left(obj, 60, 0);
 }
 
 void ui_format_dialog_destory() {

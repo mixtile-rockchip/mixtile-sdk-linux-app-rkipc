@@ -153,10 +153,6 @@ static void btn_event_cb(lv_event_t *e) {
 	int child_idx = 0, child_cnt = 0;
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			destroy_mode_select_box();
-			return;
-		}
 		child_cnt = lv_obj_get_child_cnt(parent);
 		while (child_idx < child_cnt) {
 			child = lv_obj_get_child(parent, child_idx);
@@ -239,7 +235,7 @@ static void create_radio_buttons(lv_obj_t *parent, lv_group_t *g) {
 		lv_checkbox_set_text(btn, options[i]);
 		lv_obj_set_style_text_font(btn, ttf_info_32.font, LV_PART_MAIN);
 		lv_obj_add_style(btn, &btn_style, LV_PART_MAIN);
-		lv_obj_add_style(btn, &btn_focus_style, LV_STATE_FOCUS_KEY);
+		lv_obj_add_style(btn, &btn_focus_style, LV_STATE_FOCUSED);
 
 		lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, LV_PART_INDICATOR);
 		lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
@@ -279,10 +275,6 @@ static void mode_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			lv_event_send(settings_ctrl.exit_obj, LV_EVENT_CLICKED, NULL);
-			return;
-		}
 		create_mode_select_box();
 	}
 }
@@ -292,10 +284,6 @@ static void fps_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			lv_event_send(settings_ctrl.exit_obj, LV_EVENT_CLICKED, NULL);
-			return;
-		}
 		if (rk_get_mode() != RK_VIDEO_MODE) {
 			ui_dialog_create("WARNING", "请先切换到录像模式!");
 			return;
@@ -313,10 +301,6 @@ static void capture_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			lv_event_send(settings_ctrl.exit_obj, LV_EVENT_CLICKED, NULL);
-			return;
-		}
 		if (rk_get_mode() != RK_PHOTO_MODE) {
 			ui_dialog_create("WARNING", "请先切换到拍照模式!");
 			return;
@@ -336,10 +320,6 @@ static void set_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			lv_event_send(settings_ctrl.exit_obj, LV_EVENT_CLICKED, NULL);
-			return;
-		}
 		ui_page_push_page("advanced_setup", NULL);
 	}
 }
@@ -349,10 +329,6 @@ static void store_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			lv_event_send(settings_ctrl.exit_obj, LV_EVENT_CLICKED, NULL);
-			return;
-		}
 		switch (rkipc_storage_dev_mount_status_get()) {
 		case DISK_UNMOUNTED:
 			ui_nosdcard_dialog_create();
@@ -378,10 +354,6 @@ static void format_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			lv_event_send(settings_ctrl.exit_obj, LV_EVENT_CLICKED, NULL);
-			return;
-		}
 		switch (rkipc_storage_dev_mount_status_get()) {
 		case DISK_UNMOUNTED:
 			ui_nosdcard_dialog_create();
@@ -412,52 +384,48 @@ static void setting_layout(void) {
 	                               LV_GRID_TEMPLATE_LAST};
 	static lv_coord_t row_dsc[] = {LV_GRID_FR(1), LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_FR(1),
 	                               LV_GRID_TEMPLATE_LAST};
-
 	lv_obj_set_layout(settings_ctrl.container_obj, LV_LAYOUT_GRID);
 
 	lv_obj_set_style_grid_column_dsc_array(settings_ctrl.container_obj, col_dsc, 0);
 	lv_obj_set_style_grid_row_dsc_array(settings_ctrl.container_obj, row_dsc, 0);
 
-	lv_obj_set_grid_cell(settings_ctrl.exit_obj, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_CENTER, 0,
-	                     1);
-
 	lv_obj_set_grid_cell(settings_ctrl.mode_imgbtn_obj, LV_GRID_ALIGN_CENTER, 0, 1,
-	                     LV_GRID_ALIGN_CENTER, 1, 1);
+	                     LV_GRID_ALIGN_CENTER, 0, 1);
 
 	lv_obj_set_grid_cell(settings_ctrl.fps_imgbtn_obj, LV_GRID_ALIGN_CENTER, 1, 1,
-	                     LV_GRID_ALIGN_CENTER, 1, 1);
+	                     LV_GRID_ALIGN_CENTER, 0, 1);
 
 	lv_obj_set_grid_cell(settings_ctrl.cap_imgbtn_obj, LV_GRID_ALIGN_CENTER, 2, 1,
-	                     LV_GRID_ALIGN_CENTER, 1, 1);
+	                     LV_GRID_ALIGN_CENTER, 0, 1);
 
 	lv_obj_set_grid_cell(settings_ctrl.set_imgbtn_obj, LV_GRID_ALIGN_CENTER, 3, 1,
-	                     LV_GRID_ALIGN_CENTER, 1, 1);
+	                     LV_GRID_ALIGN_CENTER, 0, 1);
 
 	lv_obj_set_grid_cell(settings_ctrl.store_imgbtn_obj, LV_GRID_ALIGN_CENTER, 0, 1,
-	                     LV_GRID_ALIGN_CENTER, 2, 1);
+	                     LV_GRID_ALIGN_CENTER, 1, 1);
 
 	lv_obj_set_grid_cell(settings_ctrl.format_imgbtn_obj, LV_GRID_ALIGN_CENTER, 1, 1,
-	                     LV_GRID_ALIGN_CENTER, 2, 1);
+	                     LV_GRID_ALIGN_CENTER, 1, 1);
 }
 
 static void setting_create_ctrl(lv_obj_t *page_obj) {
 	lv_color_t bg_color = lv_color_hex(0xFF04171D);
 	lv_obj_t *cont_obj = NULL, *imgbtn_obj = NULL, *img_obj = NULL, *label_obj = NULL;
 
-	lv_obj_set_style_bg_opa(page_obj, LV_OPA_TRANSP, 0);
 	lv_disp_set_bg_opa(NULL, LV_OPA_TRANSP);
+	lv_obj_set_style_bg_opa(page_obj, LV_OPA_COVER, 0);
+	lv_obj_set_style_bg_color(page_obj, bg_color, 0);
 
-	settings_ctrl.container_obj = cont_obj = lv_obj_create(page_obj);
-	lv_obj_set_size(cont_obj, lv_pct(100), lv_pct(100));
-	lv_obj_align(cont_obj, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
-	lv_obj_set_style_bg_color(cont_obj, bg_color, 0);
-	lv_obj_set_style_border_color(cont_obj, bg_color, 0);
-	lv_obj_set_style_radius(cont_obj, 0, 0);
-
-	settings_ctrl.exit_obj = lv_btn_create(cont_obj);
+	settings_ctrl.exit_obj = lv_btn_create(page_obj);
 	lv_obj_set_style_bg_opa(settings_ctrl.exit_obj, LV_OPA_TRANSP, 0);
 	lv_obj_add_event_cb(settings_ctrl.exit_obj, return_event_handler, LV_EVENT_CLICKED, NULL);
 	settings_ctrl.exit_label_obj = lv_label_create(settings_ctrl.exit_obj);
+
+	settings_ctrl.container_obj = cont_obj = lv_obj_create(page_obj);
+	lv_obj_set_size(cont_obj, lv_pct(100), lv_pct(100));
+	lv_obj_set_style_bg_opa(cont_obj, LV_OPA_TRANSP, 0);
+	lv_obj_set_style_border_opa(cont_obj, LV_OPA_TRANSP, 0);
+	lv_obj_set_style_radius(cont_obj, 0, 0);
 
 	settings_ctrl.mode_imgbtn_obj = imgbtn_obj = lv_imgbtn_create(cont_obj);
 	lv_obj_add_event_cb(imgbtn_obj, mode_event_handler, LV_EVENT_CLICKED, NULL);
@@ -558,7 +526,7 @@ static void setting_set_text() {
 	lv_style_set_text_align(&symbol_style, LV_TEXT_ALIGN_LEFT);
 	lv_style_set_outline_opa(&symbol_style, LV_OPA_TRANSP);
 	lv_style_set_outline_width(&symbol_style, 0);
-	lv_style_set_pad_all(&symbol_style, 5);
+	lv_style_set_pad_all(&symbol_style, 30);
 
 	lv_style_reset(&symbol_focus_style);
 	lv_style_init(&symbol_focus_style);
@@ -568,7 +536,7 @@ static void setting_set_text() {
 	lv_style_set_text_align(&symbol_focus_style, LV_TEXT_ALIGN_LEFT);
 	lv_style_set_outline_opa(&symbol_focus_style, LV_OPA_TRANSP);
 	lv_style_set_outline_width(&symbol_focus_style, 0);
-	lv_style_set_pad_all(&symbol_focus_style, 5);
+	lv_style_set_pad_all(&symbol_focus_style, 30);
 
 	lv_style_reset(&icon_style);
 	lv_style_init(&icon_style);
@@ -583,19 +551,27 @@ static void setting_set_text() {
 	lv_style_set_pad_top(&icon_style, 7);
 	lv_style_set_pad_bottom(&icon_style, 7);
 
+	lv_obj_remove_style_all(settings_ctrl.exit_obj);
+	lv_label_set_text(settings_ctrl.exit_label_obj, LV_SYMBOL_LEFT);
+	lv_obj_add_style(settings_ctrl.exit_obj, &symbol_style, 0);
+	lv_obj_add_style(settings_ctrl.exit_obj, &symbol_focus_style, LV_STATE_FOCUSED);
+	// INFO: set align to the left of the parent after set text
+	lv_obj_align_to(settings_ctrl.container_obj
+		, settings_ctrl.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
+
 	// add style for button
 	lv_obj_add_style(settings_ctrl.mode_imgbtn_obj, &btn_style, 0);
-	lv_obj_add_style(settings_ctrl.mode_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(settings_ctrl.mode_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 	lv_obj_add_style(settings_ctrl.fps_imgbtn_obj, &btn_style, 0);
-	lv_obj_add_style(settings_ctrl.fps_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(settings_ctrl.fps_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 	lv_obj_add_style(settings_ctrl.cap_imgbtn_obj, &btn_style, 0);
-	lv_obj_add_style(settings_ctrl.cap_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(settings_ctrl.cap_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 	lv_obj_add_style(settings_ctrl.set_imgbtn_obj, &btn_style, 0);
-	lv_obj_add_style(settings_ctrl.set_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(settings_ctrl.set_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 	lv_obj_add_style(settings_ctrl.store_imgbtn_obj, &btn_style, 0);
-	lv_obj_add_style(settings_ctrl.store_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(settings_ctrl.store_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 	lv_obj_add_style(settings_ctrl.format_imgbtn_obj, &btn_style, 0);
-	lv_obj_add_style(settings_ctrl.format_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(settings_ctrl.format_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 
 	// add style for text
 	if (rk_get_mode() == RK_VIDEO_MODE)
@@ -623,11 +599,6 @@ static void setting_set_text() {
 
 	lv_label_set_text(settings_ctrl.format_label_obj, "格式化");
 	lv_obj_add_style(settings_ctrl.format_label_obj, &style, 0);
-
-	lv_obj_remove_style_all(settings_ctrl.exit_obj);
-	lv_label_set_text(settings_ctrl.exit_label_obj, LV_SYMBOL_LEFT);
-	lv_obj_add_style(settings_ctrl.exit_obj, &symbol_style, 0);
-	lv_obj_add_style(settings_ctrl.exit_obj, &symbol_focus_style, LV_STATE_FOCUS_KEY);
 
 	lv_label_set_text(settings_ctrl.cap_img_obj, "5P1S");
 	lv_obj_add_style(settings_ctrl.cap_img_obj, &icon_style, 0);

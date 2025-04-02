@@ -53,7 +53,7 @@ typedef struct {
 	lv_obj_t *name_obj;
 
 	lv_group_t *group;
-	int cur_file_index;
+	size_t cur_file_index;
 	struct file_list list;
 } ui_photo_player_context_t;
 
@@ -92,8 +92,8 @@ static int32_t photo_play(void) {
 		memset(&config, 0, sizeof(config));
 		memset(&data, 0, sizeof(data));
 		config.file_path = photo_player_ctx.file_info.path;
-		config.output_width = 320;
-		config.output_height = 192;
+		config.output_width = 1920;
+		config.output_height = 1080;
 		config.output_format = RK_FMT_BGRA8888;
 		ret = rk_player_get_photo(&config, &data);
 		if (ret == 0) {
@@ -209,7 +209,7 @@ static void photo_player_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_text_align(obj, LV_TEXT_ALIGN_CENTER, 0);
 
 	photo_player_ctx.img_obj = obj = lv_img_create(page_obj);
-	lv_obj_set_size(obj, 320, 192);
+	lv_obj_set_size(obj, lv_pct(100), lv_pct(100));
 	lv_obj_align(obj, LV_ALIGN_CENTER, 0, 0);
 	lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);
 	lv_obj_align_to(obj, photo_player_ctx.name_obj, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
@@ -217,7 +217,7 @@ static void photo_player_create_ctrl(lv_obj_t *page_obj) {
 	photo_player_ctx.esc_obj = obj = lv_btn_create(page_obj);
 	lv_obj_remove_style_all(obj);
 	lv_obj_add_style(obj, &symbol_style, 0);
-	lv_obj_add_style(obj, &symbol_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(obj, &symbol_focus_style, LV_STATE_FOCUSED);
 	lv_obj_align(obj, LV_ALIGN_TOP_LEFT, 0, 0);
 	lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);
 	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_FOCUSED, (void *)UI_CTRL_ESC);
@@ -229,7 +229,7 @@ static void photo_player_create_ctrl(lv_obj_t *page_obj) {
 	photo_player_ctx.prev_obj = obj = lv_btn_create(page_obj);
 	lv_obj_remove_style_all(obj);
 	lv_obj_add_style(obj, &symbol_style, 0);
-	lv_obj_add_style(obj, &symbol_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(obj, &symbol_focus_style, LV_STATE_FOCUSED);
 	lv_obj_align(obj, LV_ALIGN_LEFT_MID, 0, 0);
 	lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);
 	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_FOCUSED, (void *)UI_CTRL_PREV);
@@ -241,7 +241,7 @@ static void photo_player_create_ctrl(lv_obj_t *page_obj) {
 	photo_player_ctx.next_obj = obj = lv_btn_create(page_obj);
 	lv_obj_remove_style_all(obj);
 	lv_obj_add_style(obj, &symbol_style, 0);
-	lv_obj_add_style(obj, &symbol_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(obj, &symbol_focus_style, LV_STATE_FOCUSED);
 	lv_obj_align(obj, LV_ALIGN_RIGHT_MID, 0, 0);
 	lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);
 	lv_obj_add_event_cb(obj, menu_event_cb, LV_EVENT_FOCUSED, (void *)UI_CTRL_NEXT);
@@ -289,7 +289,7 @@ static void photo_player_param_init(lv_obj_t *page_obj) {
 		LOG_WARN("File list not obtained.\n");
 		return;
 	}
-	photo_player_ctx.cur_file_index = (uint64_t)lv_obj_get_user_data(page_obj);
+	photo_player_ctx.cur_file_index = (size_t)lv_obj_get_user_data(page_obj);
 
 	if (photo_player_ctx.cur_file_index < photo_player_ctx.list.count) {
 		LOG_INFO("load file index %d\n", photo_player_ctx.cur_file_index);

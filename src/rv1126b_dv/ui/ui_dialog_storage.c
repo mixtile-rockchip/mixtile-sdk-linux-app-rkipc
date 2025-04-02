@@ -104,7 +104,7 @@ void ui_storage_status_dialog_create(void) {
 
 	color.full = 0xFF222D30;
 	obj_bg = obj = lv_obj_create(obj);
-	lv_obj_set_size(obj, lv_pct(70), lv_pct(60));
+	lv_obj_set_size(obj, lv_pct(50), lv_pct(40));
 	lv_obj_set_style_bg_color(obj, color, 0);
 	lv_obj_set_style_border_color(obj, color, 0);
 	lv_obj_set_style_radius(obj, 0, 0);
@@ -125,6 +125,7 @@ void ui_storage_status_dialog_create(void) {
 
 	obj = lv_label_create(obj_bg);
 	lv_label_set_text(obj, LV_SYMBOL_SD_CARD);
+	lv_obj_set_style_text_font(obj, &lv_font_montserrat_48, 0);
 	lv_obj_set_style_text_color(obj, lv_palette_main(LV_PALETTE_BLUE), 0);
 	lv_obj_add_flag(obj, LV_OBJ_FLAG_IGNORE_LAYOUT);
 	lv_obj_align(obj, LV_ALIGN_TOP_RIGHT, 0, 0);
@@ -145,7 +146,7 @@ void ui_storage_status_dialog_create(void) {
 	lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
 	lv_obj_set_style_text_font(obj, ttf_info_32.font, 0);
 	lv_obj_set_style_text_color(obj, text_color, 0);
-	lv_obj_set_style_text_align(obj, LV_TEXT_ALIGN_RIGHT, 0);
+	lv_obj_set_style_text_align(obj, LV_TEXT_ALIGN_CENTER, 0);
 	lv_obj_set_width(obj, lv_pct(100));
 
 	storage_progress_bar_obj = obj = lv_bar_create(context_obj);

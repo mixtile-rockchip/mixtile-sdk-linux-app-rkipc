@@ -52,9 +52,7 @@ typedef struct {
 } ui_playlist_context_t;
 
 static lv_style_t style_btn;
-static lv_style_t style_btn_pr;
 static lv_style_t style_btn_chk;
-static lv_style_t style_btn_dis;
 static lv_style_t style_title;
 static lv_style_t style_lable;
 static lv_style_t style_time;
@@ -68,62 +66,10 @@ extern lv_ft_info_t ttf_info_32;
 #define LINE_NUM 20
 #define LIST_ITEM_HEIGHT 100
 
-static void list_btn_check_next() {
-	if (NULL == playlist_ctx.cur_btn)
-		return;
-
-	lv_obj_t *next_btn_obj = NULL, *cur_btn_obj = NULL;
-	int32_t cur_btn_id, next_btn_id;
-	int child_cnt = lv_obj_get_child_cnt(playlist_ctx.list_obj);
-	if (child_cnt <= 0)
-		return;
-
-	cur_btn_obj = playlist_ctx.cur_btn;
-	cur_btn_id = lv_obj_get_index(cur_btn_obj);
-
-	next_btn_id = (cur_btn_id + 1) % child_cnt;
-	next_btn_obj = lv_obj_get_child(playlist_ctx.list_obj, next_btn_id);
-	if (NULL == next_btn_obj)
-		return;
-
-	playlist_ctx.cur_btn = next_btn_obj;
-	lv_obj_remove_style(cur_btn_obj, &style_btn_chk, 0);
-	lv_obj_add_style(next_btn_obj, &style_btn_chk, 0);
-	lv_obj_scroll_to_view(next_btn_obj, LV_ANIM_OFF);
-}
-
-static void list_btn_check_prev() {
-	if (NULL == playlist_ctx.cur_btn)
-		return;
-
-	lv_obj_t *next_btn_obj = NULL, *cur_btn_obj = NULL;
-	int32_t cur_btn_id, next_btn_id;
-
-	cur_btn_obj = playlist_ctx.cur_btn;
-	cur_btn_id = lv_obj_get_index(cur_btn_obj);
-
-	next_btn_id = cur_btn_id - 1;
-	if (0 > next_btn_id) {
-		int child_cnt = lv_obj_get_child_cnt(playlist_ctx.list_obj);
-		if (child_cnt <= 0)
-			return;
-		next_btn_id = child_cnt - 1;
-	}
-
-	next_btn_obj = lv_obj_get_child(playlist_ctx.list_obj, next_btn_id);
-	if (NULL == next_btn_obj)
-		return;
-
-	playlist_ctx.cur_btn = next_btn_obj;
-	lv_obj_remove_style(cur_btn_obj, &style_btn_chk, 0);
-	lv_obj_add_style(next_btn_obj, &style_btn_chk, 0);
-	lv_obj_scroll_to_view(next_btn_obj, LV_ANIM_OFF);
-}
-
 static void btn_click_event_cb(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
-	uint32_t track_id = (uint64_t)lv_obj_get_user_data(obj);
+	size_t track_id = (size_t)lv_obj_get_user_data(obj);
 
 	if (code == LV_EVENT_CLICKED) {
 		player_file_info_t file_info;
@@ -135,7 +81,7 @@ static void btn_click_event_cb(lv_event_t *e) {
 			if (playlist_ctx.mode != RK_PHOTO_MODE)
 				ui_page_push_page("video_player", &file_info);
 			else
-				ui_page_push_page("photo_player", (void *)((uint64_t)track_id));
+				ui_page_push_page("photo_player", (void *)(track_id));
 			switch_from_player = true;
 		}
 	}
@@ -157,8 +103,9 @@ static lv_obj_t *add_list_btn(lv_obj_t *parent, uint32_t track_id) {
 	lv_obj_remove_style_all(btn);
 	lv_obj_set_size(btn, lv_pct(100), LIST_ITEM_HEIGHT);
 	lv_obj_set_pos(btn, 0, LIST_ITEM_HEIGHT * track_id);
-	lv_obj_set_user_data(btn, (void *)((uint64_t)track_id));
+	lv_obj_set_user_data(btn, (void *)(track_id));
 	lv_obj_add_style(btn, &style_btn, 0);
+	lv_obj_add_style(btn, &style_btn_chk, LV_STATE_FOCUSED);
 	lv_obj_add_event_cb(btn, btn_click_event_cb, LV_EVENT_CLICKED, NULL);
 
 	lv_obj_t *icon = lv_label_create(btn);
@@ -210,10 +157,10 @@ static void scroll_event_cb(lv_event_t *e) {
 
 	if (step_size > 0) {
 		int32_t actual_step_size = 0;
-		uint32_t track_id = 0;
+		size_t track_id = 0;
 
 		child = lv_obj_get_child(obj, -1);
-		track_id = (uint64_t)lv_obj_get_user_data(child);
+		track_id = (size_t)lv_obj_get_user_data(child);
 		while (++track_id < playlist_ctx.list.count && actual_step_size < step_size) {
 			actual_step_size++;
 			add_list_btn(playlist_ctx.list_obj, track_id);
@@ -231,10 +178,10 @@ static void scroll_event_cb(lv_event_t *e) {
 		return;
 	} else {
 		int32_t actual_step_size = 0;
-		uint32_t track_id = 0;
+		size_t track_id = 0;
 
 		child = lv_obj_get_child(obj, 0);
-		track_id = (uint64_t)lv_obj_get_user_data(child);
+		track_id = (size_t)lv_obj_get_user_data(child);
 
 		while (--track_id >= 0 && actual_step_size > step_size) {
 			actual_step_size--;
@@ -291,15 +238,16 @@ static void playlist_create_ctrl(lv_obj_t *page_obj) {
 	lv_style_set_text_font(&symbol_style, &lv_font_montserrat_48);
 	lv_style_set_text_color(&symbol_style, text_color);
 	lv_style_set_text_align(&symbol_style, LV_TEXT_ALIGN_CENTER);
+	lv_style_set_pad_all(&symbol_style, 5);
 
 	obj = page_obj;
 	// HACK: there has a style bug, workaround here.
 	if (switch_from_player) {
 		lv_disp_set_bg_opa(NULL, LV_OPA_COVER);
-		lv_disp_set_bg_color(NULL, lv_color_hex(0x343247));
+		lv_disp_set_bg_color(NULL, lv_color_hex(0xFF04171D));
 		switch_from_player = false;
 	} else {
-		lv_obj_set_style_bg_color(obj, lv_color_hex(0x343247), 0);
+		lv_obj_set_style_bg_color(obj, lv_color_hex(0xFF04171D), 0);
 	}
 
 	playlist_ctx.menu_obj = obj = lv_obj_create(page_obj);
@@ -309,11 +257,10 @@ static void playlist_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_radius(obj, 0, 0);
 
 	playlist_ctx.exit_obj = lv_btn_create(playlist_ctx.menu_obj);
+	lv_obj_remove_style_all(playlist_ctx.exit_obj);
 	lv_obj_set_width(playlist_ctx.exit_obj, lv_pct(10));
 	lv_obj_set_style_bg_opa(playlist_ctx.exit_obj, LV_OPA_TRANSP, 0);
 	lv_obj_add_event_cb(playlist_ctx.exit_obj, return_event_handler, LV_EVENT_CLICKED, NULL);
-	lv_obj_add_event_cb(playlist_ctx.exit_obj, return_event_handler, LV_EVENT_FOCUSED, NULL);
-	lv_obj_add_event_cb(playlist_ctx.exit_obj, return_event_handler, LV_EVENT_DEFOCUSED, NULL);
 	playlist_ctx.exit_label_obj = lv_label_create(playlist_ctx.exit_obj);
 	lv_obj_remove_style_all(playlist_ctx.exit_label_obj);
 	lv_label_set_text(playlist_ctx.exit_label_obj, LV_SYMBOL_LEFT);
@@ -344,23 +291,14 @@ static void playlist_create_ctrl(lv_obj_t *page_obj) {
 	lv_style_set_layout(&style_btn, LV_LAYOUT_GRID);
 	lv_style_set_pad_right(&style_btn, 20);
 
-	lv_style_reset(&style_btn_pr);
-	lv_style_init(&style_btn_pr);
-	lv_style_set_bg_opa(&style_btn_pr, LV_OPA_COVER);
-	lv_style_set_bg_color(&style_btn_pr, lv_color_hex(0x4c4965));
-
 	lv_style_reset(&style_btn_chk);
 	lv_style_init(&style_btn_chk);
 	lv_style_set_bg_opa(&style_btn_chk, LV_OPA_COVER);
 	lv_style_set_bg_color(&style_btn_chk, lv_color_hex(0x4c4965));
 
-	lv_style_reset(&style_btn_dis);
-	lv_style_init(&style_btn_dis);
-	lv_style_set_text_opa(&style_btn_dis, LV_OPA_40);
-	lv_style_set_img_opa(&style_btn_dis, LV_OPA_40);
-
 	lv_style_reset(&style_title);
 	lv_style_init(&style_title);
+	lv_style_set_text_font(&style_title, ttf_info_32.font);
 	lv_style_set_text_color(&style_title, lv_color_hex(0xffffff));
 
 	memset(&style_lable, 0, sizeof(style_lable));
@@ -448,12 +386,6 @@ static int32_t playlist_load_list(void) {
 	uint32_t track_id = 0;
 	for (track_id = 0; (track_id < playlist_ctx.list.count) && (track_id < LINE_NUM); track_id++)
 		add_list_btn(playlist_ctx.list_obj, track_id);
-
-	if (playlist_ctx.list.count > 0) {
-		playlist_ctx.cur_btn = lv_obj_get_child(playlist_ctx.list_obj, 0);
-		lv_obj_add_style(playlist_ctx.cur_btn, &style_btn_chk, 0);
-	}
-
 	return 0;
 }
 

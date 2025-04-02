@@ -96,7 +96,6 @@ static void gallery_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_bg_color(page_obj, bg_color, 0);
 
 	gallery_ctx.exit_obj = lv_btn_create(page_obj);
-	lv_obj_set_size(gallery_ctx.exit_obj, lv_pct(10), lv_pct(10));
 	lv_obj_set_style_bg_opa(gallery_ctx.exit_obj, LV_OPA_TRANSP, 0);
 	lv_obj_add_event_cb(gallery_ctx.exit_obj, return_event_handler, LV_EVENT_CLICKED, NULL);
 	lv_obj_add_event_cb(gallery_ctx.exit_obj, return_event_handler, LV_EVENT_FOCUSED, NULL);
@@ -108,7 +107,6 @@ static void gallery_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_bg_opa(gallery_ctx.container_obj, LV_OPA_TRANSP, 0);
 	lv_obj_set_style_border_opa(cont_obj, LV_OPA_TRANSP, 0);
 	lv_obj_set_style_radius(cont_obj, 0, 0);
-	lv_obj_align_to(cont_obj, gallery_ctx.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0, -30);
 
 	gallery_ctx.video_btn_obj = btn_obj = lv_btn_create(cont_obj);
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_CLICKED, (void *)RK_VIDEO_MODE);
@@ -193,7 +191,7 @@ static void gallery_set_text(void) {
 	lv_style_set_text_align(&symbol_style, LV_TEXT_ALIGN_LEFT);
 	lv_style_set_outline_opa(&symbol_style, LV_OPA_TRANSP);
 	lv_style_set_outline_width(&symbol_style, 0);
-	lv_style_set_pad_all(&symbol_style, 5);
+	lv_style_set_pad_all(&symbol_style, 30);
 
 	lv_style_reset(&symbol_focus_style);
 	lv_style_init(&symbol_focus_style);
@@ -203,30 +201,34 @@ static void gallery_set_text(void) {
 	lv_style_set_text_align(&symbol_focus_style, LV_TEXT_ALIGN_LEFT);
 	lv_style_set_outline_opa(&symbol_focus_style, LV_OPA_TRANSP);
 	lv_style_set_outline_width(&symbol_focus_style, 0);
-	lv_style_set_pad_all(&symbol_focus_style, 5);
+	lv_style_set_pad_all(&symbol_focus_style, 30);
 
 	lv_obj_remove_style_all(gallery_ctx.exit_obj);
 	lv_label_set_text(gallery_ctx.exit_label_obj, LV_SYMBOL_LEFT);
 	lv_obj_add_style(gallery_ctx.exit_obj, &symbol_style, 0);
-	lv_obj_add_style(gallery_ctx.exit_obj, &symbol_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(gallery_ctx.exit_obj, &symbol_focus_style, LV_STATE_FOCUSED);
+
+	// INFO: set align to the left of the parent after set text
+	lv_obj_align_to(gallery_ctx.container_obj
+		, gallery_ctx.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
 
 	lv_obj_add_style(gallery_ctx.video_btn_obj, &btn_style, 0);
-	lv_obj_add_style(gallery_ctx.video_btn_obj, &btn_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(gallery_ctx.video_btn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 	lv_label_set_text(gallery_ctx.video_label_obj, "录像");
 	lv_obj_add_style(gallery_ctx.video_label_obj, &text_style, 0);
 
 	lv_obj_add_style(gallery_ctx.photo_btn_obj, &btn_style, 0);
-	lv_obj_add_style(gallery_ctx.photo_btn_obj, &btn_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(gallery_ctx.photo_btn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 	lv_label_set_text(gallery_ctx.photo_label_obj, "照片");
 	lv_obj_add_style(gallery_ctx.photo_label_obj, &text_style, 0);
 
 	lv_obj_add_style(gallery_ctx.slowmotion_btn_obj, &btn_style, 0);
-	lv_obj_add_style(gallery_ctx.slowmotion_btn_obj, &btn_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(gallery_ctx.slowmotion_btn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 	lv_label_set_text(gallery_ctx.slowmotion_label_obj, "慢动作回放");
 	lv_obj_add_style(gallery_ctx.slowmotion_label_obj, &text_style, 0);
 
 	lv_obj_add_style(gallery_ctx.timelapse_btn_obj, &btn_style, 0);
-	lv_obj_add_style(gallery_ctx.timelapse_btn_obj, &btn_focus_style, LV_STATE_FOCUS_KEY);
+	lv_obj_add_style(gallery_ctx.timelapse_btn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 	lv_label_set_text(gallery_ctx.timelapse_label_obj, "延时录像");
 	lv_obj_add_style(gallery_ctx.timelapse_label_obj, &text_style, 0);
 }
