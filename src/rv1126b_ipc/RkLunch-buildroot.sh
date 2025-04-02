@@ -55,7 +55,7 @@ post_chk()
 	default_rkipc_ini=/tmp/rkipc-factory-config.ini
 
 	if [ ! -f "/usr/share/rkipc.ini" ]; then
-		ln -s -f /usr/share/rkipc-2688x1520-buildroot.ini $default_rkipc_ini
+		ln -s -f /usr/share/rkipc-2688x1520.ini $default_rkipc_ini
 	fi
 	tmp_md5=/tmp/.rkipc-ini.md5sum
 	data_md5=/userdata/.rkipc-default.md5sum
