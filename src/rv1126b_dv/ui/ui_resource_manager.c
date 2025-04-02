@@ -75,7 +75,7 @@ static int32_t ui_font_init(lv_ft_info_t *info, uint32_t weight) {
 		return -1;
 	}
 
-	info->name = "/oem/usr/share/SourceHanSansCN.ttf";
+	info->name = "/oem/usr/share/PuHuiTi.ttf";
 	info->weight = weight;
 	info->style = FT_FONT_STYLE_NORMAL;
 

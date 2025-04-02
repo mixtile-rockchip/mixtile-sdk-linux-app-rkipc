@@ -93,7 +93,7 @@ file(GLOB EIS_CONFIG_FILES video/rkeis_config*)
 install(FILES ${EIS_CONFIG_FILES} DESTINATION share)
 install(PROGRAMS RkLunch.sh DESTINATION bin)
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)
-install(FILES res/font/PuHuiTi.ttf DESTINATION share)
+install(FILES ${PROJECT_SOURCE_DIR}/common/osd/PuHuiTi.ttf DESTINATION share)
 install(FILES asound.conf DESTINATION etc)
 
 file(GLOB ICON_FILES res/ui/*)
