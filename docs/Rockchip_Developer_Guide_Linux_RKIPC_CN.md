@@ -2,9 +2,9 @@
 
 文件标识：RK-KF-YF-937
 
-发布版本：V1.7.2
+发布版本：V1.7.3
 
-日期：2025-03-25
+日期：2025-04-03
 
 文件密级：□绝密   □秘密   □内部资料   ■公开
 
@@ -96,6 +96,7 @@ Rockchip Electronics Co., Ltd.
 | V1.7.0     | Fenrir Lin | 2025-01-06   | 新增RK3576 DV的流程框图                                      |
 | V1.7.1     | Yu Zheng   | 2025-02-12   | 修改RK3576DV的流程框图和部分参数说明<br/>增加播放显示模块API介绍 |
 | V1.7.2     | Fenrir Lin | 2025-03-25   | 新增RV1126B IPC的流程框图                                    |
+| V1.7.3     | Fenrir Lin | 2025-04-03   | 新增RV1126B Dual-IPC的流程框图                               |
 
 ---
 
@@ -130,6 +131,7 @@ Rockchip Electronics Co., Ltd.
 | rk3576_ipc                | rockit、rkaiq    | 针对RK3576平台的单目IPC产品，支持网页和rtsp/rtmp预览，参数动态修改。 |
 | rk3576_muliti_ipc         | rockit、rkaiq    | 针对RK3576平台的多目IPC产品，支持网页和rtsp/rtmp预览，参数动态修改。 |
 | rv1126b_ipc               | rockit、rkaiq    | 针对RV1126B平台的单目IPC产品，支持网页和rtsp/rtmp预览，参数动态修改。 |
+| rv1126b_dual_ipc          | rockit、rkaiq    | 针对RV1126B平台的双目IPC产品，支持网页和rtsp/rtmp预览，参数动态修改。 |
 
 ### RV1103 IPC
 
@@ -389,8 +391,18 @@ graph LR
 	VI_1--get and send-->NPU
 	VI_1--bind-->IVS_for_OD_MD
 	VENC_0_draw_nn_result-->RTSP_RTMP_0
-	VI_ext_3--vpss-->VENC_1-->RTSP_RTMP_1
-	VI_ext_4--vpss-->VO
+	VI_ext_3--vpss scale1-->VENC_1-->RTSP_RTMP_1
+	VI_ext_4--vpss scale0-->VO
+```
+
+### RV1126 Dual-IPC
+
+```mermaid
+graph LR
+       VI_0_0-->VENC_0-->RTSP_0
+       VI_0_4-->VO
+       VI_1_0-->VENC_1-->RTSP_1
+       VI_1_4-->VO
 ```
 
 ## 代码结构
