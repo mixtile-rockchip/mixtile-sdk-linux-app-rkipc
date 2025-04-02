@@ -252,7 +252,7 @@ static int create_vdec(PLAYER_CTX_S *ctx) {
 	}
 
 	stMbPoolCfg.u64MBSize = stMbPicCalret.u32MBSize;
-	stMbPoolCfg.u32MBCnt = 10;
+	stMbPoolCfg.u32MBCnt = 4;
 	stMbPoolCfg.enRemapMode = MB_REMAP_MODE_CACHED;
 	stMbPoolCfg.bPreAlloc = RK_TRUE;
 	vdec_mb_pool = RK_MPI_MB_CreatePool(&stMbPoolCfg);
@@ -266,8 +266,8 @@ static int create_vdec(PLAYER_CTX_S *ctx) {
 
 	stAttr.u32PicWidth = ctx->demuxer_param.s32VideoWidth;
 	stAttr.u32PicHeight = ctx->demuxer_param.s32VideoHeigh;
-	stAttr.u32FrameBufCnt = 8;
-	stAttr.u32StreamBufCnt = 11;
+	stAttr.u32FrameBufCnt = 4;
+	stAttr.u32StreamBufCnt = 4;
 	stAttr.u32FrameBufSize = stMbPicCalret.u32MBSize;
 
 	ret = RK_MPI_VDEC_CreateChn(VDEC_CHN_ID, &stAttr);
@@ -402,9 +402,9 @@ static int create_jpeg_vdec(const RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data) 
 	stAttr.enType = RK_VIDEO_ID_JPEG;
 	stAttr.u32PicWidth = config->input_width;   // width of jpeg
 	stAttr.u32PicHeight = config->input_height; // height of jpeg
-	stAttr.u32FrameBufCnt = 8;
-	stAttr.u32FrameBufDepth = 8;
-	stAttr.u32StreamBufCnt = 3;
+	stAttr.u32FrameBufCnt = 1;
+	stAttr.u32FrameBufDepth = 1;
+	stAttr.u32StreamBufCnt = 1;
 
 	ret = RK_MPI_VDEC_CreateChn(JPEG_VDEC_CHN_ID, &stAttr);
 	if (ret != RK_SUCCESS) {
