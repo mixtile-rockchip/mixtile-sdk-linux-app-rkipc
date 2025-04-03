@@ -14,6 +14,15 @@ rtsp_demo_handle g_rtsplive = NULL;
 rtsp_session_handle g_rtsp_session_0 = NULL;
 rtsp_session_handle g_rtsp_session_1 = NULL;
 rtsp_session_handle g_rtsp_session_2 = NULL;
+int64_t video_first_pts_0 = 0;
+int64_t audio_first_pts_0 = 0;
+int64_t video_audio_diff_pts_0 = 0;
+int64_t video_first_pts_1 = 0;
+int64_t audio_first_pts_1 = 0;
+int64_t video_audio_diff_pts_1 = 0;
+int64_t video_first_pts_2 = 0;
+int64_t audio_first_pts_2 = 0;
+int64_t video_audio_diff_pts_2 = 0;
 
 int rkipc_rtsp_init(const char *rtsp_url_0, const char *rtsp_url_1, const char *rtsp_url_2) {
 	const char *tmp_output_data_type = "H.264";
@@ -113,12 +122,27 @@ int rkipc_rtsp_write_video_frame(int id, unsigned char *buffer, unsigned int buf
 		pthread_mutex_unlock(&g_rtsp_mutex);
 		return -1;
 	}
-	if ((id == 0) && g_rtsp_session_0)
+	if ((id == 0) && g_rtsp_session_0) {
+		if (video_first_pts_0 == 0) {
+			video_first_pts_0 = present_time;
+			LOG_INFO("video_first_pts_0 is %lld\n", video_first_pts_0);
+		}
 		rtsp_tx_video(g_rtsp_session_0, buffer, buffer_size, present_time);
-	if ((id == 1) && g_rtsp_session_1)
+	}
+	if ((id == 1) && g_rtsp_session_1) {
+		if (video_first_pts_1 == 0) {
+			video_first_pts_1 = present_time;
+			LOG_INFO("video_first_pts_1 is %lld\n", video_first_pts_1);
+		}
 		rtsp_tx_video(g_rtsp_session_1, buffer, buffer_size, present_time);
-	if ((id == 2) && g_rtsp_session_2)
+	}
+	if ((id == 2) && g_rtsp_session_2) {
+		if (video_first_pts_2 == 0) {
+			video_first_pts_2 = present_time;
+			LOG_INFO("video_first_pts_2 is %lld\n", video_first_pts_2);
+		}
 		rtsp_tx_video(g_rtsp_session_2, buffer, buffer_size, present_time);
+	}
 	rtsp_do_event(g_rtsplive);
 	pthread_mutex_unlock(&g_rtsp_mutex);
 
@@ -132,12 +156,36 @@ int rkipc_rtsp_write_audio_frame(int id, unsigned char *buffer, unsigned int buf
 		pthread_mutex_unlock(&g_rtsp_mutex);
 		return -1;
 	}
-	if (g_rtsp_session_0)
+	if ((id == 0) && g_rtsp_session_0) {
+		if ((audio_first_pts_0 == 0) && video_first_pts_0) {
+			audio_first_pts_0 = present_time;
+			video_audio_diff_pts_0 = video_first_pts_0 - audio_first_pts_0;
+			LOG_INFO("audio_first_pts_0 is %lld, video_audio_diff_pts_0 is %lld\n",
+					audio_first_pts_0, video_audio_diff_pts_0);
+		}
+		present_time += video_audio_diff_pts_0;
 		rtsp_tx_audio(g_rtsp_session_0, buffer, buffer_size, present_time);
-	if (g_rtsp_session_1)
+	}
+	if ((id == 1) && g_rtsp_session_1) {
+		if ((audio_first_pts_1 == 0) && video_first_pts_1) {
+			audio_first_pts_1 = present_time;
+			video_audio_diff_pts_1 = video_first_pts_1 - audio_first_pts_1;
+			LOG_INFO("audio_first_pts_1 is %lld, video_audio_diff_pts_1 is %lld\n",
+					audio_first_pts_1, video_audio_diff_pts_1);
+		}
+		present_time += video_audio_diff_pts_1;
 		rtsp_tx_audio(g_rtsp_session_1, buffer, buffer_size, present_time);
-	if (g_rtsp_session_2)
+	}
+	if ((id == 2) && g_rtsp_session_2) {
+		if ((audio_first_pts_2 == 0) && video_first_pts_2) {
+			audio_first_pts_2 = present_time;
+			video_audio_diff_pts_2 = video_first_pts_2 - audio_first_pts_2;
+			LOG_INFO("audio_first_pts_2 is %lld, video_audio_diff_pts_2 is %lld\n",
+					audio_first_pts_2, video_audio_diff_pts_2);
+		}
+		present_time += video_audio_diff_pts_2;
 		rtsp_tx_audio(g_rtsp_session_2, buffer, buffer_size, present_time);
+	}
 	rtsp_do_event(g_rtsplive);
 	pthread_mutex_unlock(&g_rtsp_mutex);
 
