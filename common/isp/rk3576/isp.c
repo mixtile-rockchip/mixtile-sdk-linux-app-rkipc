@@ -117,10 +117,10 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 	// 	rk_aiq_uapi2_sysctl_setMulCamConc(aiq_ctx, true);
 
 #if defined(RKIPC_RV1126B)
-	ainr_api_attrib_t ainr_attr;
-	rk_aiq_user_api2_ainr_GetAttrib(aiq_ctx, &ainr_attr);
-	ainr_attr.en = rk_param_get_int("video.source:enable_aiisp", 0);
-	rk_aiq_user_api2_ainr_SetAttrib(aiq_ctx, &ainr_attr);
+	aibnr_api_attrib_t aibnr_attr;
+	rk_aiq_user_api2_aibnr_GetAttrib(aiq_ctx, &aibnr_attr);
+	aibnr_attr.en = rk_param_get_int("video.source:enable_aiisp", 0);
+	rk_aiq_user_api2_aibnr_SetAttrib(aiq_ctx, &aibnr_attr);
 #else
 	if (rk_param_get_int("video.source:enable_aiisp", 0))
 		rk_aiq_uapi2_sysctl_initAiisp(aiq_ctx, NULL, NULL);
