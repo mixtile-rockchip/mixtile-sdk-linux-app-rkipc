@@ -395,7 +395,7 @@ int rkipc_pipe_0_init() {
 	if (buffer_line < 128)
 		buffer_line = video_max_height;
 	int rotation = rk_param_get_int("video.source:rotation", 0);
-	int buf_cnt = 2;
+	int buf_cnt = rk_param_get_int("video.0:input_buffer_count", 3);
 
 	// VI
 	VI_CHN_ATTR_S vi_chn_attr;
