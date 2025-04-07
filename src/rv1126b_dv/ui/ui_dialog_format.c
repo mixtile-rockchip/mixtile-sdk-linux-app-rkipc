@@ -130,6 +130,9 @@ void ui_format_dialog_create(void) {
 	lv_obj_t *context_obj;
 	lv_color_t color;
 	lv_color_t text_color;
+	lv_color_t dialog_color = {
+		.full = 0xFF222D30,
+	};
 	static lv_style_t dialog_style, btn_style, btn_style_focused, symbol_style;
 
 	lv_style_reset(&dialog_style);
@@ -177,11 +180,10 @@ void ui_format_dialog_create(void) {
 	lv_obj_add_event_cb(obj, format_dialog_destroy_event_cb, LV_EVENT_FOCUSED, NULL);
 	lv_obj_add_event_cb(obj, format_dialog_destroy_event_cb, LV_EVENT_DEFOCUSED, NULL);
 
-	color = lv_palette_darken(LV_PALETTE_GREY, 4);
 	obj_bg = obj = lv_obj_create(obj);
 	lv_obj_set_size(obj, lv_pct(40), lv_pct(40));
-	lv_obj_set_style_bg_color(obj, color, 0);
-	lv_obj_set_style_border_color(obj, color, 0);
+	lv_obj_set_style_bg_color(obj, dialog_color, 0);
+	lv_obj_set_style_border_color(obj, dialog_color, 0);
 	lv_obj_set_style_radius(obj, 0, 0);
 	lv_obj_set_style_bg_opa(obj, LV_OPA_80, 0);
 	lv_obj_align(obj, LV_ALIGN_CENTER, 0, 0);

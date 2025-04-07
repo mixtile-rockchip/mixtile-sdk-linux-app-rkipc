@@ -42,16 +42,20 @@ RK_MODE_E rk_get_mode(void);
 RK_EIS_MODE_E rk_get_eis_mode(void);
 int rk_set_eis_mode(RK_EIS_MODE_E eis_mode);
 
-static int rk_set_hdr(bool enable) { return 0; }
-static int rk_get_hdr(void) { return 0; }
+int rk_set_hdr(bool enable);
+int rk_get_hdr(void);
 
-static int rk_set_eis_debug(bool enable) { return 0; }
-static int rk_get_eis_debug(void) { return 0; }
+int rk_set_eis_debug(bool enable);
+int rk_get_eis_debug(void);
+
+int rk_set_rtsp(bool enable);
+int rk_get_rtsp(void);
+
+int rk_set_comp(bool enable);
+int rk_get_comp(void);
 
 int rk_video_start_record(void);
 int rk_video_stop_record(void);
-static int rk_video_get_fps(void) { return 0; }
-static int rk_video_set_fps(int new_fps) { return 0; }
 
 int rk_photo_set_max_num(int num);
 int rk_photo_get_max_num(void);

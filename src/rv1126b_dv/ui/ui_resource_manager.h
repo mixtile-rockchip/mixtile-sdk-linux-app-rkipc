@@ -24,7 +24,6 @@
 extern "C" {
 #endif
 
-extern lv_img_dsc_t *icon_background;
 extern lv_img_dsc_t *icon_record_stop;
 extern lv_img_dsc_t *icon_record_start;
 extern lv_img_dsc_t *icon_photo;
@@ -39,6 +38,8 @@ extern lv_img_dsc_t *icon_slowmotion_mode;
 extern lv_img_dsc_t *icon_storage;
 extern lv_img_dsc_t *icon_format;
 extern lv_img_dsc_t *icon_advanced_setup;
+extern lv_img_dsc_t *icon_video_setup;
+extern lv_img_dsc_t *icon_audio_setup;
 
 extern lv_img_dsc_t *icon_media_photo;
 extern lv_img_dsc_t *icon_media_film;

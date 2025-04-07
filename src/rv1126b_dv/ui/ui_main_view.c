@@ -57,8 +57,6 @@ typedef struct {
 } UI_VIEW_CONTEXT_S;
 
 typedef struct {
-	lv_obj_t *bg_obj;
-
 	lv_obj_t *rec_obj;
 	lv_obj_t *status_bar;
 	lv_obj_t *bat_status_obj;
@@ -190,12 +188,6 @@ static void main_view_destroy_ctrl(void) {
 		lv_timer_del(main_view_ctrl.timer);
 		main_view_ctrl.timer = NULL;
 	}
-	if (main_view_ctrl.bg_obj) {
-		ui_common_remove_stype_all(main_view_ctrl.bg_obj);
-		lv_obj_del(main_view_ctrl.bg_obj);
-		main_view_ctrl.bg_obj = NULL;
-	}
-
 	if (main_view_ctrl.status_bar) {
 		ui_common_remove_stype_all(main_view_ctrl.status_bar);
 		lv_obj_del(main_view_ctrl.status_bar);
@@ -328,9 +320,6 @@ static void set_event_handler(lv_event_t *e) {
 static void main_view_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_bg_opa(page_obj, LV_OPA_TRANSP, 0);
 	lv_disp_set_bg_opa(NULL, LV_OPA_TRANSP);
-
-	main_view_ctrl.bg_obj = lv_img_create(page_obj);
-	lv_img_set_src(main_view_ctrl.bg_obj, icon_background);
 
 	main_view_ctrl.status_bar = lv_obj_create(page_obj);
 	lv_obj_set_size(main_view_ctrl.status_bar, lv_pct(100), LV_SIZE_CONTENT);

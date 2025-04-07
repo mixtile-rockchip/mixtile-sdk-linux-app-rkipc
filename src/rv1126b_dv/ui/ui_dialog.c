@@ -13,10 +13,16 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+#ifdef LOG_TAG
+#undef LOG_TAG
+#endif
+#define LOG_TAG "ui_dialog.c"
 
 #include "ui_dialog.h"
 #include "lvgl/porting/lv_port_indev.h"
 #include "ui_common.h"
+#include "common.h"
+#include <pthread.h>
 
 /**********************
  *  STATIC PROTOTYPES
@@ -141,4 +147,86 @@ static void close_event_handler(lv_event_t *e) {
 	if (code == LV_EVENT_CLICKED) {
 		ui_dialog_destroy();
 	}
+}
+
+static struct {
+	enum TASK_STATE {
+		TASK_IDLE,
+		TASK_RUNNING,
+		TASK_DONE
+	} task_state;
+	pthread_t task_id;
+	UI_TASK_TYPE func;
+	void *func_arg;
+	UI_TASK_TYPE dtor;
+	void *dtor_arg;
+	lv_obj_t *ani_obj;
+	lv_obj_t *spin_obj;
+} ui_async_task;
+
+static void *task_wrap_func(void *arg) {
+	LOG_INFO("start task\n");
+	if (ui_async_task.func)
+		ui_async_task.func(ui_async_task.func_arg);
+	else
+		LOG_ERROR("bad task!\n");
+	LOG_INFO("stop_task\n");
+	ui_async_task.task_state = TASK_DONE;
+	return NULL;
+}
+
+static void task_timer(lv_timer_t *timer) {
+	if (ui_async_task.task_state == TASK_DONE) {
+		LOG_INFO("task done\n");
+		pthread_join(ui_async_task.task_id, NULL);
+		ui_async_task.task_state = TASK_IDLE;
+		lv_timer_del(timer);
+		if (ui_async_task.spin_obj) {
+			lv_obj_del(ui_async_task.spin_obj);
+			ui_async_task.spin_obj = NULL;
+		}
+		if (ui_async_task.ani_obj) {
+			lv_obj_del(ui_async_task.ani_obj);
+			ui_async_task.ani_obj = NULL;
+		}
+		ui_async_task.func = NULL;
+		ui_async_task.func_arg = NULL;
+		if (ui_async_task.dtor) {
+			ui_async_task.dtor(ui_async_task.dtor_arg);
+			LOG_INFO("dtor done\n");
+		}
+	}
+}
+
+int ui_start_async_task(UI_TASK_TYPE func, void *func_arg, UI_TASK_TYPE dtor, void *dtor_arg) {
+	lv_color_t color;
+	color.full = 0xFF000000;
+	if (ui_async_task.task_state != TASK_IDLE) {
+		LOG_ERROR("previous task is not finished\n");
+		return -1;
+	}
+
+	ui_async_task.ani_obj = lv_obj_create(lv_scr_act());
+	lv_obj_set_size(ui_async_task.ani_obj, LV_HOR_RES, LV_VER_RES);
+	lv_obj_align(ui_async_task.ani_obj, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_set_style_bg_color(ui_async_task.ani_obj, color, 0);
+	lv_obj_set_style_border_color(ui_async_task.ani_obj, color, 0);
+	lv_obj_set_style_radius(ui_async_task.ani_obj, 0, 0);
+	lv_obj_set_style_bg_opa(ui_async_task.ani_obj, LV_OPA_50, 0);
+
+	ui_async_task.spin_obj = lv_spinner_create(ui_async_task.ani_obj, 1000, 200);
+	lv_obj_center(ui_async_task.spin_obj);
+
+	ui_async_task.func = func;
+	ui_async_task.func_arg = func_arg;
+	ui_async_task.dtor = dtor;
+	ui_async_task.dtor_arg = dtor_arg;
+	ui_async_task.task_state = TASK_RUNNING;
+	pthread_create(&ui_async_task.task_id, NULL, task_wrap_func, NULL);
+	lv_timer_t *timer = lv_timer_create(task_timer, 200, NULL);
+	lv_timer_ready(timer);
+}
+
+bool ui_async_task_is_running(void) {
+	return (ui_async_task.task_state == TASK_RUNNING);
 }

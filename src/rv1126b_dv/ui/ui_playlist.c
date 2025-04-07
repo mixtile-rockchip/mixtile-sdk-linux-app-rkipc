@@ -241,14 +241,9 @@ static void playlist_create_ctrl(lv_obj_t *page_obj) {
 	lv_style_set_pad_all(&symbol_style, 5);
 
 	obj = page_obj;
-	// HACK: there has a style bug, workaround here.
-	if (switch_from_player) {
-		lv_disp_set_bg_opa(NULL, LV_OPA_COVER);
-		lv_disp_set_bg_color(NULL, lv_color_hex(0xFF04171D));
-		switch_from_player = false;
-	} else {
-		lv_obj_set_style_bg_color(obj, lv_color_hex(0xFF04171D), 0);
-	}
+	lv_obj_remove_style_all(obj);
+	lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+	lv_obj_set_style_bg_color(obj, lv_color_hex(0xFF04171D), 0);
 
 	playlist_ctx.menu_obj = obj = lv_obj_create(page_obj);
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));

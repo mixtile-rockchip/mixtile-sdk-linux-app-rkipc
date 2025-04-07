@@ -38,7 +38,6 @@
 	} while (0)
 
 lv_ft_info_t ttf_info_32;
-lv_img_dsc_t *icon_background;
 lv_img_dsc_t *icon_record_stop;
 lv_img_dsc_t *icon_record_start;
 lv_img_dsc_t *icon_photo;
@@ -53,6 +52,8 @@ lv_img_dsc_t *icon_slowmotion_mode;
 lv_img_dsc_t *icon_storage;
 lv_img_dsc_t *icon_format;
 lv_img_dsc_t *icon_advanced_setup;
+lv_img_dsc_t *icon_video_setup;
+lv_img_dsc_t *icon_audio_setup;
 
 lv_img_dsc_t *icon_media_photo;
 lv_img_dsc_t *icon_media_film;
@@ -108,7 +109,6 @@ static int32_t ui_font_load(void) {
  **********************/
 
 void ui_resource_release(void) {
-	ICON_RELEASE(icon_background);
 	ICON_RELEASE(icon_record_stop);
 	ICON_RELEASE(icon_record_start);
 	ICON_RELEASE(icon_photo);
@@ -122,6 +122,8 @@ void ui_resource_release(void) {
 	ICON_RELEASE(icon_storage);
 	ICON_RELEASE(icon_format);
 	ICON_RELEASE(icon_advanced_setup);
+	ICON_RELEASE(icon_video_setup);
+	ICON_RELEASE(icon_audio_setup);
 	ICON_RELEASE(icon_media_photo);
 	ICON_RELEASE(icon_media_film);
 	ui_font_release();
@@ -129,7 +131,6 @@ void ui_resource_release(void) {
 
 void ui_resource_load(void) {
 	ui_font_load();
-	icon_background = ui_dec_icon("icon_background.png");
 	icon_record_stop = ui_dec_icon("icon_record_stop.png");
 	icon_record_start = ui_dec_icon("icon_record_start.png");
 	icon_photo = ui_dec_icon("icon_photo.png");
@@ -143,6 +144,8 @@ void ui_resource_load(void) {
 	icon_storage = ui_dec_icon("icon_storage.png");
 	icon_format = ui_dec_icon("icon_format.png");
 	icon_advanced_setup = ui_dec_icon("icon_advanced_setup.png");
+	icon_video_setup = ui_dec_icon("icon_video_setup.png");
+	icon_audio_setup = ui_dec_icon("icon_audio_setup.png");
 	icon_media_photo = ui_dec_icon("icon_media_photo.png");
 	icon_media_film = ui_dec_icon("icon_media_film.png");
 }

@@ -75,6 +75,9 @@ void ui_storage_status_dialog_create(void) {
 	lv_obj_t *storage_string_obj, *storage_progress_bar_obj;
 	lv_color_t color;
 	lv_color_t text_color;
+	lv_color_t dialog_color = {
+		.full = 0xFF222D30,
+	};
 	static lv_style_t style;
 
 	text_color.full = 0xffffffff;
@@ -102,11 +105,10 @@ void ui_storage_status_dialog_create(void) {
 	                    storage_status_dialog_obj);
 	lv_group_add_obj(storage_group, obj);
 
-	color.full = 0xFF222D30;
 	obj_bg = obj = lv_obj_create(obj);
 	lv_obj_set_size(obj, lv_pct(50), lv_pct(40));
-	lv_obj_set_style_bg_color(obj, color, 0);
-	lv_obj_set_style_border_color(obj, color, 0);
+	lv_obj_set_style_bg_color(obj, dialog_color, 0);
+	lv_obj_set_style_border_color(obj, dialog_color, 0);
 	lv_obj_set_style_radius(obj, 0, 0);
 	lv_obj_set_style_bg_opa(obj, LV_OPA_80, 0);
 	lv_obj_align(obj, LV_ALIGN_CENTER, 0, 0);

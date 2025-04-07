@@ -84,7 +84,19 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 
 	LOG_INFO("ID: %d, sensor_name is %s, iqfiles is %s\n", cam_id,
 	         aiq_static_info.sensor_info.sensor_name, iq_file_dir);
-
+	char entry[128] = {'\0'};
+	memset(entry, 0, sizeof(entry));
+	snprintf(entry, 127, "isp.%d.adjustment:force_iq_name", cam_id);
+	const char *force_iq_name = rk_param_get_string(entry, NULL);
+	if (force_iq_name) {
+		memset(entry, 0, sizeof(entry));
+		snprintf(entry, 127, "isp.%d.adjustment:force_hdr_mode", cam_id);
+		rk_aiq_working_mode_t force_hdr_mode =
+		    (rk_aiq_working_mode_t)rk_param_get_int(entry, RK_AIQ_WORKING_MODE_NORMAL);
+		rk_aiq_uapi2_sysctl_preInit(aiq_static_info.sensor_info.sensor_name
+			, force_hdr_mode, force_iq_name);
+		LOG_INFO("preinit hdr mode id %d, iq name is %s\n", force_hdr_mode, force_iq_name);
+	}
 	int ret;
 	if (WDRMode == RK_AIQ_WORKING_MODE_NORMAL)
 		ret = rk_aiq_uapi2_sysctl_preInit_scene(aiq_static_info.sensor_info.sensor_name, "normal",

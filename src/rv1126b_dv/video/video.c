@@ -13,13 +13,24 @@
 #include <linux/v4l2-mediabus.h>
 #include <linux/v4l2-subdev.h>
 
+#define ENABLE_HW_VPSS 1
+
 #define VI_DEV 0
+#ifdef ENABLE_HW_VPSS
+#define VI_MAIN_CHN 2
+#define VI_DISPLAY_CHN 3
+#else
 #define VI_MAIN_CHN 0
 #define VI_DISPLAY_CHN 1
+#endif
 #define VENC_MAIN_CHN 0
 #define JPEG_CHN 1
 #define GDC_MAIN_CHN 0
 #define GDC_DISPLAY_CHN 1
+
+#define RTSP_URL_0 "/live/0"
+#define RTSP_URL_1 "/live/1"
+#define RTSP_URL_2 "/live/2"
 
 static struct {
 	RK_MODE_E mode;
@@ -28,6 +39,8 @@ static struct {
 	bool enable_eis_debug;
 	bool enable_smart_2a;
 	bool enable_display;
+	bool enable_rtsp;
+	bool enable_comp;
 	int max_photo_num;
 	int remain_photo_num;
 	pthread_t photo_thread;
@@ -41,25 +54,29 @@ static struct {
 
 extern char *rkipc_iq_file_path_;
 
-#define SUBDEV_PATH "/dev/v4l-subdev3" // use media-ctl -p to get the path
+#define SUBDEV_PATH "/dev/v4l-subdev4" // use media-ctl -p to get the path
 #define FIXED_PAD 0
-#define FIXED_FORMAT MEDIA_BUS_FMT_SGRBG10_1X10
 
 static int set_camera_format(void) {
 	uint32_t width = rk_param_get_int("video.source:width", -1);
 	uint32_t height = rk_param_get_int("video.source:height", -1);
 	uint32_t fps = rk_param_get_int("isp.0.adjustment:fps", 30);
+	uint32_t format = MEDIA_BUS_FMT_SRGGB10_1X10;
 	int fd = open(SUBDEV_PATH, O_RDWR);
 	if (fd < 0) {
 		LOG_ERROR("Failed to open subdev\n");
 		return -1;
 	}
 
+	// INFO: just for gc8613 dag HDR
+	if (rk_mode_param.enable_hdr)
+		format = MEDIA_BUS_FMT_SRGGB12_1X12;
+
 	struct v4l2_subdev_format fmt = {.which = V4L2_SUBDEV_FORMAT_ACTIVE,
 	                                 .pad = FIXED_PAD,
 	                                 .format = {.width = width,
 	                                            .height = height,
-	                                            .code = FIXED_FORMAT,
+	                                            .code = format,
 	                                            .field = V4L2_FIELD_NONE,
 	                                            .colorspace = V4L2_COLORSPACE_RAW}};
 	struct v4l2_subdev_frame_interval ival = {.pad = FIXED_PAD,
@@ -71,12 +88,12 @@ static int set_camera_format(void) {
 		return -1;
 	}
 	if (ioctl(fd, VIDIOC_SUBDEV_S_FRAME_INTERVAL, &ival) < 0) {
-		LOG_ERROR("Failed to set FPS\n");
+		LOG_ERROR("Failed to set FPS %d\n", fps);
 		close(fd);
 		return -1;
 	}
 	close(fd);
-	LOG_INFO("update sensor setting width %d height %d fps %d\n", width, height, fps);
+	LOG_INFO("update sensor setting width %d height %d fps %d format %d\n", width, height, fps, format);
 	return 0;
 }
 
@@ -166,7 +183,8 @@ static void *normal_video_loop(void *arg) {
 				fflush(fp);
 			}
 
-			rkipc_rtsp_write_video_frame(rk_muxer_id, data, video_stream.pstPack->u32Len,
+			if (rk_mode_param.enable_rtsp)
+				rkipc_rtsp_write_video_frame(rk_muxer_id, data, video_stream.pstPack->u32Len,
 			                             video_stream.pstPack->u64PTS);
 			if ((video_stream.pstPack->DataType.enH264EType == H264E_NALU_IDRSLICE) ||
 			    (video_stream.pstPack->DataType.enH264EType == H264E_NALU_ISLICE) ||
@@ -422,6 +440,32 @@ static int vi_dev_init(void) {
 	} else {
 		LOG_ERROR("RK_MPI_VI_EnableDev already\n");
 	}
+#ifdef ENABLE_HW_VPSS
+	// INFO: DO NOT MODIFIED THESE CODE! Just for RV1126B.
+	VI_PARAM_MOD_S vi_mod_param;
+	memset(&vi_mod_param, 0, sizeof(vi_mod_param));
+	vi_mod_param.enViModType = VI_EXT_CHN_MODE;
+	vi_mod_param.stExtChnParam.mirrorCmsc = 0; // 1 is for vpss, 0 is for vi ext
+	vi_mod_param.stExtChnParam.extChn[0] = 0;
+	vi_mod_param.stExtChnParam.extChn[1] = 0;
+	vi_mod_param.stExtChnParam.extChn[2] = 0;
+	vi_mod_param.stExtChnParam.extChn[3] = 0;
+	ret = RK_MPI_VI_SetModParam(&vi_mod_param);
+	if (ret)
+		LOG_ERROR("RK_MPI_VI_SetModParam fail:%#X\n", ret);
+
+	memset(&vi_mod_param, 0, sizeof(vi_mod_param));
+	vi_mod_param.enViModType = VI_EXT_CHN_MODE;
+	ret = RK_MPI_VI_GetModParam(&vi_mod_param);
+	if (ret)
+		LOG_ERROR("RK_MPI_VI_GetModParam fail:%#X\n", ret);
+
+	LOG_INFO("vi mod:%d mirror:%d ext_chn_mode:%d ext_chn1_mode:%d"
+				"ext_chn2_mode:%d ext_chn3_mode:%d\n",
+				vi_mod_param.enViModType, vi_mod_param.stExtChnParam.mirrorCmsc,
+				vi_mod_param.stExtChnParam.extChn[0], vi_mod_param.stExtChnParam.extChn[1],
+				vi_mod_param.stExtChnParam.extChn[2], vi_mod_param.stExtChnParam.extChn[3]);
+#endif
 	LOG_INFO("vi device init success\n");
 	return ret;
 }
@@ -443,6 +487,14 @@ static int vi_chn_init(void) {
 	vi_chn_attr.stIspOpt.enMemoryType = VI_V4L2_MEMORY_TYPE_MMAP;
 	vi_chn_attr.stSize.u32Width = video_width;
 	vi_chn_attr.stSize.u32Height = video_height;
+	if (rk_mode_param.enable_comp) {
+		if (rk_mode_param.eis_mode != RK_EIS_OFF)
+			vi_chn_attr.enCompressMode = COMPRESS_TILE_4x4_MODE0;
+		else
+			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
+	} else {
+		vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
+	}
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.u32Depth = rk_param_get_int("video.0:depth", 0);
 	if (rk_mode_param.eis_mode != RK_EIS_OFF)
@@ -615,15 +667,11 @@ static int vo_deinit(void) {
 	return ret;
 }
 
-static int gdc_init(void) {
+static int gdc_display_init(void) {
 	int ret = 0;
 	int display_width = rk_param_get_int("display:width", 1920);
 	int display_height = rk_param_get_int("display:height", 1080);
 	int rotation = rk_param_get_int("display:rotation", 1);
-	int video_width = rk_param_get_int("video.0:width", -1);
-	int video_height = rk_param_get_int("video.0:height", -1);
-	int sensor_width = rk_param_get_int("video.source:width", -1);
-	int sensor_height = rk_param_get_int("video.source:height", -1);
 	GDC_CHN_ATTR_S gdc_attr = {0};
 	if (rotation == 1 || rotation == 3) {
 		int tmp = display_width;
@@ -634,51 +682,12 @@ static int gdc_init(void) {
 		LOG_DEBUG("EIS is off, no need to init GDC\n");
 		return ret;
 	}
-	gdc_attr.u32MaxInQueue = 8;
-	gdc_attr.u32MaxOutQueue = 8;
-	gdc_attr.s32SrcWidth = sensor_width;
-	gdc_attr.s32SrcHeight = sensor_height;
-	gdc_attr.s32DstWidth = video_width;
-	gdc_attr.s32DstHeight = video_height;
-	gdc_attr.enPixelFormat = RK_FMT_YUV420SP;
-	gdc_attr.enCompMode = COMPRESS_MODE_NONE;
-	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
-	if (rk_mode_param.eis_mode == RK_HORIZON_STEADY) {
-		LOG_ERROR("ERROR: horizon steady is not support now!\n");
-		return -1;
-	} else if (rk_mode_param.eis_mode == RK_DISTORTION_CORRECTION) {
-		LOG_ERROR("ERROR: distortion correction is not support now!\n");
-		return -1;
-	} else {
-		memcpy(gdc_attr.cfgFile, "/oem/usr/share/rkeis_config_normal_3840x2160_3840x2160_30fps.json",
-		       strlen("/oem/usr/share/rkeis_config_normal_3840x2160_3840x2160_30fps.json"));
-	}
-	if (rk_mode_param.enable_eis_debug) {
-		GDC_INFO_CB_S gdc_info_cb = {};
-		rk_mode_param.vi_debug_file = fopen("/tmp/vi_info.txt", "w");
-		rk_mode_param.imu_debug_file = fopen("/tmp/imu_info.txt", "w");
-		gdc_info_cb.pfnSensorCB = gdc_sensor_callback;
-		gdc_info_cb.pfnVframeCB = gdc_frame_callback;
-		RK_MPI_GDC_Register_InfoCB(GDC_MAIN_CHN, NULL, &gdc_info_cb);
-	}
-	ret = RK_MPI_GDC_CreateChn(GDC_MAIN_CHN, &gdc_attr);
-	if (ret) {
-		LOG_ERROR("ERROR: create GDC main channel error! ret=%#X\n", ret);
-		return ret;
-	}
 	gdc_attr.u32MaxInQueue = 4;
 	gdc_attr.u32MaxOutQueue = 4;
-	if (rk_mode_param.eis_mode == RK_HORIZON_STEADY) {
-		gdc_attr.s32SrcWidth = 704;
-		gdc_attr.s32SrcHeight = 512;
-		gdc_attr.s32DstWidth = 672;
-		gdc_attr.s32DstHeight = 368;
-	} else {
-		gdc_attr.s32SrcWidth = display_width;
-		gdc_attr.s32SrcHeight = display_height;
-		gdc_attr.s32DstWidth = display_width;
-		gdc_attr.s32DstHeight = display_height;
-	}
+	gdc_attr.s32SrcWidth = display_width;
+	gdc_attr.s32SrcHeight = display_height;
+	gdc_attr.s32DstWidth = display_width;
+	gdc_attr.s32DstHeight = display_height;
 	gdc_attr.enPixelFormat = RK_FMT_YUV420SP;
 	gdc_attr.enCompMode = COMPRESS_MODE_NONE;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
@@ -701,7 +710,76 @@ static int gdc_init(void) {
 	return ret;
 }
 
-static int gdc_deinit(void) {
+static int gdc_display_deinit(void) {
+	int ret = 0;
+	if (rk_mode_param.eis_mode == RK_EIS_OFF) {
+		LOG_DEBUG("EIS is off, no need to deinit GDC\n");
+		return ret;
+	}
+	ret = RK_MPI_GDC_DestroyChn(GDC_DISPLAY_CHN);
+	if (ret)
+		LOG_ERROR("ERROR: destroy GDC display channel error! ret=%#X\n", ret);
+	if (ret == RK_SUCCESS)
+		LOG_INFO("gdc deinit success\n");
+	return ret;
+}
+
+static int gdc_record_init(void) {
+	int ret = 0;
+	int video_width = rk_param_get_int("video.0:width", -1);
+	int video_height = rk_param_get_int("video.0:height", -1);
+	int sensor_width = rk_param_get_int("video.source:width", -1);
+	int sensor_height = rk_param_get_int("video.source:height", -1);
+	GDC_CHN_ATTR_S gdc_attr = {0};
+	if (rk_mode_param.eis_mode == RK_EIS_OFF) {
+		LOG_DEBUG("EIS is off, no need to init GDC\n");
+		return ret;
+	}
+	gdc_attr.u32MaxInQueue = 8;
+	gdc_attr.u32MaxOutQueue = 8;
+	gdc_attr.s32SrcWidth = sensor_width;
+	gdc_attr.s32SrcHeight = sensor_height;
+	gdc_attr.s32DstWidth = video_width;
+	gdc_attr.s32DstHeight = video_height;
+	if (rk_mode_param.enable_comp) {
+		gdc_attr.enCompMode = COMPRESS_TILE_4x4_MODE0;
+		gdc_attr.enDstCompMode = COMPRESS_RFBC_64x4;
+	} else {
+		gdc_attr.enPixelFormat = RK_FMT_YUV420SP;
+	}
+	gdc_attr.enPixelFormat = RK_FMT_YUV420SP;
+	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
+	if (rk_mode_param.eis_mode == RK_HORIZON_STEADY) {
+		LOG_ERROR("ERROR: horizon steady is not support now!\n");
+		return -1;
+	} else if (rk_mode_param.eis_mode == RK_DISTORTION_CORRECTION) {
+		LOG_ERROR("ERROR: distortion correction is not support now!\n");
+		return -1;
+	} else if (rk_mode_param.enable_comp) {
+		memcpy(gdc_attr.cfgFile, "/oem/usr/share/rkeis_config_normal_3840x2160_3840x2160_30fps.json",
+		       strlen("/oem/usr/share/rkeis_config_normal_3840x2160_3840x2160_30fps.json"));
+	} else {
+		memcpy(gdc_attr.cfgFile, "/oem/usr/share/rkeis_config_no_comp_3840x2160_3840x2160_30fps.json",
+		       strlen("/oem/usr/share/rkeis_config_no_comp_3840x2160_3840x2160_30fps.json"));
+	}
+	if (rk_mode_param.enable_eis_debug) {
+		GDC_INFO_CB_S gdc_info_cb = {};
+		rk_mode_param.vi_debug_file = fopen("/tmp/vi_info.txt", "w");
+		rk_mode_param.imu_debug_file = fopen("/tmp/imu_info.txt", "w");
+		gdc_info_cb.pfnSensorCB = gdc_sensor_callback;
+		gdc_info_cb.pfnVframeCB = gdc_frame_callback;
+		RK_MPI_GDC_Register_InfoCB(GDC_MAIN_CHN, NULL, &gdc_info_cb);
+	}
+	ret = RK_MPI_GDC_CreateChn(GDC_MAIN_CHN, &gdc_attr);
+	if (ret) {
+		LOG_ERROR("ERROR: create GDC main channel error! ret=%#X\n", ret);
+		return ret;
+	}
+	LOG_INFO("gdc init success\n");
+	return ret;
+}
+
+static int gdc_record_deinit(void) {
 	int ret = 0;
 	if (rk_mode_param.eis_mode == RK_EIS_OFF) {
 		LOG_DEBUG("EIS is off, no need to deinit GDC\n");
@@ -710,9 +788,6 @@ static int gdc_deinit(void) {
 	ret = RK_MPI_GDC_DestroyChn(GDC_MAIN_CHN);
 	if (ret)
 		LOG_ERROR("ERROR: destroy GDC main channel error! ret=%#X\n", ret);
-	ret = RK_MPI_GDC_DestroyChn(GDC_DISPLAY_CHN);
-	if (ret)
-		LOG_ERROR("ERROR: destroy GDC display channel error! ret=%#X\n", ret);
 	if (rk_mode_param.enable_eis_debug) {
 		fclose(rk_mode_param.vi_debug_file);
 		fclose(rk_mode_param.imu_debug_file);
@@ -828,8 +903,8 @@ static int venc_init(void) {
 	venc_chn_attr.stVencAttr.u32PicHeight = video_height;
 	venc_chn_attr.stVencAttr.u32VirWidth = video_width;
 	venc_chn_attr.stVencAttr.u32VirHeight = video_height;
-	venc_chn_attr.stVencAttr.u32StreamBufCnt = 30;
-	venc_chn_attr.stVencAttr.u32BufSize = 50 * 1024 * 1024;
+	venc_chn_attr.stVencAttr.u32StreamBufCnt = rk_param_get_int("video.0:buffer_count", 5);
+	venc_chn_attr.stVencAttr.u32BufSize = rk_param_get_int("video.0:buffer_size", 6291456);
 	// venc_chn_attr.stVencAttr.u32Depth = 1;
 	ret = RK_MPI_VENC_CreateChn(VENC_MAIN_CHN, &venc_chn_attr);
 	if (ret) {
@@ -841,54 +916,36 @@ static int venc_init(void) {
 	VENC_RC_PARAM_S venc_rc_param;
 	RK_MPI_VENC_GetRcParam(VENC_MAIN_CHN, &venc_rc_param);
 	if (!strcmp(tmp_output_data_type, "H.264")) {
-		if (!strcmp(tmp_rc_quality, "highest")) {
-			venc_rc_param.stParamH264.u32MinQp = 10;
-		} else if (!strcmp(tmp_rc_quality, "higher")) {
-			venc_rc_param.stParamH264.u32MinQp = 15;
-		} else if (!strcmp(tmp_rc_quality, "high")) {
-			venc_rc_param.stParamH264.u32MinQp = 20;
-		} else if (!strcmp(tmp_rc_quality, "medium")) {
-			venc_rc_param.stParamH264.u32MinQp = 25;
-		} else if (!strcmp(tmp_rc_quality, "low")) {
-			venc_rc_param.stParamH264.u32MinQp = 30;
-		} else if (!strcmp(tmp_rc_quality, "lower")) {
-			venc_rc_param.stParamH264.u32MinQp = 35;
-		} else {
-			venc_rc_param.stParamH264.u32MinQp = 40;
-		}
+		venc_rc_param.s32FirstFrameStartQp = 26;
+		venc_rc_param.stParamH264.u32StepQp = 4;
+		venc_rc_param.stParamH264.u32MinQp = 10;
+		venc_rc_param.stParamH264.u32MaxQp = 51;
+		venc_rc_param.stParamH264.u32MinIQp = 10;
+		venc_rc_param.stParamH264.u32MaxIQp = 51;
+		venc_rc_param.stParamH264.s32DeltIpQp = -2;
+		venc_rc_param.stParamH264.s32MaxReEncodeTimes = 2;
+		venc_rc_param.stParamH264.u32FrmMinQp = 10;
+		venc_rc_param.stParamH264.u32FrmMaxQp = 51;
+		venc_rc_param.stParamH264.u32FrmMinIQp = 10;
+		venc_rc_param.stParamH264.u32FrmMaxIQp = 51;
 	} else if (!strcmp(tmp_output_data_type, "H.265")) {
-		if (!strcmp(tmp_rc_quality, "highest")) {
-			venc_rc_param.stParamH265.u32MinQp = 10;
-		} else if (!strcmp(tmp_rc_quality, "higher")) {
-			venc_rc_param.stParamH265.u32MinQp = 15;
-		} else if (!strcmp(tmp_rc_quality, "high")) {
-			venc_rc_param.stParamH265.u32MinQp = 20;
-		} else if (!strcmp(tmp_rc_quality, "medium")) {
-			venc_rc_param.stParamH265.u32MinQp = 25;
-		} else if (!strcmp(tmp_rc_quality, "low")) {
-			venc_rc_param.stParamH265.u32MinQp = 30;
-		} else if (!strcmp(tmp_rc_quality, "lower")) {
-			venc_rc_param.stParamH265.u32MinQp = 35;
-		} else {
-			venc_rc_param.stParamH265.u32MinQp = 40;
-		}
+		venc_rc_param.s32FirstFrameStartQp = 26;
+		venc_rc_param.stParamH265.u32StepQp = 4;
+		venc_rc_param.stParamH265.u32MinQp = 10;
+		venc_rc_param.stParamH265.u32MaxQp = 51;
+		venc_rc_param.stParamH265.u32MinIQp = 10;
+		venc_rc_param.stParamH265.u32MaxIQp = 51;
+		venc_rc_param.stParamH265.s32DeltIpQp = -2;
+		venc_rc_param.stParamH265.s32MaxReEncodeTimes = 2;
+		venc_rc_param.stParamH265.u32FrmMinQp = 10;
+		venc_rc_param.stParamH265.u32FrmMaxQp = 51;
+		venc_rc_param.stParamH265.u32FrmMinIQp = 10;
+		venc_rc_param.stParamH265.u32FrmMaxIQp = 51;
 	} else {
 		LOG_ERROR("tmp_output_data_type is %s, not support\n", tmp_output_data_type);
 		return -1;
 	}
 	RK_MPI_VENC_SetRcParam(VENC_MAIN_CHN, &venc_rc_param);
-
-#if 0
-	// INFO: need a better way to config
-	int fps = rk_param_get_int("isp.0.adjustment:fps", 30);
-	if (fps == 58) {
-		ret = RK_MPI_VENC_RequestPskip(VENC_MAIN_CHN, 1, 29);
-		if (ret)
-			LOG_ERROR("RK_MPI_VENC_RequestPskip failed %#X\n", ret);
-		else
-			LOG_ERROR("RK_MPI_VENC_RequestPskip success\n");
-	}
-#endif
 	LOG_INFO("venc init success\n");
 	return ret;
 }
@@ -928,7 +985,7 @@ static int jpeg_init(void) {
 	jpeg_chn_attr.stVencAttr.u32VirWidth = video_width;
 	jpeg_chn_attr.stVencAttr.u32VirHeight = video_height;
 	jpeg_chn_attr.stVencAttr.u32StreamBufCnt = 2;
-	jpeg_chn_attr.stVencAttr.u32BufSize = video_width * video_height * 3 / 2 * 4;
+	jpeg_chn_attr.stVencAttr.u32BufSize = video_width * video_height * 3;
 	// jpeg_chn_attr.stVencAttr.u32Depth = 1;
 	ret = RK_MPI_VENC_CreateChn(JPEG_CHN, &jpeg_chn_attr);
 	if (ret) {
@@ -1176,9 +1233,9 @@ int rk_video_init(void) {
 		LOG_ERROR("ERROR: vo_init failed! ret=%d\n", ret);
 		return ret;
 	}
-	ret = gdc_init();
+	ret = gdc_display_init();
 	if (ret) {
-		LOG_ERROR("ERROR: gdc_init failed! ret=%d\n", ret);
+		LOG_ERROR("ERROR: gdc_display_init failed! ret=%d\n", ret);
 		return ret;
 	}
 	ret = venc_init();
@@ -1196,12 +1253,16 @@ int rk_video_init(void) {
 		LOG_ERROR("ERROR: bind_display_pipe failed! ret=%d\n", ret);
 		return ret;
 	}
+	if (rk_mode_param.enable_rtsp)
+		rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
 	LOG_INFO("exit\n");
 }
 
 int rk_video_deinit(void) {
 	int ret = 0;
 	LOG_INFO("enter\n");
+	if (rk_mode_param.enable_rtsp)
+		rkipc_rtsp_deinit();
 	ret = rk_video_stop_record();
 	if (ret)
 		LOG_ERROR("ERROR: rk_video_stop_record failed! ret=%d\n", ret);
@@ -1214,9 +1275,9 @@ int rk_video_deinit(void) {
 	ret = venc_deinit();
 	if (ret)
 		LOG_ERROR("ERROR: venc_deinit failed! ret=%d\n", ret);
-	ret = gdc_deinit();
+	ret = gdc_display_deinit();
 	if (ret)
-		LOG_ERROR("ERROR: gdc_deinit failed! ret=%d\n", ret);
+		LOG_ERROR("ERROR: gdc_display_deinit failed! ret=%d\n", ret);
 	ret = vo_deinit();
 	if (ret)
 		LOG_ERROR("ERROR: vo_deinit failed! ret=%d\n", ret);
@@ -1233,9 +1294,20 @@ int rk_video_deinit(void) {
 int rk_init_mode(void) {
 	memset(&rk_mode_param, 0, sizeof(rk_mode_param));
 	rk_mode_param.mode = RK_VIDEO_MODE;
-	rk_mode_param.eis_mode = RK_EIS_OFF;
-	rk_mode_param.enable_display = rk_param_get_int("display:enable", 1);
+	rk_mode_param.eis_mode = RK_NORMAL_STEADY;
+	rk_mode_param.enable_eis_debug = rk_param_get_int("video.source:enable_eis_debug", 0);
+	rk_mode_param.enable_display = rk_param_get_int("video.source:enable_display", 1);
+	rk_mode_param.enable_rtsp = rk_param_get_int("video.source:enable_rtsp", 0);
 	rk_mode_param.max_photo_num = 5;
+	rk_mode_param.enable_hdr = 0;
+	rk_mode_param.enable_comp = rk_param_get_int("video.source:enable_comp", 1);
+	if (rk_mode_param.enable_hdr) {
+		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_dag_12bit.json");
+	} else {
+		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_linear_10bit.json");
+	}
+	set_camera_format();
+	return 0;
 }
 
 int rk_set_mode(RK_MODE_E mode) {
@@ -1245,22 +1317,22 @@ int rk_set_mode(RK_MODE_E mode) {
 		LOG_DEBUG("mode is already %d, no need to set mode again\n", mode);
 		return 0;
 	}
+	if (mode == RK_SLOW_MOTION_MODE || mode == RK_TIME_LAPSE_MODE) {
+		LOG_ERROR("mode %d is not support\n", mode);
+		return -1;
+	}
 	rk_video_deinit();
 	rk_isp_deinit(0);
 	rk_storage_deinit();
 	rk_param_deinit();
 	if (mode == RK_VIDEO_MODE) {
-		rk_mode_param.eis_mode = RK_NORMAL_STEADY;
 		rk_param_init("/oem/usr/share/rkipc.ini");
 	} else if (mode == RK_PHOTO_MODE) {
-		rk_mode_param.eis_mode = RK_EIS_OFF;
 		rk_param_init("/oem/usr/share/rkipc.ini");
-	} else {
-		LOG_ERROR("mode %d is not support\n", mode);
 	}
 	rk_storage_init();
 	//set_soc_freq();
-	//set_camera_format();
+	set_camera_format();
 	rk_mode_param.mode = mode;
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_video_init();
@@ -1297,6 +1369,103 @@ int rk_set_eis_mode(RK_EIS_MODE_E eis_mode) {
 	return 0;
 }
 
+int rk_set_eis_debug(bool enable) {
+	int ret = 0;
+	long long start_time = rkipc_get_curren_time_ms();
+	if (enable == rk_mode_param.enable_eis_debug) {
+		LOG_DEBUG("eis debug is already %d, no need to set eis debug again\n", enable);
+		return 0;
+	}
+	if (enable && rk_mode_param.eis_mode == RK_EIS_OFF) {
+		LOG_DEBUG("eis debug is %d, but eis mode is %d, no need to set eis debug\n", enable, rk_mode_param.eis_mode);
+		return 0;
+	}
+	rk_video_deinit();
+	rk_isp_deinit(0);
+	rk_mode_param.enable_eis_debug = enable;
+	rk_isp_init(0, rkipc_iq_file_path_);
+	rk_video_init();
+	LOG_INFO("set debug mode %d, cost time %lld ms\n", enable, rkipc_get_curren_time_ms() - start_time);
+}
+
+int rk_get_eis_debug(void) {
+	return rk_mode_param.enable_eis_debug;
+}
+
+int rk_set_hdr(bool enable) {
+	int ret = 0;
+	long long start_time = rkipc_get_curren_time_ms();
+	if (enable == rk_mode_param.enable_hdr) {
+		LOG_DEBUG("hdr is already %d, no need to set hdr again\n", enable);
+		return 0;
+	}
+	if (rk_mode_param.mode == RK_SLOW_MOTION_MODE ||
+		rk_mode_param.mode == RK_TIME_LAPSE_MODE) {
+		LOG_DEBUG("hdr is %d, but mode is %d, no need to set hdr\n", enable, rk_mode_param.mode);
+		return 0;
+	}
+	rk_video_deinit();
+	rk_isp_deinit(0);
+	rk_mode_param.enable_hdr = enable;
+	if (rk_mode_param.enable_hdr) {
+		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_dag_12bit.json");
+	} else {
+		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_linear_10bit.json");
+	}
+
+	set_camera_format();
+	rk_isp_init(0, rkipc_iq_file_path_);
+	rk_video_init();
+	LOG_INFO("set hdr %d, cost time %lld ms\n", enable, rkipc_get_curren_time_ms() - start_time);
+	return 0;
+}
+
+int rk_get_hdr(void) {
+	return rk_mode_param.enable_hdr;
+}
+
+int rk_set_rtsp(bool enable) {
+	int ret = 0;
+	if (enable == rk_mode_param.enable_rtsp) {
+		LOG_DEBUG("rtsp is already %d, no need to set rtsp again\n", enable);
+		return 0;
+	}
+	if (enable) {
+		rk_mode_param.enable_rtsp = enable;
+		rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
+	} else {
+		rk_mode_param.enable_rtsp = enable;
+		rkipc_rtsp_deinit();
+	}
+	rk_param_set_int("video.source:enable_rtsp", enable);
+	return 0;
+}
+
+int rk_get_rtsp(void) {
+	return rk_mode_param.enable_rtsp;
+}
+
+int rk_set_comp(bool enable) {
+	int ret = 0;
+	long long start_time = rkipc_get_curren_time_ms();
+	if (enable == rk_mode_param.enable_comp) {
+		LOG_DEBUG("comp is already %d, no need to set comp again\n", enable);
+		return 0;
+	}
+	rk_isp_deinit(0);
+	rk_video_deinit();
+	rk_mode_param.enable_comp = enable;
+	rk_param_set_int("video.source:enable_comp", enable);
+	rk_isp_init(0, rkipc_iq_file_path_);
+	rk_video_init();
+	LOG_INFO("set comp %d, cost time %lld ms\n", enable, rkipc_get_curren_time_ms() - start_time);
+	return 0;
+}
+
+int rk_get_comp(void) {
+	return rk_mode_param.enable_comp;
+}
+
 int rk_video_start_record(void) {
 	int ret = 0;
 	VENC_RECV_PIC_PARAM_S recv_param;
@@ -1314,6 +1483,12 @@ int rk_video_start_record(void) {
 	                           &recv_param);
 	if (ret) {
 		LOG_ERROR("ERROR: start recv frame error! ret=%d\n", ret);
+		return ret;
+	}
+	ret = gdc_record_init();
+	if (ret) {
+		LOG_ERROR("ERROR: gdc_record_init failed! ret=%d\n", ret);
+		RK_MPI_VENC_StopRecvFrame(VENC_MAIN_CHN);
 		return ret;
 	}
 	ret = bind_media_pipe();
@@ -1349,6 +1524,9 @@ int rk_video_stop_record(void) {
 	ret = unbind_media_pipe();
 	if (ret)
 		LOG_ERROR("ERROR: unbind_media_pipe failed! ret=%d\n", ret);
+	ret = gdc_record_deinit();
+	if (ret)
+		LOG_ERROR("ERROR: gdc_record_deinit failed! ret=%d\n", ret);
 	ret = RK_MPI_VENC_StopRecvFrame(VENC_MAIN_CHN);
 	if (ret)
 		LOG_ERROR("ERROR: stop recv frame error! ret=%d\n", ret);

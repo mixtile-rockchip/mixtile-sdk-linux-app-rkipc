@@ -25,6 +25,9 @@ extern "C" {
 
 lv_obj_t *ui_dialog_create(const char *head_title, const char *content);
 void ui_dialog_destroy(void);
+typedef void (*UI_TASK_TYPE)(void *);
+int ui_start_async_task(UI_TASK_TYPE func, void *func_arg, UI_TASK_TYPE dtor, void *dtor_arg);
+bool ui_async_task_is_running(void);
 
 #ifdef __cplusplus
 } /* end of extern "C" */

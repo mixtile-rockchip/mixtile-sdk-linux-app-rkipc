@@ -85,14 +85,6 @@ void rkipc_get_opt(int argc, char *argv[]) {
 	}
 }
 
-static RK_PLAYER_CONFIG_S player_handler;
-static enum { PLAYER_UNINIT, PLAYER_INIT, PLAYER_STOP } player_status = PLAYER_UNINIT;
-
-static void player_event_cb(RK_PLAYER_EVENT event) {
-	if (event == RK_PLAYER_EOF)
-		player_status = PLAYER_STOP;
-}
-
 int main(int argc, char **argv) {
 	LOG_INFO("main begin\n");
 	rkipc_version_dump();
@@ -107,9 +99,9 @@ int main(int argc, char **argv) {
 	rkipc_camera_id_ = rk_param_get_int("video.source:camera_id", 0); // need rk_param_init
 	RK_MPI_SYS_Init();
 
+	rk_init_mode();
 	rk_storage_init();
 	rk_isp_init(0, "/etc/iqfiles");
-	rk_init_mode();
 	ui_init();
 	rk_video_init();
 
