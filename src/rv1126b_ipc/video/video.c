@@ -154,6 +154,7 @@ static void *rkipc_get_venc_0(void *arg) {
 	int ret = 0;
 	// FILE *fp = fopen("/data/venc.h265", "wb");
 	stFrame.pstPack = malloc(sizeof(VENC_PACK_S));
+	int enable_uvc = rk_param_get_int("video.source:enable_uvc", 0);
 
 	while (g_video_run_) {
 		// 5.get the frame
@@ -165,6 +166,8 @@ static void *rkipc_get_venc_0(void *arg) {
 			// LOG_INFO("Count:%d, Len:%d, PTS is %" PRId64", enH264EType is %d\n", loopCount,
 			// stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
 			// stFrame.pstPack->DataType.enH264EType);
+			if (enable_uvc)
+				uvc_read_camera_buffer(data, -1, stFrame.pstPack->u32Len, NULL, 0);
 
 			rkipc_rtsp_write_video_frame(0, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS);
 			if ((stFrame.pstPack->DataType.enH264EType == H264E_NALU_IDRSLICE) ||
@@ -312,6 +315,7 @@ static void *rkipc_get_jpeg(void *arg) {
 			LOG_INFO("Count:%d, Len:%d, PTS is %" PRId64 ", enH264EType is %d\n", loopCount,
 			         stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
 			         stFrame.pstPack->DataType.enH264EType);
+			// uvc_read_camera_buffer(data, -1, stFrame.pstPack->u32Len, NULL, 0);
 			// save jpeg file
 			time_t t = time(NULL);
 			struct tm tm = *localtime(&t);
@@ -1417,10 +1421,10 @@ static void *rkipc_get_vi_2_send(void *arg) {
 			else
 				ret = RK_MPI_VPSS_ReleaseChnFrame(0, 2, &stViFrame);
 			if (ret != RK_SUCCESS)
-				LOG_ERROR("RK_MPI_VI or VPSS_ReleaseChnFrame fail %x", ret);
+				LOG_ERROR("RK_MPI_VI or VPSS_ReleaseChnFrame fail %x\n", ret);
 			loopCount++;
 		} else {
-			LOG_ERROR("RK_MPI_VI or VPSS_GetChnFrame timeout %x", ret);
+			LOG_ERROR("RK_MPI_VI or VPSS_GetChnFrame timeout %x\n", ret);
 		}
 		cost_time = rkipc_get_curren_time_ms() - before_time;
 		if ((cost_time > 0) && (cost_time < npu_cycle_time_ms))

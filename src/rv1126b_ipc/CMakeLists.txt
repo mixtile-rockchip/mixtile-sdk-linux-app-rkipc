@@ -40,6 +40,7 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/common/rockiva SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/region_clip SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/sysutil SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/venc SRCS)
+aux_source_directory(${PROJECT_SOURCE_DIR}/common/uvc SRCS)
 
 include_directories(video
 					${PROJECT_SOURCE_DIR}/common
@@ -61,6 +62,7 @@ include_directories(video
 					${PROJECT_SOURCE_DIR}/common/region_clip
 					${PROJECT_SOURCE_DIR}/common/sysutil
 					${PROJECT_SOURCE_DIR}/common/venc
+					${PROJECT_SOURCE_DIR}/common/uvc
 					)
 
 add_definitions(-DRKIPC_RV1126B)
@@ -96,6 +98,7 @@ endif()
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)
+install(PROGRAMS ${PROJECT_SOURCE_DIR}/common/uvc/rkipc_usb_config.sh DESTINATION bin)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/image.bmp DESTINATION share)
 install(FILES rv1126b_fecMesh_src3840x2160_dst3840x2160_step32x16_level255.bin DESTINATION share RENAME rv1126b.bin)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/SourceHanSansCN.ttf DESTINATION share)
