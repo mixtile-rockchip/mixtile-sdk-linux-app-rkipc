@@ -442,6 +442,7 @@ int rk_osd_init() {
 				g_osd_signal = rk_signal_create(0, 1);
 				if (!g_osd_signal) {
 					LOG_ERROR("create signal fail\n");
+					pthread_mutex_unlock(&g_osd_mutex);
 					return -1;
 				}
 			}
