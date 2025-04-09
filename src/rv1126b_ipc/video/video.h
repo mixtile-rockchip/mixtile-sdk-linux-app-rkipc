@@ -15,6 +15,8 @@
 #include <rga/im2d.h>
 #include <rga/rga.h>
 #include <rk_debug.h>
+#include <rk_mpi_gdc.h>
+#include <rk_mpi_ivs.h>
 #include <rk_mpi_mb.h>
 #include <rk_mpi_mmz.h>
 #include <rk_mpi_rgn.h>
@@ -24,8 +26,6 @@
 #include <rk_mpi_vi.h>
 #include <rk_mpi_vo.h>
 #include <rk_mpi_vpss.h>
-#include <rk_mpi_ivs.h>
-#include <rk_mpi_gdc.h>
 
 int rk_video_init();
 int rk_video_deinit();

@@ -7,8 +7,8 @@
 #include <rk_aiq_user_api2_acsm.h>
 #include <rk_aiq_user_api2_camgroup.h>
 #include <rk_aiq_user_api2_imgproc.h>
-#include <rk_aiq_user_api2_sysctl.h>
 #include <rk_aiq_user_api2_isp.h>
+#include <rk_aiq_user_api2_sysctl.h>
 
 #ifdef LOG_TAG
 #undef LOG_TAG
@@ -1131,7 +1131,9 @@ int rk_isp_set_distortion_correction(int cam_id, const char *value) {
 	char entry[128] = {'\0'};
 	snprintf(entry, 127, "isp.%d.enhancement:distortion_correction", cam_id);
 	rk_param_set_string(entry, value);
-
+#if defined(RKIPC_RV1126B)
+	rk_video_restart();
+#endif
 	return ret;
 }
 
@@ -1297,7 +1299,7 @@ int rk_isp_set_power_line_frequency_mode(int cam_id, const char *value) {
 	antiFlickerMode_t mode;
 
 	mode = ANTIFLICKER_NORMAL_MODE;
-	ret  = rk_aiq_uapi2_setAntiFlickerMode(rkipc_aiq_get_ctx(cam_id), mode);
+	ret = rk_aiq_uapi2_setAntiFlickerMode(rkipc_aiq_get_ctx(cam_id), mode);
 	if (!strcmp(value, "NTSC(60HZ)")) {
 		freq = EXP_PWR_LINE_FREQ_60HZ;
 	} else {

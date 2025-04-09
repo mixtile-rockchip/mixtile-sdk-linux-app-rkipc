@@ -41,10 +41,9 @@ int g_vi_for_npu_ivs_id = 4;
 int g_vi_for_venc_1_id = 2;
 int g_vi_for_vo_chn_id = 5;
 
-
 static int take_photo_one = 0;
-static int enable_jpeg, enable_venc_0, enable_venc_1, enable_npu, enable_wrap,
-			enable_ivs, enable_rtmp, enable_rtsp, enable_osd, enable_fec;
+static int enable_jpeg, enable_venc_0, enable_venc_1, enable_npu, enable_wrap, enable_ivs,
+    enable_rtmp, enable_rtsp, enable_osd, enable_fec;
 int g_enable_vo, g_vo_dev_id, g_vo_layer_id;
 static int g_video_run_ = 1;
 static int g_nn_osd_run_ = 0;
@@ -56,10 +55,11 @@ static const char *tmp_smart;
 static const char *tmp_gop_mode;
 static const char *tmp_rc_quality;
 static pthread_t venc_thread_0, venc_thread_1, venc_thread_2, jpeg_venc_thread_id,
-				get_vpss_2_send_npu_thread, get_nn_update_osd_thread_id, get_vi_2_send_thread,
-				get_ivs_result_thread, cycle_snapshot_thread_id;
+    get_vpss_2_send_npu_thread, get_nn_update_osd_thread_id, get_vi_2_send_thread,
+    get_ivs_result_thread, cycle_snapshot_thread_id;
 
-static MPP_CHN_S vi_chn, vpss_in_chn, vi_for_vo_chn, vo_chn, vpss_out_chn[4], venc_chn, ivs_chn, gdc_chn;
+static MPP_CHN_S vi_chn, vpss_in_chn, vi_for_vo_chn, vo_chn, vpss_out_chn[4], venc_chn, ivs_chn,
+    gdc_chn;
 typedef enum rkCOLOR_INDEX_E {
 	RGN_COLOR_LUT_INDEX_0 = 0,
 	RGN_COLOR_LUT_INDEX_1 = 1,
@@ -418,10 +418,10 @@ int rkipc_vi_dev_init() {
 			LOG_ERROR("RK_MPI_VI_GetModParam fail:%#X\n", ret);
 
 		LOG_INFO("vi mod:%d mirror:%d ext_chn_mode:%d ext_chn1_mode:%d"
-					"ext_chn2_mode:%d ext_chn3_mode:%d\n",
-					stModParam.enViModType, stModParam.stExtChnParam.mirrorCmsc,
-					stModParam.stExtChnParam.extChn[0], stModParam.stExtChnParam.extChn[1],
-					stModParam.stExtChnParam.extChn[2], stModParam.stExtChnParam.extChn[3]);
+		         "ext_chn2_mode:%d ext_chn3_mode:%d\n",
+		         stModParam.enViModType, stModParam.stExtChnParam.mirrorCmsc,
+		         stModParam.stExtChnParam.extChn[0], stModParam.stExtChnParam.extChn[1],
+		         stModParam.stExtChnParam.extChn[2], stModParam.stExtChnParam.extChn[3]);
 	}
 
 	return 0;
@@ -438,7 +438,7 @@ int rkipc_vi_gdc_vpss_init() {
 	int video_width = rk_param_get_int("video.0:width", -1);
 	int video_height = rk_param_get_int("video.0:height", -1);
 	int rotation = rk_param_get_int("video.source:rotation", 0);
-	int buf_cnt = 6;
+	int buf_cnt = 3;
 
 	// VI
 	VI_CHN_ATTR_S vi_chn_attr;
@@ -479,9 +479,9 @@ int rkipc_vi_gdc_vpss_init() {
 	stAttr.enDstPixelFormat = RK_FMT_YUV420SP;
 	stAttr.enCompMode = COMPRESS_MODE_NONE;
 	stAttr.enDstCompMode = COMPRESS_MODE_NONE;
-	
+
 	stAttr.enMode = GDC_CHN_MODE_FEC;
-	stAttr.stFecAttr.s32InFourcc  = 0;
+	stAttr.stFecAttr.s32InFourcc = 0;
 	stAttr.stFecAttr.s32OutFourcc = 0;
 	stAttr.stFecAttr.s32BorderMode = 0;
 	stAttr.stFecAttr.s32CrossBufMode = 0;
@@ -491,21 +491,20 @@ int rkipc_vi_gdc_vpss_init() {
 #if 1
 	// only support for imx415
 	stAttr.stFecAttr.enFecMode = GDC_FEC_UPDATE_MESH_FROM_FILE;
-	memcpy(stAttr.stFecAttr.mesh0,
-		"/oem/usr/share/rv1126b.bin",
-		strlen("/oem/usr/share/rv1126b.bin"));
+	memcpy(stAttr.stFecAttr.mesh0, "/oem/usr/share/rv1126b.bin",
+	       strlen("/oem/usr/share/rv1126b.bin"));
 	LOG_INFO("stAttr.stFecAttr.mesh0 is %s\n", stAttr.stFecAttr.mesh0);
 #else
 	stAttr.stFecAttr.enFecMode = GDC_FEC_UPDATE_MESH_ONLINE;
-	stAttr.stFecAttr.dLightCenter[0]  = 1956.3909119999998438;
-	stAttr.stFecAttr.dLightCenter[1]  = 1140.6355200000000422;
-	stAttr.stFecAttr.dCoeff[0]        = -2819.4072493821618081;
-	stAttr.stFecAttr.dCoeff[1]        = 0.0000316126581792;
-	stAttr.stFecAttr.dCoeff[2]        = 0.0000000688410142;
-	stAttr.stFecAttr.dCoeff[3]        = -0.0000000000130686;
-	stAttr.stFecAttr.s32CorrectLevel  = 255;
-	stAttr.stFecAttr.enDirection      = GDC_FEC_CORRECT_DIRECTION_XY;
-	stAttr.stFecAttr.enStyle          = GDC_FEC_KEEP_ASPECT_RATIO_REDUCE_FOV;
+	stAttr.stFecAttr.dLightCenter[0] = 1956.3909119999998438;
+	stAttr.stFecAttr.dLightCenter[1] = 1140.6355200000000422;
+	stAttr.stFecAttr.dCoeff[0] = -2819.4072493821618081;
+	stAttr.stFecAttr.dCoeff[1] = 0.0000316126581792;
+	stAttr.stFecAttr.dCoeff[2] = 0.0000000688410142;
+	stAttr.stFecAttr.dCoeff[3] = -0.0000000000130686;
+	stAttr.stFecAttr.s32CorrectLevel = 255;
+	stAttr.stFecAttr.enDirection = GDC_FEC_CORRECT_DIRECTION_XY;
+	stAttr.stFecAttr.enStyle = GDC_FEC_KEEP_ASPECT_RATIO_REDUCE_FOV;
 #endif
 	ret = RK_MPI_GDC_CreateChn(0, &stAttr);
 
@@ -549,7 +548,7 @@ int rkipc_vi_gdc_vpss_init() {
 		stVpssChnAttr[0].u32Width = rk_param_get_int("video.0:width", -1);
 		stVpssChnAttr[0].u32Height = rk_param_get_int("video.0:height", -1);
 		stVpssChnAttr[0].enCompressMode = COMPRESS_MODE_NONE;
-		stVpssChnAttr[0].u32FrameBufCnt = 3;
+		stVpssChnAttr[0].u32FrameBufCnt = 2;
 		ret = RK_MPI_VPSS_SetChnAttr(VpssGrp, VpssChn[0], &stVpssChnAttr[0]);
 		if (ret != RK_SUCCESS)
 			LOG_ERROR("0: RK_MPI_VPSS_SetChnAttr error! ret is %#x\n", ret);
@@ -566,7 +565,7 @@ int rkipc_vi_gdc_vpss_init() {
 		stVpssChnAttr[1].u32Width = rk_param_get_int("video.1:width", 0);
 		stVpssChnAttr[1].u32Height = rk_param_get_int("video.1:height", 0);
 		stVpssChnAttr[1].enCompressMode = COMPRESS_MODE_NONE;
-		stVpssChnAttr[1].u32FrameBufCnt = 3;
+		stVpssChnAttr[1].u32FrameBufCnt = 2;
 		ret = RK_MPI_VPSS_SetChnAttr(VpssGrp, VpssChn[1], &stVpssChnAttr[1]);
 		if (ret != RK_SUCCESS)
 			LOG_ERROR("1: RK_MPI_VPSS_SetChnAttr error! ret is %#x\n", ret);
@@ -583,10 +582,10 @@ int rkipc_vi_gdc_vpss_init() {
 		stVpssChnAttr[2].u32Width = rk_param_get_int("video.2:width", 0);
 		stVpssChnAttr[2].u32Height = rk_param_get_int("video.2:height", 0);
 		stVpssChnAttr[2].enCompressMode = COMPRESS_MODE_NONE;
-		stVpssChnAttr[2].u32FrameBufCnt = 3;
+		stVpssChnAttr[2].u32FrameBufCnt = 2;
 		if (enable_npu) {
 			stVpssChnAttr[2].u32Depth = 1;
-			stVpssChnAttr[2].u32FrameBufCnt = 4;
+			stVpssChnAttr[2].u32FrameBufCnt = 3;
 		}
 		ret = RK_MPI_VPSS_SetChnAttr(VpssGrp, VpssChn[2], &stVpssChnAttr[2]);
 		if (ret != RK_SUCCESS)
@@ -623,7 +622,7 @@ int rkipc_vi_gdc_vpss_init() {
 		LOG_ERROR("RK_MPI_VPSS_StartGrp error! ret is %#x\n", ret);
 		return ret;
 	}
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 4; i++) {
 		vpss_out_chn[i].enModId = RK_ID_VPSS;
 		vpss_out_chn[i].s32DevId = 0;
 		vpss_out_chn[i].s32ChnId = i;
@@ -654,6 +653,12 @@ int rkipc_vi_gdc_vpss_deinit() {
 	ret = RK_MPI_SYS_UnBind(&gdc_chn, &vpss_in_chn);
 	if (ret)
 		LOG_ERROR("UnBind GDC and VPSS error! ret=%#x\n", ret);
+	vi_chn.enModId = RK_ID_VI;
+	vi_chn.s32DevId = 0;
+	vi_chn.s32ChnId = g_vi_chn_id;
+	gdc_chn.enModId = RK_ID_GDC;
+	gdc_chn.s32DevId = 0;
+	gdc_chn.s32ChnId = 0;
 	ret = RK_MPI_SYS_UnBind(&vi_chn, &gdc_chn);
 	if (ret)
 		LOG_ERROR("UnBind VI and GDC error! ret=%#x\n", ret);
@@ -720,7 +725,7 @@ int rkipc_vi_ext_init() {
 			stViWrap.u32BufLine = buffer_line;
 			stViWrap.u32WrapBufferSize = stViWrap.u32BufLine * video_max_width * 3 / 2;
 			LOG_INFO("set vi channel wrap line: %d, wrapBuffSize = %d\n", stViWrap.u32BufLine,
-					stViWrap.u32WrapBufferSize);
+			         stViWrap.u32WrapBufferSize);
 			RK_MPI_VI_SetChnWrapBufAttr(pipe_id_, g_vi_for_venc_0_id, &stViWrap);
 		}
 
@@ -1388,8 +1393,8 @@ static void *rkipc_get_vi_2_send(void *arg) {
 			void *data = RK_MPI_MB_Handle2VirAddr(stViFrame.stVFrame.pMbBlk);
 			// 1126b 32bit rga only support fd
 			rkipc_rockiva_write_nv12_frame_by_fd(stViFrame.stVFrame.u32Width,
-					stViFrame.stVFrame.u32Height, loopCount,
-					RK_MPI_MB_Handle2Fd(stViFrame.stVFrame.pMbBlk));
+			                                     stViFrame.stVFrame.u32Height, loopCount,
+			                                     RK_MPI_MB_Handle2Fd(stViFrame.stVFrame.pMbBlk));
 			if (!enable_fec)
 				ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, g_vi_for_npu_ivs_id, &stViFrame);
 			else
@@ -3087,13 +3092,14 @@ int rk_video_init() {
 	enable_ivs = rk_param_get_int("video.source:enable_ivs", 1);
 	enable_wrap = rk_param_get_int("video.source:enable_wrap", 0);
 	enable_osd = rk_param_get_int("osd.common:enable_osd", 1);
-	char *distortion_correction = rk_param_get_string("isp.0.enhancement:distortion_correction", "close");
+	char *distortion_correction =
+	    rk_param_get_string("isp.0.enhancement:distortion_correction", "close");
 	if (!strcmp(distortion_correction, "FEC"))
 		enable_fec = 1;
 	else
 		enable_fec = 0;
 	LOG_INFO("enable_jpeg is %d, enable_venc_0 is %d, enable_venc_1 is %d, enable_fec is %d\n",
-		enable_jpeg, enable_venc_0, enable_venc_1, enable_fec);
+	         enable_jpeg, enable_venc_0, enable_venc_1, enable_fec);
 
 	pipe_id_ = rk_param_get_int("video.source:camera_id", 0);
 	g_vi_chn_id = rk_param_get_int("video.source:vi_chn_id", 0);
@@ -3101,7 +3107,7 @@ int rk_video_init() {
 	g_vo_dev_id = rk_param_get_int("video.source:vo_dev_id", 3);
 	g_vo_layer_id = rk_param_get_int("video.source:vo_layer_id", 0);
 	LOG_INFO("g_vi_chn_id is %d, g_enable_vo is %d, g_vo_dev_id is %d, g_vo_layer_id is %d\n",
-				g_vi_chn_id, g_enable_vo, g_vo_dev_id, g_vo_layer_id);
+	         g_vi_chn_id, g_enable_vo, g_vo_dev_id, g_vo_layer_id);
 	g_video_run_ = 1;
 	if (enable_rtsp)
 		ret |= rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
