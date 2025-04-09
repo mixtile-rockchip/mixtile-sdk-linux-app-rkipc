@@ -1128,11 +1128,18 @@ int rk_isp_set_distortion_correction(int cam_id, const char *value) {
 		ldch_en = true;
 	ret = rk_aiq_uapi2_setLdchEn(rkipc_aiq_get_ctx(cam_id), ldch_en);
 
+	char old_value[128];
+	const char *old_value_p;
+	rk_isp_get_distortion_correction(cam_id, &old_value_p);
+	memcpy(old_value, old_value_p, strlen(old_value_p));
+
 	char entry[128] = {'\0'};
 	snprintf(entry, 127, "isp.%d.enhancement:distortion_correction", cam_id);
 	rk_param_set_string(entry, value);
 #if defined(RKIPC_RV1126B)
-	rk_video_restart();
+	LOG_INFO("old_value is %s, new value is %s\n", old_value, value);
+	if (strcmp(old_value, value))
+		rk_video_restart();
 #endif
 	return ret;
 }
