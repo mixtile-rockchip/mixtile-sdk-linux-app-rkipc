@@ -451,10 +451,7 @@ int rkipc_vi_gdc_vpss_init() {
 	vi_chn_attr.stSize.u32Height = video_height;
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.u32Depth = 0;
-	if (rk_param_get_int("video.source:format", 0))
-		vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
-	else
-		vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
+	vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
 	ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_chn_id, &vi_chn_attr);
 	if (ret) {
 		LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
@@ -468,8 +465,8 @@ int rkipc_vi_gdc_vpss_init() {
 
 	// GDC
 	GDC_CHN_ATTR_S stAttr = {0};
-	stAttr.u32MaxInQueue = 6;
-	stAttr.u32MaxOutQueue = 6;
+	stAttr.u32MaxInQueue = 3;
+	stAttr.u32MaxOutQueue = 3;
 	stAttr.s32Depth = 0;
 	stAttr.s32SrcWidth = rk_param_get_int("video.0:width", -1);
 	stAttr.s32SrcHeight = rk_param_get_int("video.0:height", -1);
