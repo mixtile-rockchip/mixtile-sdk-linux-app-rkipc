@@ -699,12 +699,14 @@ int rkipc_vi_ext_init() {
 		vi_chn_attr.stIspOpt.stMaxSize.u32Height = rk_param_get_int("video.0:max_height", 1440);
 		vi_chn_attr.stSize.u32Width = rk_param_get_int("video.0:width", 2560);
 		vi_chn_attr.stSize.u32Height = rk_param_get_int("video.0:height", 1440);
-		vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 		vi_chn_attr.u32Depth = 0;
-		if (rk_param_get_int("video.source:format", 0))
+		if (rk_param_get_int("video.source:format", 0)) {
+			vi_chn_attr.enPixelFormat = RK_FMT_YUV422SP;
 			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
-		else
+		} else {
+			vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 			vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
+		}
 		ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_for_venc_0_id, &vi_chn_attr);
 		if (ret) {
 			LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
@@ -930,7 +932,10 @@ int rkipc_pipe_0_init() {
 		venc_chn_attr.stGopAttr.enGopMode = VENC_GOPMODE_TSVC4;
 	}
 	// venc_chn_attr.stGopAttr.u32GopSize = rk_param_get_int("video.0:gop", -1);
-	venc_chn_attr.stVencAttr.enPixelFormat = RK_FMT_YUV420SP;
+	if (rk_param_get_int("video.source:format", 0))
+		venc_chn_attr.stVencAttr.enPixelFormat = RK_FMT_YUV422SP;
+	else
+		venc_chn_attr.stVencAttr.enPixelFormat = RK_FMT_YUV420SP;
 	venc_chn_attr.stVencAttr.u32MaxPicWidth = rk_param_get_int("video.0:max_width", 2560);
 	venc_chn_attr.stVencAttr.u32MaxPicHeight = rk_param_get_int("video.0:max_height", 1440);
 	venc_chn_attr.stVencAttr.u32PicWidth = video_width;
