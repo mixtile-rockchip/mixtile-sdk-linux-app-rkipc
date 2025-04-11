@@ -700,8 +700,11 @@ int rkipc_vi_ext_init() {
 		vi_chn_attr.stSize.u32Width = rk_param_get_int("video.0:width", 2560);
 		vi_chn_attr.stSize.u32Height = rk_param_get_int("video.0:height", 1440);
 		vi_chn_attr.u32Depth = 0;
-		if (rk_param_get_int("video.source:format", 0)) {
+		if (rk_param_get_int("video.0:format", 0) == 2) {
 			vi_chn_attr.enPixelFormat = RK_FMT_YUV422SP;
+			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
+		} else if (rk_param_get_int("video.0:format", 0) == 1) {
+			vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
 		} else {
 			vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
@@ -743,8 +746,17 @@ int rkipc_vi_ext_init() {
 		vi_chn_attr.stIspOpt.stMaxSize.u32Height = rk_param_get_int("video.1:max_height", 576);
 		vi_chn_attr.stSize.u32Width = rk_param_get_int("video.1:width", 2560);
 		vi_chn_attr.stSize.u32Height = rk_param_get_int("video.1:height", 1440);
-		vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 		vi_chn_attr.u32Depth = 0;
+		if (rk_param_get_int("video.1:format", 0) == 2) {
+			vi_chn_attr.enPixelFormat = RK_FMT_YUV422SP;
+			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
+		} else if (rk_param_get_int("video.1:format", 0) == 1) {
+			vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
+			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
+		} else {
+			vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
+			vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
+		}
 		ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_for_venc_1_id, &vi_chn_attr);
 		ret |= RK_MPI_VI_EnableChn(pipe_id_, g_vi_for_venc_1_id);
 		if (ret) {
@@ -932,7 +944,7 @@ int rkipc_pipe_0_init() {
 		venc_chn_attr.stGopAttr.enGopMode = VENC_GOPMODE_TSVC4;
 	}
 	// venc_chn_attr.stGopAttr.u32GopSize = rk_param_get_int("video.0:gop", -1);
-	if (rk_param_get_int("video.source:format", 0))
+	if (rk_param_get_int("video.source:0", 0) == 2)
 		venc_chn_attr.stVencAttr.enPixelFormat = RK_FMT_YUV422SP;
 	else
 		venc_chn_attr.stVencAttr.enPixelFormat = RK_FMT_YUV420SP;
@@ -1224,7 +1236,6 @@ int rkipc_pipe_1_init() {
 	}
 	// venc_chn_attr.stGopAttr.u32GopSize = rk_param_get_int("video.1:gop", -1);
 
-	venc_chn_attr.stVencAttr.enPixelFormat = RK_FMT_YUV420SP;
 	venc_chn_attr.stVencAttr.u32MaxPicWidth = rk_param_get_int("video.1:max_width", 704);
 	venc_chn_attr.stVencAttr.u32MaxPicHeight = rk_param_get_int("video.1:max_height", 576);
 	venc_chn_attr.stVencAttr.u32PicWidth = video_width;
@@ -1234,6 +1245,10 @@ int rkipc_pipe_1_init() {
 	venc_chn_attr.stVencAttr.u32StreamBufCnt = rk_param_get_int("video.1:buffer_count", 4);
 	venc_chn_attr.stVencAttr.u32BufSize = rk_param_get_int("video.1:buffer_size", 202752);
 	// venc_chn_attr.stVencAttr.u32Depth = 1;
+	if (rk_param_get_int("video.source:1", 0) == 2)
+		venc_chn_attr.stVencAttr.enPixelFormat = RK_FMT_YUV422SP;
+	else
+		venc_chn_attr.stVencAttr.enPixelFormat = RK_FMT_YUV420SP;
 	ret = RK_MPI_VENC_CreateChn(VIDEO_PIPE_1, &venc_chn_attr);
 	if (ret) {
 		LOG_ERROR("ERROR: create VENC error! ret=%#x\n", ret);
