@@ -333,6 +333,7 @@ int rk_osd_init() {
 	pthread_mutex_lock(&g_osd_mutex);
 	const char *osd_type;
 	char entry[128] = {'\0'};
+	char temp_text[128] = {0};
 	osd_data_s osd_data;
 	int video_width = rk_param_get_int("video.0:width", -1);
 	int video_height = rk_param_get_int("video.0:height", -1);
@@ -405,7 +406,6 @@ int rk_osd_init() {
 				const char *display_text = rk_param_get_string(entry, NULL);
 				// judge image depend on ini or json
 				if (display_text && !strcmp(display_text, "isp config:")) {
-					char temp_text[128] = {0};
 					strncpy(temp_text, display_text, sizeof(temp_text) - 1);
 					int init_from_ini = rk_param_get_int("isp:init_from_ini", 1);
 					strcat(temp_text, init_from_ini ? "ini" : "json");
