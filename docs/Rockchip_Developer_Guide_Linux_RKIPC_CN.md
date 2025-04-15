@@ -392,13 +392,14 @@ graph LR
 graph LR
 AI-->AENC-->RTSP_RTMP_0
 
-subgraph "FEC close"
-    VI_PIPE-->VI_ext_3_rfbc_or_wrap
+subgraph "FEC close, VPSS online"
+    VI_PIPE-->VI_ext_3
     VI_PIPE-->VI_ext_4
     VI_PIPE-->VI_ext_2
     VI_PIPE-->VI_ext_5
 end
-VI_ext_3_rfbc_or_wrap-->VENC_0_draw_nn_result-->MUXER-->MP4
+VI_ext_3--RKFBC_or_WRAP-->VENC_0_draw_nn_result-->MUXER-->MP4
+VENC_0_draw_nn_result-->UVC
 VENC_0_draw_nn_result--combo-->JPEG
 VI_ext_4-->NPU
 VI_ext_4-->IVS_for_OD_MD
@@ -406,22 +407,23 @@ VENC_0_draw_nn_result-->RTSP_RTMP_0
 VI_ext_2-->VENC_1-->RTSP_RTMP_1
 VI_ext_5-->VO
 
-subgraph "FEC open"
-	VI_0-.->GDC-.->VPSS_GRP
+subgraph "FEC open, VPSS offline"
+	VI_0-.TILE.->GDC-.RKFBC.->VPSS_GRP
 	VPSS_GRP-.->VPSS_CHN_0
 	VPSS_GRP-.->VPSS_CHN_1
 	VPSS_GRP-.->VPSS_CHN_2
 	VPSS_GRP-.->VPSS_CHN_3
 end
-VPSS_CHN_0-.->VENC_0_draw_nn_result
+VPSS_CHN_0-.RKFBC.->VENC_0_draw_nn_result
 VPSS_CHN_2-.->NPU
 VPSS_CHN_2-.->IVS_for_OD_MD
 VPSS_CHN_1-.->VENC_1
 VPSS_CHN_3-.->VO
 
- cover/mosaic-->VI_PIPE
- cover/mosaic-.->VPSS_GRP
-
+AIISP-.->VI_PIPE
+AIISP-.->VI_0
+cover/mosaic-->VI_PIPE
+cover/mosaic-.->VPSS_GRP
 ```
 
 ### RV1126 Dual-IPC

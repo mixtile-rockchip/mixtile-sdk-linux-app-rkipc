@@ -19,7 +19,7 @@
 #define JPEG_VENC_CHN 3
 #define VPSS_ROTATE 6
 #define VPSS_GRP_ID VPSS_MAX_CHN_NUM
-#define VI_PIPE_ID 0 // TODO
+#define VI_PIPE_ID 8
 #define DRAW_NN_VENC_CHN_ID 0
 #define DRAW_NN_OSD_ID 7
 #define RED_COLOR 0x0000FF
@@ -455,7 +455,10 @@ int rkipc_vi_gdc_vpss_init() {
 	vi_chn_attr.stSize.u32Height = video_height;
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.u32Depth = 0;
-	vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
+	if (rk_param_get_int("video.source:enable_compress", 0))
+		vi_chn_attr.enCompressMode = COMPRESS_TILE_4x4_MODE0;
+	else
+		vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
 	ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_chn_id, &vi_chn_attr);
 	if (ret) {
 		LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
@@ -476,10 +479,14 @@ int rkipc_vi_gdc_vpss_init() {
 	stAttr.s32SrcHeight = rk_param_get_int("video.0:height", -1);
 	stAttr.s32DstWidth = rk_param_get_int("video.0:width", -1);
 	stAttr.s32DstHeight = rk_param_get_int("video.0:height", -1);
-	stAttr.enPixelFormat = RK_FMT_YUV420SP;
 	stAttr.enDstPixelFormat = RK_FMT_YUV420SP;
-	stAttr.enCompMode = COMPRESS_MODE_NONE;
-	stAttr.enDstCompMode = COMPRESS_MODE_NONE;
+	if (rk_param_get_int("video.source:enable_compress", 0)) {
+		stAttr.enCompMode = COMPRESS_TILE_4x4_MODE0;
+		stAttr.enDstCompMode = COMPRESS_RFBC_64x4;
+	} else {
+		stAttr.enCompMode = COMPRESS_MODE_NONE;
+		stAttr.enDstCompMode = COMPRESS_MODE_NONE;
+	}
 
 	stAttr.enMode = GDC_CHN_MODE_FEC;
 	stAttr.stFecAttr.s32InFourcc = 0;
@@ -524,7 +531,10 @@ int rkipc_vi_gdc_vpss_init() {
 	stVpssGrpAttr.enPixelFormat = RK_FMT_YUV420SP;
 	stVpssGrpAttr.stFrameRate.s32SrcFrameRate = -1;
 	stVpssGrpAttr.stFrameRate.s32DstFrameRate = -1;
-	stVpssGrpAttr.enCompressMode = COMPRESS_MODE_NONE;
+	if (rk_param_get_int("video.source:enable_compress", 0))
+		stVpssGrpAttr.enCompressMode = COMPRESS_RFBC_64x4;
+	else
+		stVpssGrpAttr.enCompressMode = COMPRESS_MODE_NONE;
 
 	const char *vpss_proc_dev = rk_param_get_string("video.source:vpss_proc_dev", "vpss");
 	if (!strcmp(vpss_proc_dev, "gpu")) {
@@ -548,7 +558,10 @@ int rkipc_vi_gdc_vpss_init() {
 		stVpssChnAttr[0].stFrameRate.s32DstFrameRate = -1;
 		stVpssChnAttr[0].u32Width = rk_param_get_int("video.0:width", -1);
 		stVpssChnAttr[0].u32Height = rk_param_get_int("video.0:height", -1);
-		stVpssChnAttr[0].enCompressMode = COMPRESS_MODE_NONE;
+		if (rk_param_get_int("video.source:enable_compress", 0))
+			stVpssChnAttr[0].enCompressMode = COMPRESS_RFBC_64x4;
+		else
+			stVpssChnAttr[0].enCompressMode = COMPRESS_MODE_NONE;
 		stVpssChnAttr[0].u32FrameBufCnt = 2;
 		ret = RK_MPI_VPSS_SetChnAttr(VpssGrp, VpssChn[0], &stVpssChnAttr[0]);
 		if (ret != RK_SUCCESS)
@@ -704,16 +717,11 @@ int rkipc_vi_ext_init() {
 		vi_chn_attr.stSize.u32Width = rk_param_get_int("video.0:width", 2560);
 		vi_chn_attr.stSize.u32Height = rk_param_get_int("video.0:height", 1440);
 		vi_chn_attr.u32Depth = 0;
-		if (rk_param_get_int("video.0:format", 0) == 2) {
-			vi_chn_attr.enPixelFormat = RK_FMT_YUV422SP;
+		vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
+		if (rk_param_get_int("video.source:enable_compress", 0))
 			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
-		} else if (rk_param_get_int("video.0:format", 0) == 1) {
-			vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
-			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
-		} else {
-			vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
+		else
 			vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
-		}
 		ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_for_venc_0_id, &vi_chn_attr);
 		if (ret) {
 			LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
@@ -751,16 +759,8 @@ int rkipc_vi_ext_init() {
 		vi_chn_attr.stSize.u32Width = rk_param_get_int("video.1:width", 2560);
 		vi_chn_attr.stSize.u32Height = rk_param_get_int("video.1:height", 1440);
 		vi_chn_attr.u32Depth = 0;
-		if (rk_param_get_int("video.1:format", 0) == 2) {
-			vi_chn_attr.enPixelFormat = RK_FMT_YUV422SP;
-			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
-		} else if (rk_param_get_int("video.1:format", 0) == 1) {
-			vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
-			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
-		} else {
-			vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
-			vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
-		}
+		vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
+		vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
 		ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_for_venc_1_id, &vi_chn_attr);
 		ret |= RK_MPI_VI_EnableChn(pipe_id_, g_vi_for_venc_1_id);
 		if (ret) {
@@ -1425,6 +1425,7 @@ static void *rkipc_get_vi_2_send(void *arg) {
 			loopCount++;
 		} else {
 			LOG_ERROR("RK_MPI_VI or VPSS_GetChnFrame timeout %x\n", ret);
+			sleep(1);
 		}
 		cost_time = rkipc_get_curren_time_ms() - before_time;
 		if ((cost_time > 0) && (cost_time < npu_cycle_time_ms))
@@ -2616,7 +2617,7 @@ int rkipc_osd_cover_create(int id, osd_data_s *osd_data) {
 		LOG_ERROR("RK_MPI_RGN_AttachToChn (%d) failed with %#x\n", coverHandle, ret);
 		return RK_FAILURE;
 	}
-	LOG_INFO("RK_MPI_RGN_AttachToChn to vpss success\n");
+	LOG_INFO("RK_MPI_RGN_AttachToChn to vi/vpss success\n");
 
 	return ret;
 }
@@ -2638,9 +2639,9 @@ int rkipc_osd_cover_destroy(int id) {
 	}
 	ret = RK_MPI_RGN_DetachFromChn(RgnHandle, &stMppChn);
 	if (RK_SUCCESS != ret) {
-		LOG_ERROR("RK_MPI_RGN_DetachFrmChn (%d) to vpss failed with %#x\n", RgnHandle, ret);
+		LOG_ERROR("RK_MPI_RGN_DetachFrmChn (%d) to vi/vpss failed with %#x\n", RgnHandle, ret);
 	}
-	LOG_INFO("RK_MPI_RGN_DetachFromChn to vpss success\n");
+	LOG_INFO("RK_MPI_RGN_DetachFromChn to vi/vpss success\n");
 
 	// destory region
 	ret = RK_MPI_RGN_Destroy(RgnHandle);
@@ -2698,7 +2699,7 @@ int rkipc_osd_mosaic_create(int id, osd_data_s *osd_data) {
 		LOG_ERROR("RK_MPI_RGN_AttachToChn (%d) failed with %#x\n", mosaic_handle, ret);
 		return RK_FAILURE;
 	}
-	LOG_INFO("RK_MPI_RGN_AttachToChn to vpss 0 success\n");
+	LOG_INFO("RK_MPI_RGN_AttachToChn to vi/vpss success\n");
 
 	return ret;
 }
@@ -2720,7 +2721,7 @@ int rkipc_osd_mosaic_destroy(int id) {
 	}
 	ret = RK_MPI_RGN_DetachFromChn(RgnHandle, &stMppChn);
 	if (!ret)
-		LOG_ERROR("RK_MPI_RGN_DetachFrmChn (%d) to vpss 0 failed with %#x\n", RgnHandle, ret);
+		LOG_ERROR("RK_MPI_RGN_DetachFrmChn (%d) to vi/vpss failed with %#x\n", RgnHandle, ret);
 
 	// destory region
 	ret = RK_MPI_RGN_Destroy(RgnHandle);
