@@ -51,8 +51,8 @@ int rk_get_eis_debug(void);
 int rk_set_rtsp(bool enable);
 int rk_get_rtsp(void);
 
-int rk_set_comp(bool enable);
-int rk_get_comp(void);
+int rk_set_compress(bool enable);
+int rk_get_compress(void);
 
 int rk_video_start_record(void);
 int rk_video_stop_record(void);

@@ -40,7 +40,7 @@ static struct {
 	bool enable_smart_2a;
 	bool enable_display;
 	bool enable_rtsp;
-	bool enable_comp;
+	bool enable_compress;
 	int max_photo_num;
 	int remain_photo_num;
 	pthread_t photo_thread;
@@ -479,7 +479,7 @@ static int vi_chn_init(void) {
 	int ret;
 	int video_width = rk_param_get_int("video.0:width", -1);
 	int video_height = rk_param_get_int("video.0:height", -1);
-	int buf_cnt = rk_param_get_int("video.0:buf_cnt", 3);
+	int buf_cnt = rk_param_get_int("video.source:gdc_in_buf", 4);
 	VI_CHN_ATTR_S vi_chn_attr;
 
 	memset(&vi_chn_attr, 0, sizeof(vi_chn_attr));
@@ -487,7 +487,7 @@ static int vi_chn_init(void) {
 	vi_chn_attr.stIspOpt.enMemoryType = VI_V4L2_MEMORY_TYPE_MMAP;
 	vi_chn_attr.stSize.u32Width = video_width;
 	vi_chn_attr.stSize.u32Height = video_height;
-	if (rk_mode_param.enable_comp) {
+	if (rk_mode_param.enable_compress) {
 		if (rk_mode_param.eis_mode != RK_EIS_OFF)
 			vi_chn_attr.enCompressMode = COMPRESS_TILE_4x4_MODE0;
 		else
@@ -515,8 +515,10 @@ static int vi_chn_init(void) {
 	vi_chn_attr.u32Depth = 0;
 	if (rk_mode_param.eis_mode != RK_EIS_OFF)
 		vi_chn_attr.stIspOpt.bAttchFrmInfo = true;
-	ret = RK_MPI_VI_SetChnAttr(VI_DEV, VI_DISPLAY_CHN, &vi_chn_attr);
-	ret |= RK_MPI_VI_EnableChn(VI_DEV, VI_DISPLAY_CHN);
+	if (rk_mode_param.enable_display) {
+		ret = RK_MPI_VI_SetChnAttr(VI_DEV, VI_DISPLAY_CHN, &vi_chn_attr);
+		ret |= RK_MPI_VI_EnableChn(VI_DEV, VI_DISPLAY_CHN);
+	}
 	if (ret) {
 		LOG_ERROR("ERROR: create VI display channel error! ret=%#X\n", ret);
 		return ret;
@@ -530,7 +532,8 @@ static int vi_chn_deinit(void) {
 	ret = RK_MPI_VI_DisableChn(VI_DEV, VI_MAIN_CHN);
 	if (ret)
 		LOG_ERROR("ERROR: RK_MPI_VI_DisableChn VI main channel error! ret=%x\n", ret);
-	ret = RK_MPI_VI_DisableChn(VI_DEV, VI_DISPLAY_CHN);
+	if (rk_mode_param.enable_display)
+		ret = RK_MPI_VI_DisableChn(VI_DEV, VI_DISPLAY_CHN);
 	if (ret)
 		LOG_ERROR("ERROR: RK_MPI_VI_DisableChn VI display channel error! ret=%x\n", ret);
 	if (ret == RK_SUCCESS)
@@ -678,7 +681,7 @@ static int gdc_display_init(void) {
 		display_width = display_height;
 		display_height = tmp;
 	}
-	if (rk_mode_param.eis_mode == RK_EIS_OFF) {
+	if (rk_mode_param.eis_mode == RK_EIS_OFF || !rk_mode_param.enable_display) {
 		LOG_DEBUG("EIS is off, no need to init GDC\n");
 		return ret;
 	}
@@ -712,7 +715,7 @@ static int gdc_display_init(void) {
 
 static int gdc_display_deinit(void) {
 	int ret = 0;
-	if (rk_mode_param.eis_mode == RK_EIS_OFF) {
+	if (rk_mode_param.eis_mode == RK_EIS_OFF || !rk_mode_param.enable_display) {
 		LOG_DEBUG("EIS is off, no need to deinit GDC\n");
 		return ret;
 	}
@@ -735,17 +738,19 @@ static int gdc_record_init(void) {
 		LOG_DEBUG("EIS is off, no need to init GDC\n");
 		return ret;
 	}
-	gdc_attr.u32MaxInQueue = 8;
-	gdc_attr.u32MaxOutQueue = 8;
+	gdc_attr.u32MaxInQueue = rk_param_get_int("video.source:gdc_in_buf", 4);
+	gdc_attr.u32MaxOutQueue = rk_param_get_int("video.source:gdc_out_buf", 3);
 	gdc_attr.s32SrcWidth = sensor_width;
 	gdc_attr.s32SrcHeight = sensor_height;
 	gdc_attr.s32DstWidth = video_width;
 	gdc_attr.s32DstHeight = video_height;
-	if (rk_mode_param.enable_comp) {
+	gdc_attr.s32Depth = rk_param_get_int("video.0:depth", 0);
+	if (rk_mode_param.enable_compress) {
 		gdc_attr.enCompMode = COMPRESS_TILE_4x4_MODE0;
 		gdc_attr.enDstCompMode = COMPRESS_RFBC_64x4;
 	} else {
-		gdc_attr.enPixelFormat = RK_FMT_YUV420SP;
+		gdc_attr.enCompMode = COMPRESS_MODE_NONE;
+		gdc_attr.enDstCompMode = COMPRESS_MODE_NONE;
 	}
 	gdc_attr.enPixelFormat = RK_FMT_YUV420SP;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
@@ -755,7 +760,7 @@ static int gdc_record_init(void) {
 	} else if (rk_mode_param.eis_mode == RK_DISTORTION_CORRECTION) {
 		LOG_ERROR("ERROR: distortion correction is not support now!\n");
 		return -1;
-	} else if (rk_mode_param.enable_comp) {
+	} else if (rk_mode_param.enable_compress) {
 		memcpy(gdc_attr.cfgFile, "/oem/usr/share/rkeis_config_normal_3840x2160_3840x2160_30fps.json",
 		       strlen("/oem/usr/share/rkeis_config_normal_3840x2160_3840x2160_30fps.json"));
 	} else {
@@ -1019,6 +1024,7 @@ static int bind_display_pipe(void) {
 	MPP_CHN_S vo_chn;
 	MPP_CHN_S gdc_display_chn;
 	int ret = 0;
+	int delay_ms = rk_param_get_int("video.source:delay_ms", 0);
 	LOG_INFO("enter\n");
 	vi_display_chn.enModId = RK_ID_VI;
 	vi_display_chn.s32DevId = VI_DEV;
@@ -1029,6 +1035,11 @@ static int bind_display_pipe(void) {
 	gdc_display_chn.enModId = RK_ID_GDC;
 	gdc_display_chn.s32DevId = 0;
 	gdc_display_chn.s32ChnId = GDC_DISPLAY_CHN;
+	// TODO: wait for imu data ready, do this in gdc is better
+	if (delay_ms > 0) {
+		LOG_INFO("delay %d ms\n", delay_ms);
+		usleep(delay_ms * 1000);
+	}
 
 	if (rk_mode_param.enable_display) {
 		if (rk_mode_param.eis_mode == RK_EIS_OFF) {
@@ -1093,6 +1104,7 @@ static int bind_media_pipe(void) {
 	MPP_CHN_S venc_chn, jpeg_chn;
 	MPP_CHN_S gdc_main_chn;
 	int ret = 0;
+	int delay_ms = rk_param_get_int("video.source:delay_ms", 0);
 	LOG_INFO("enter\n");
 	vi_main_chn.enModId = RK_ID_VI;
 	vi_main_chn.s32DevId = VI_DEV;
@@ -1107,6 +1119,10 @@ static int bind_media_pipe(void) {
 	jpeg_chn.s32DevId = 0;
 	jpeg_chn.s32ChnId = JPEG_CHN;
 
+	if (delay_ms > 0) {
+		LOG_INFO("delay %d ms\n", delay_ms);
+		usleep(delay_ms * 1000);
+	}
 	if (rk_mode_param.mode == RK_VIDEO_MODE) {
 		if (rk_mode_param.eis_mode == RK_EIS_OFF) {
 			ret = RK_MPI_SYS_Bind(&vi_main_chn, &venc_chn);
@@ -1300,7 +1316,7 @@ int rk_init_mode(void) {
 	rk_mode_param.enable_rtsp = rk_param_get_int("video.source:enable_rtsp", 0);
 	rk_mode_param.max_photo_num = 5;
 	rk_mode_param.enable_hdr = 0;
-	rk_mode_param.enable_comp = rk_param_get_int("video.source:enable_comp", 1);
+	rk_mode_param.enable_compress = rk_param_get_int("video.source:enable_compress", 0);
 	if (rk_mode_param.enable_hdr) {
 		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_dag_12bit.json");
 	} else {
@@ -1445,25 +1461,25 @@ int rk_get_rtsp(void) {
 	return rk_mode_param.enable_rtsp;
 }
 
-int rk_set_comp(bool enable) {
+int rk_set_compress(bool enable) {
 	int ret = 0;
 	long long start_time = rkipc_get_curren_time_ms();
-	if (enable == rk_mode_param.enable_comp) {
+	if (enable == rk_mode_param.enable_compress) {
 		LOG_DEBUG("comp is already %d, no need to set comp again\n", enable);
 		return 0;
 	}
 	rk_isp_deinit(0);
 	rk_video_deinit();
-	rk_mode_param.enable_comp = enable;
-	rk_param_set_int("video.source:enable_comp", enable);
+	rk_mode_param.enable_compress = enable;
+	rk_param_set_int("video.source:enable_compress", enable);
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_video_init();
 	LOG_INFO("set comp %d, cost time %lld ms\n", enable, rkipc_get_curren_time_ms() - start_time);
 	return 0;
 }
 
-int rk_get_comp(void) {
-	return rk_mode_param.enable_comp;
+int rk_get_compress(void) {
+	return rk_mode_param.enable_compress;
 }
 
 int rk_video_start_record(void) {

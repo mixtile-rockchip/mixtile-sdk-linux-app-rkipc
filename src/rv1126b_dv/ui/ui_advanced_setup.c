@@ -62,11 +62,11 @@ static void return_event_handler(lv_event_t *e) {
 
 static int comp_set_result = 0;
 static void set_compress_func(void *btn) {
-	bool comp_state = rk_get_comp();
+	bool comp_state = rk_get_compress();
 	if (comp_state)
-		comp_set_result = rk_set_comp(false);
+		comp_set_result = rk_set_compress(false);
 	else
-		comp_set_result = rk_set_comp(true);
+		comp_set_result = rk_set_compress(true);
 	return ;
 }
 
@@ -196,7 +196,7 @@ static void advanced_setup_set_text() {
 	lv_obj_add_style(advanced_setup_ctrl.comp_enable_obj, &option_style, 0);
 	lv_obj_add_style(advanced_setup_ctrl.comp_enable_obj, &option_focus_style, LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_obj_set_style_radius(advanced_setup_ctrl.comp_enable_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
-	if (rk_get_comp())
+	if (rk_get_compress())
 		lv_obj_add_state(advanced_setup_ctrl.comp_enable_obj, LV_STATE_CHECKED);
 
 	lv_checkbox_set_text(advanced_setup_ctrl.rtsp_enable_obj, "开启RTSP");
