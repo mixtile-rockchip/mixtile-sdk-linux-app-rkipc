@@ -12,6 +12,11 @@
 #include <linux/media.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/v4l2-subdev.h>
+#include <rk_aiq_user_api2_acsm.h>
+#include <rk_aiq_user_api2_camgroup.h>
+#include <rk_aiq_user_api2_imgproc.h>
+#include <rk_aiq_user_api2_isp.h>
+#include <rk_aiq_user_api2_sysctl.h>
 
 #define ENABLE_HW_VPSS 1
 
@@ -35,7 +40,7 @@
 static struct {
 	RK_MODE_E mode;
 	RK_EIS_MODE_E eis_mode;
-	bool enable_hdr;
+	RK_HDR_MODE_E hdr_mode;
 	bool enable_eis_debug;
 	bool enable_smart_2a;
 	bool enable_display;
@@ -69,7 +74,7 @@ static int set_camera_format(void) {
 	}
 
 	// INFO: just for gc8613 dag HDR
-	if (rk_mode_param.enable_hdr)
+	if (rk_mode_param.hdr_mode == RK_HDR_DAG_MODE)
 		format = MEDIA_BUS_FMT_SRGGB12_1X12;
 
 	struct v4l2_subdev_format fmt = {.which = V4L2_SUBDEV_FORMAT_ACTIVE,
@@ -1036,7 +1041,7 @@ static int bind_display_pipe(void) {
 	gdc_display_chn.s32DevId = 0;
 	gdc_display_chn.s32ChnId = GDC_DISPLAY_CHN;
 	// TODO: wait for imu data ready, do this in gdc is better
-	if (delay_ms > 0) {
+	if (delay_ms > 0 && rk_mode_param.eis_mode != RK_EIS_OFF) {
 		LOG_INFO("delay %d ms\n", delay_ms);
 		usleep(delay_ms * 1000);
 	}
@@ -1119,7 +1124,7 @@ static int bind_media_pipe(void) {
 	jpeg_chn.s32DevId = 0;
 	jpeg_chn.s32ChnId = JPEG_CHN;
 
-	if (delay_ms > 0) {
+	if (delay_ms > 0 && rk_mode_param.eis_mode != RK_EIS_OFF) {
 		LOG_INFO("delay %d ms\n", delay_ms);
 		usleep(delay_ms * 1000);
 	}
@@ -1315,12 +1320,20 @@ int rk_init_mode(void) {
 	rk_mode_param.enable_display = rk_param_get_int("video.source:enable_display", 1);
 	rk_mode_param.enable_rtsp = rk_param_get_int("video.source:enable_rtsp", 0);
 	rk_mode_param.max_photo_num = 5;
-	rk_mode_param.enable_hdr = 0;
+	rk_mode_param.hdr_mode = RK_LINEAR_MODE;
 	rk_mode_param.enable_compress = rk_param_get_int("video.source:enable_compress", 0);
-	if (rk_mode_param.enable_hdr) {
+	if (rk_mode_param.hdr_mode == RK_HDR_DAG_MODE) {
 		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_dag_12bit.json");
+		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
+		rk_param_set_string("isp.0.blc:hdr", "close");
+	} else if (rk_mode_param.hdr_mode == RK_HDR_STAGGERED_MODE) {
+		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_linear_10bit.json");
+		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_ISP_HDR2);
+		rk_param_set_string("isp.0.blc:hdr", "HDR2");
 	} else {
 		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_linear_10bit.json");
+		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
+		rk_param_set_string("isp.0.blc:hdr", "close");
 	}
 	set_camera_format();
 	return 0;
@@ -1408,36 +1421,52 @@ int rk_get_eis_debug(void) {
 	return rk_mode_param.enable_eis_debug;
 }
 
-int rk_set_hdr(bool enable) {
+int rk_set_hdr(RK_HDR_MODE_E hdr_mode) {
 	int ret = 0;
 	long long start_time = rkipc_get_curren_time_ms();
-	if (enable == rk_mode_param.enable_hdr) {
-		LOG_DEBUG("hdr is already %d, no need to set hdr again\n", enable);
+	if (hdr_mode == rk_mode_param.hdr_mode) {
+		LOG_DEBUG("hdr is already %d, no need to set hdr again\n", hdr_mode);
 		return 0;
+	}
+	if (hdr_mode < 0 || hdr_mode >= RK_HDR_MODE_NUM) {
+		LOG_ERROR("hdr mode %d is not support\n", hdr_mode);
+		return -1;
 	}
 	if (rk_mode_param.mode == RK_SLOW_MOTION_MODE ||
 		rk_mode_param.mode == RK_TIME_LAPSE_MODE) {
-		LOG_DEBUG("hdr is %d, but mode is %d, no need to set hdr\n", enable, rk_mode_param.mode);
+		LOG_DEBUG("hdr is %d, but mode is %d, no need to set hdr\n", hdr_mode, rk_mode_param.mode);
 		return 0;
+	}
+	if (rk_mode_param.eis_mode != RK_EIS_OFF && hdr_mode == RK_HDR_STAGGERED_MODE) {
+		LOG_ERROR("hdr mode %d is not support when eis mode is %d\n", hdr_mode, rk_mode_param.eis_mode);
+		return -1;
 	}
 	rk_video_deinit();
 	rk_isp_deinit(0);
-	rk_mode_param.enable_hdr = enable;
-	if (rk_mode_param.enable_hdr) {
+	rk_mode_param.hdr_mode = hdr_mode;
+	if (rk_mode_param.hdr_mode == RK_HDR_DAG_MODE) {
 		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_dag_12bit.json");
+		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
+		rk_param_set_string("isp.0.blc:hdr", "close");
+	} else if (rk_mode_param.hdr_mode == RK_HDR_STAGGERED_MODE) {
+		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_linear_10bit.json");
+		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_ISP_HDR2);
+		rk_param_set_string("isp.0.blc:hdr", "HDR2");
 	} else {
 		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_linear_10bit.json");
+		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
+		rk_param_set_string("isp.0.blc:hdr", "close");
 	}
 
 	set_camera_format();
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_video_init();
-	LOG_INFO("set hdr %d, cost time %lld ms\n", enable, rkipc_get_curren_time_ms() - start_time);
+	LOG_INFO("set hdr %d, cost time %lld ms\n", hdr_mode, rkipc_get_curren_time_ms() - start_time);
 	return 0;
 }
 
-int rk_get_hdr(void) {
-	return rk_mode_param.enable_hdr;
+RK_HDR_MODE_E rk_get_hdr(void) {
+	return rk_mode_param.hdr_mode;
 }
 
 int rk_set_rtsp(bool enable) {

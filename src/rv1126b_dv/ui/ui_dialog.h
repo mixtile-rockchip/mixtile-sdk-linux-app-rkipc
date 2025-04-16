@@ -29,6 +29,16 @@ typedef void (*UI_TASK_TYPE)(void *);
 int ui_start_async_task(UI_TASK_TYPE func, void *func_arg, UI_TASK_TYPE dtor, void *dtor_arg);
 bool ui_async_task_is_running(void);
 
+typedef void (*BTN_CB_TYPE)(void *);
+
+typedef struct ui_option_entry {
+	const char *name;
+	BTN_CB_TYPE cb;
+	void *userdata;
+} ui_option_entry_t;
+
+void create_select_box(const char *title, const ui_option_entry_t *option_array, int option_num, int focus_idx);
+
 #ifdef __cplusplus
 } /* end of extern "C" */
 #endif

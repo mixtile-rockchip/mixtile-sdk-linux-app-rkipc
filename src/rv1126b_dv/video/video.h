@@ -35,6 +35,13 @@ typedef enum {
 	RK_EIS_MODE_NUM,
 } RK_EIS_MODE_E;
 
+typedef enum {
+	RK_LINEAR_MODE = 0,
+	RK_HDR_DAG_MODE,
+	RK_HDR_STAGGERED_MODE,
+	RK_HDR_MODE_NUM,
+} RK_HDR_MODE_E;
+
 int rk_init_mode(void);
 int rk_set_mode(RK_MODE_E mode);
 RK_MODE_E rk_get_mode(void);
@@ -42,8 +49,8 @@ RK_MODE_E rk_get_mode(void);
 RK_EIS_MODE_E rk_get_eis_mode(void);
 int rk_set_eis_mode(RK_EIS_MODE_E eis_mode);
 
-int rk_set_hdr(bool enable);
-int rk_get_hdr(void);
+int rk_set_hdr(RK_HDR_MODE_E hdr_mode);
+RK_HDR_MODE_E rk_get_hdr(void);
 
 int rk_set_eis_debug(bool enable);
 int rk_get_eis_debug(void);
