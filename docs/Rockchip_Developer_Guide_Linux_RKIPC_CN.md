@@ -2,9 +2,9 @@
 
 文件标识：RK-KF-YF-937
 
-发布版本：V1.7.3
+发布版本：V1.7.4
 
-日期：2025-04-03
+日期：2025-04-16
 
 文件密级：□绝密   □秘密   □内部资料   ■公开
 
@@ -97,6 +97,7 @@ Rockchip Electronics Co., Ltd.
 | V1.7.1     | Yu Zheng   | 2025-02-12   | 修改RK3576DV的流程框图和部分参数说明<br/>增加播放显示模块API介绍 |
 | V1.7.2     | Fenrir Lin | 2025-03-25   | 新增RV1126B IPC的流程框图                                    |
 | V1.7.3     | Fenrir Lin | 2025-04-03   | 新增RV1126B Dual-IPC的流程框图                               |
+| V1.7.4     | Yu Zheng   | 2025-04-16   | 新增RV1126B DV的流程框图                               |
 
 ---
 
@@ -130,8 +131,10 @@ Rockchip Electronics Co., Ltd.
 | rv1126_aiisp              | rockit、rkaiq    | 针对RV1126/RV1109平台的IPC产品，使用aiisp，支持网页和rtsp/rtmp预览，参数动态修改。 |
 | rk3576_ipc                | rockit、rkaiq    | 针对RK3576平台的单目IPC产品，支持网页和rtsp/rtmp预览，参数动态修改。 |
 | rk3576_muliti_ipc         | rockit、rkaiq    | 针对RK3576平台的多目IPC产品，支持网页和rtsp/rtmp预览，参数动态修改。 |
+| rk3576_dv                 | rockit、rkaiq    | 针对RK3576平台的运动DV产品，支持本地拍照/录像，解码播放，屏幕显示。 |
 | rv1126b_ipc               | rockit、rkaiq    | 针对RV1126B平台的单目IPC产品，支持网页和rtsp/rtmp预览，参数动态修改。 |
 | rv1126b_dual_ipc          | rockit、rkaiq    | 针对RV1126B平台的双目IPC产品，支持网页和rtsp/rtmp预览，参数动态修改。 |
+| rv1126b_dv                | rockit、rkaiq    | 针对RV1126B平台的运动DV产品，支持本地拍照/录像，解码播放，屏幕显示。 |
 
 ### RV1103 IPC
 
@@ -429,6 +432,18 @@ graph LR
        VI_0_4-->VO
        VI_1_0-->VENC_1-->RTSP_1
        VI_1_4-->VO
+```
+
+### RV1126B DV
+
+```mermaid
+graph LR
+	AI-->AENC-->RTSP_RTMP_0
+	AENC-->MUXER
+	VI_0--TILE-->GDC_0--FBC-->VENC_0_normal-->MUXER-->MP4
+	GDC_0-.->VENC_3-.->JPEG
+	VENC_0_normal-->RTSP_RTMP_0
+	VI_1-->GDC_1-->VO
 ```
 
 ## 代码结构
