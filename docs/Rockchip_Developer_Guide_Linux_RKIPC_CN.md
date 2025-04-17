@@ -398,7 +398,7 @@ subgraph "FEC close, VPSS online"
     VI_PIPE-->VI_ext_2
     VI_PIPE-->VI_ext_5
 end
-VI_ext_3--RKFBC_or_WRAP-->VENC_0_draw_nn_result-->MUXER-->MP4
+VI_ext_3--RFBC_or_WRAP-->VENC_0_draw_nn_result-->MUXER-->MP4
 VENC_0_draw_nn_result-->UVC
 VENC_0_draw_nn_result--combo-->JPEG
 VI_ext_4-->NPU
@@ -408,13 +408,13 @@ VI_ext_2-->VENC_1-->RTSP_RTMP_1
 VI_ext_5-->VO
 
 subgraph "FEC open, VPSS offline"
-	VI_0-.TILE.->GDC-.RKFBC.->VPSS_GRP
+	VI_0-.TILE.->GDC-.RFBC.->VPSS_GRP
 	VPSS_GRP-.->VPSS_CHN_0
 	VPSS_GRP-.->VPSS_CHN_1
 	VPSS_GRP-.->VPSS_CHN_2
 	VPSS_GRP-.->VPSS_CHN_3
 end
-VPSS_CHN_0-.RKFBC.->VENC_0_draw_nn_result
+VPSS_CHN_0-.RFBC.->VENC_0_draw_nn_result
 VPSS_CHN_2-.->NPU
 VPSS_CHN_2-.->IVS_for_OD_MD
 VPSS_CHN_1-.->VENC_1
