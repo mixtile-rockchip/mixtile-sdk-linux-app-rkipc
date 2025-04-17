@@ -445,8 +445,10 @@ int rkipc_ao_init(void) {
 	const char *format = rk_param_get_string("audio.0:format", NULL);
 	if (!strcmp(format, "S16")) {
 		aoAttr.soundCard.bitWidth = AUDIO_BIT_WIDTH_16;
+		aoAttr.enBitwidth = AUDIO_BIT_WIDTH_16;
 	} else if (!strcmp(format, "U8")) {
 		aoAttr.soundCard.bitWidth = AUDIO_BIT_WIDTH_8;
+		aoAttr.enBitwidth = AUDIO_BIT_WIDTH_8;
 	} else {
 		LOG_ERROR("not support %s\n", format);
 		return RK_FAILURE;

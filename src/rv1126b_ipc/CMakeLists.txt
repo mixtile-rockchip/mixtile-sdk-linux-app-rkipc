@@ -95,7 +95,7 @@ else()
 	install(FILES rkipc-3840x2160.ini DESTINATION share)
 	install(PROGRAMS RkLunch.sh DESTINATION bin)
 endif()
-
+install(FILES ../../common/speaker_test.wav DESTINATION share)
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)
 install(PROGRAMS ${PROJECT_SOURCE_DIR}/common/uvc/rkipc_usb_config.sh DESTINATION bin)

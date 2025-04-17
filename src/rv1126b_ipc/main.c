@@ -12,6 +12,7 @@
 #include "storage.h"
 #include "system.h"
 #include "video.h"
+#include <linux/input.h>
 
 #include "uvc_control.h"
 #include "uvc_video.h"
@@ -93,7 +94,67 @@ int open_uvc(int width, int height, int fcc, int fps) {
 
 void close_uvc(void) { LOG_INFO("close_uvc"); }
 
+#define AO_FREAD_SIZE 1024 * 4
+static void *wait_key_event(void *arg) {
+	int key_fd;
+	key_fd = open("/dev/input/event1", O_RDONLY);
+	if (key_fd < 0) {
+		LOG_ERROR("can't open /dev/input/event1\n");
+		return NULL;
+	}
+	fd_set rfds;
+	int nfds = key_fd + 1;
+	struct timeval timeout;
+	struct input_event key_event;
+
+	while (g_main_run_) {
+		// The rfds collection must be emptied every time,
+		// otherwise the descriptor changes cannot be detected
+		memset(&timeout, 0, sizeof(timeout));
+		timeout.tv_sec = 1;
+		FD_ZERO(&rfds);
+		FD_SET(key_fd, &rfds);
+		select(nfds, &rfds, NULL, NULL, &timeout);
+		// wait for the key event to occur
+		if (FD_ISSET(key_fd, &rfds)) {
+			read(key_fd, &key_event, sizeof(key_event));
+			LOG_INFO("[timeval:sec:%d,usec:%d,type:%d,code:%d,value:%d]\n",
+			         key_event.input_event_sec, key_event.input_event_usec, key_event.type,
+			         key_event.code, key_event.value);
+			if ((key_event.code == KEY_LEFT) && key_event.value) {
+				LOG_INFO("get KEY_LEFT\n");
+				rkipc_ao_init();
+				FILE *fp = fopen("/oem/usr/share/speaker_test.wav", "rb");
+				int size = AO_FREAD_SIZE;
+				char *tmp_data;
+				tmp_data = malloc(AO_FREAD_SIZE);
+				while (size > 0) {
+					memset((void *)tmp_data, 0, AO_FREAD_SIZE);
+					size = fread(tmp_data, 1, AO_FREAD_SIZE, fp);
+					rkipc_ao_write(tmp_data, size);
+				}
+				rkipc_ao_write(tmp_data, 0);
+				free(tmp_data);
+				fclose(fp);
+				rkipc_ao_deinit();
+			}
+
+			if ((key_event.code == KEY_VOLUMEUP) && key_event.value) {
+				LOG_INFO("get KEY_VOLUMEUP\n");
+			}
+		}
+	}
+
+	if (key_fd) {
+		close(key_fd);
+		key_fd = 0;
+	}
+	LOG_DEBUG("wait key event out\n");
+	return NULL;
+}
+
 int main(int argc, char **argv) {
+	pthread_t key_chk;
 	LOG_INFO("main begin\n");
 	rkipc_version_dump();
 	signal(SIGINT, sig_proc);
@@ -118,6 +179,7 @@ int main(int argc, char **argv) {
 		rkipc_audio_init();
 	rkipc_server_init();
 	rk_storage_init();
+	pthread_create(&key_chk, NULL, wait_key_event, NULL);
 
 	char usb_config_cmd[128];
 	const char *output_data_type = rk_param_get_string("video.0:output_data_type", "H.264");
@@ -149,6 +211,7 @@ int main(int argc, char **argv) {
 		uvc_control_join(flags);
 		uvc_formats_deinit();
 	}
+	pthread_join(key_chk, NULL);
 	rk_storage_deinit();
 	rkipc_server_deinit();
 	rk_system_deinit();
