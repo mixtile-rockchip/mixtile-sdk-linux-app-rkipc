@@ -55,6 +55,9 @@ RK_HDR_MODE_E rk_get_hdr(void);
 int rk_set_eis_debug(bool enable);
 int rk_get_eis_debug(void);
 
+int rk_set_smart_ae(bool enable);
+int rk_get_smart_ae(void);
+
 int rk_set_rtsp(bool enable);
 int rk_get_rtsp(void);
 

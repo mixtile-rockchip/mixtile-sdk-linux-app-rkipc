@@ -46,6 +46,7 @@ typedef struct {
 	lv_obj_t *hdr_obj;
 	lv_obj_t *hdr_label_obj;
 	lv_obj_t *debug_obj;
+	lv_obj_t *smart_ae_obj;
 
 	lv_group_t *group;
 
@@ -142,6 +143,17 @@ static void debug_event_handler(lv_event_t *e) {
 	}
 }
 
+static void smart_ae_event_handler(lv_event_t *e) {
+	lv_event_code_t code = lv_event_get_code(e);
+	lv_obj_t *obj = lv_event_get_target(e);
+	if (code == LV_EVENT_CLICKED) {
+		if (lv_obj_has_state(obj, LV_STATE_CHECKED))
+			rk_set_smart_ae(true);
+		else
+			rk_set_smart_ae(false);
+	}
+}
+
 static void video_setup_layout(lv_obj_t *page_obj) {
 	lv_obj_set_flex_flow(video_setup_ctrl.container_obj, LV_FLEX_FLOW_COLUMN);
 	lv_obj_set_flex_align(video_setup_ctrl.container_obj, LV_FLEX_ALIGN_START,
@@ -182,6 +194,12 @@ static void video_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_add_flag(video_setup_ctrl.debug_obj, LV_OBJ_FLAG_CHECKABLE);
 	lv_obj_set_size(video_setup_ctrl.debug_obj, lv_pct(100), lv_pct(10));
 	lv_obj_add_event_cb(video_setup_ctrl.debug_obj, debug_event_handler, LV_EVENT_CLICKED, NULL);
+
+	video_setup_ctrl.smart_ae_obj = lv_checkbox_create(cont_obj);
+	lv_obj_add_flag(video_setup_ctrl.smart_ae_obj, LV_OBJ_FLAG_CHECKABLE);
+	lv_obj_set_size(video_setup_ctrl.smart_ae_obj, lv_pct(100), lv_pct(10));
+	lv_obj_add_event_cb(video_setup_ctrl.smart_ae_obj, smart_ae_event_handler, LV_EVENT_CLICKED, NULL);
+
 }
 
 static void video_setup_set_text() {
@@ -263,6 +281,15 @@ static void video_setup_set_text() {
 	lv_obj_set_style_radius(video_setup_ctrl.debug_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
 	if (rk_get_eis_debug())
 		lv_obj_add_state(video_setup_ctrl.debug_obj, LV_STATE_CHECKED);
+
+	lv_checkbox_set_text(video_setup_ctrl.smart_ae_obj, "AE策略");
+	lv_obj_add_style(video_setup_ctrl.smart_ae_obj, &option_style, 0);
+	lv_obj_add_style(video_setup_ctrl.smart_ae_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_obj_set_style_radius(video_setup_ctrl.smart_ae_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
+	if (rk_get_smart_ae())
+		lv_obj_add_state(video_setup_ctrl.smart_ae_obj, LV_STATE_CHECKED);
+
 }
 
 static void video_setup_destroy_ctrl(void) {
@@ -280,6 +307,11 @@ static void video_setup_destroy_ctrl(void) {
 		ui_common_remove_stype_all(video_setup_ctrl.debug_obj);
 		lv_obj_del(video_setup_ctrl.debug_obj);
 		video_setup_ctrl.debug_obj = NULL;
+	}
+	if (NULL != video_setup_ctrl.smart_ae_obj) {
+		ui_common_remove_stype_all(video_setup_ctrl.smart_ae_obj);
+		lv_obj_del(video_setup_ctrl.smart_ae_obj);
+		video_setup_ctrl.smart_ae_obj = NULL;
 	}
 	if (NULL != video_setup_ctrl.exit_obj) {
 		ui_common_remove_stype_all(video_setup_ctrl.exit_obj);
@@ -309,6 +341,7 @@ static void video_setup_add_indev(void) {
 	lv_group_add_obj(group, video_setup_ctrl.eis_obj);
 	lv_group_add_obj(group, video_setup_ctrl.hdr_obj);
 	lv_group_add_obj(group, video_setup_ctrl.debug_obj);
+	lv_group_add_obj(group, video_setup_ctrl.smart_ae_obj);
 
 	video_setup_ctrl.group = group;
 }

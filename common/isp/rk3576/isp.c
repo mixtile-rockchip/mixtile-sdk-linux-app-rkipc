@@ -1684,3 +1684,7 @@ int rk_isp_group_deinit(int cam_group_id) {
 	LOG_INFO("cam_group_id is %d\n", cam_group_id);
 	return isp_camera_group_stop(cam_group_id);
 }
+
+void *rk_isp_get_ctx(int cam_id) {
+	return g_aiq_ctx[cam_id];
+}

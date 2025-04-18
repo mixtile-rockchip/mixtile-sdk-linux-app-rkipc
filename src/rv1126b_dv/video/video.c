@@ -32,6 +32,7 @@
 #define JPEG_CHN 1
 #define GDC_MAIN_CHN 0
 #define GDC_DISPLAY_CHN 1
+#define GDC_DUMMY_CHN 2
 
 #define RTSP_URL_0 "/live/0"
 #define RTSP_URL_1 "/live/1"
@@ -42,7 +43,7 @@ static struct {
 	RK_EIS_MODE_E eis_mode;
 	RK_HDR_MODE_E hdr_mode;
 	bool enable_eis_debug;
-	bool enable_smart_2a;
+	bool enable_smart_ae;
 	bool enable_display;
 	bool enable_rtsp;
 	bool enable_compress;
@@ -100,6 +101,43 @@ static int set_camera_format(void) {
 	close(fd);
 	LOG_INFO("update sensor setting width %d height %d fps %d format %d\n", width, height, fps, format);
 	return 0;
+}
+
+extern void* rk_isp_get_ctx(int cam_id);
+static int gdc_aiq_imu_callback(RK_VOID *pUsr, GDC_SENSOR_INFO_S *pInfo) {
+	LOG_DEBUG("time stamp = %lld, temp is %lf,"
+			"gyro data is %lf %lf %lf, acc data is %lf %lf %lf\n",
+		pInfo->s64Timestamp, pInfo->dTemp,
+		pInfo->dGyroData[0], pInfo->dGyroData[1], pInfo->dGyroData[2],
+		pInfo->dAccData[0], pInfo->dAccData[1], pInfo->dAccData[2]);
+	AiqImuData_t imu_data = {};
+	if (pInfo == NULL) {
+		LOG_ERROR("========== bad imu info! ===========\n");
+		return GDC_INFO_CB_SUCCESS;
+	}
+	imu_data.s64Timestamp = pInfo->s64Timestamp;
+	imu_data.dTemp = pInfo->dTemp;
+	imu_data.dGyroData[0] = pInfo->dGyroData[0];
+	imu_data.dGyroData[1] = pInfo->dGyroData[1];
+	imu_data.dGyroData[2] = pInfo->dGyroData[2];
+	imu_data.dAccData[0] = pInfo->dAccData[0];
+	imu_data.dAccData[1] = pInfo->dAccData[1];
+	imu_data.dAccData[2] = pInfo->dAccData[2];
+	void* aiq_ctx = rk_isp_get_ctx(0);
+	if (aiq_ctx == NULL) {
+		LOG_ERROR("========== bad aiq ctx! ===========\n");
+		return GDC_INFO_CB_SUCCESS;
+	}
+	int ret = rk_aiq_user_api2_amtd_setImuData(aiq_ctx, &imu_data);
+	if (ret != 0)
+		LOG_ERROR("rk_aiq_user_api2_amtd_setImuData failed %#X\n", ret);
+	return GDC_INFO_CB_SUCCESS;
+}
+
+static int gdc_aiq_frame_callback(RK_VOID *pUsr, GDC_VFAME_INFO_S *pInfo) {
+	if (pInfo && pInfo->pMbBlk)
+		RK_MPI_MB_ReleaseMB(pInfo->pMbBlk);
+	return GDC_INFO_CB_SUCCESS;
 }
 
 static int gdc_sensor_callback(void *pUsr, GDC_SENSOR_INFO_S *pInfo) {
@@ -493,7 +531,7 @@ static int vi_chn_init(void) {
 	vi_chn_attr.stSize.u32Width = video_width;
 	vi_chn_attr.stSize.u32Height = video_height;
 	if (rk_mode_param.enable_compress) {
-		if (rk_mode_param.eis_mode != RK_EIS_OFF)
+		if (rk_mode_param.eis_mode != RK_EIS_OFF && !rk_mode_param.enable_eis_debug)
 			vi_chn_attr.enCompressMode = COMPRESS_TILE_4x4_MODE0;
 		else
 			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
@@ -680,6 +718,7 @@ static int gdc_display_init(void) {
 	int display_width = rk_param_get_int("display:width", 1920);
 	int display_height = rk_param_get_int("display:height", 1080);
 	int rotation = rk_param_get_int("display:rotation", 1);
+	long long before_time = rkipc_get_curren_time_ms();
 	GDC_CHN_ATTR_S gdc_attr = {0};
 	if (rotation == 1 || rotation == 3) {
 		int tmp = display_width;
@@ -714,12 +753,15 @@ static int gdc_display_init(void) {
 		LOG_ERROR("ERROR: create GDC display channel error! ret=%#X\n", ret);
 		return ret;
 	}
-	LOG_INFO("gdc init success\n");
+
+	LOG_INFO("gdc init success, cost time %lld ms\n",
+	         rkipc_get_curren_time_ms() - before_time);
 	return ret;
 }
 
 static int gdc_display_deinit(void) {
 	int ret = 0;
+	long long before_time = rkipc_get_curren_time_ms();
 	if (rk_mode_param.eis_mode == RK_EIS_OFF || !rk_mode_param.enable_display) {
 		LOG_DEBUG("EIS is off, no need to deinit GDC\n");
 		return ret;
@@ -727,8 +769,8 @@ static int gdc_display_deinit(void) {
 	ret = RK_MPI_GDC_DestroyChn(GDC_DISPLAY_CHN);
 	if (ret)
 		LOG_ERROR("ERROR: destroy GDC display channel error! ret=%#X\n", ret);
-	if (ret == RK_SUCCESS)
-		LOG_INFO("gdc deinit success\n");
+	LOG_INFO("gdc deinit cost time %lld ms\n",
+				rkipc_get_curren_time_ms() - before_time);
 	return ret;
 }
 
@@ -738,6 +780,7 @@ static int gdc_record_init(void) {
 	int video_height = rk_param_get_int("video.0:height", -1);
 	int sensor_width = rk_param_get_int("video.source:width", -1);
 	int sensor_height = rk_param_get_int("video.source:height", -1);
+	long long before_time = rkipc_get_curren_time_ms();
 	GDC_CHN_ATTR_S gdc_attr = {0};
 	if (rk_mode_param.eis_mode == RK_EIS_OFF) {
 		LOG_DEBUG("EIS is off, no need to init GDC\n");
@@ -785,12 +828,14 @@ static int gdc_record_init(void) {
 		LOG_ERROR("ERROR: create GDC main channel error! ret=%#X\n", ret);
 		return ret;
 	}
-	LOG_INFO("gdc init success\n");
+	LOG_INFO("gdc init success, cost time %lld ms\n",
+	         rkipc_get_curren_time_ms() - before_time);
 	return ret;
 }
 
 static int gdc_record_deinit(void) {
 	int ret = 0;
+	long long before_time = rkipc_get_curren_time_ms();
 	if (rk_mode_param.eis_mode == RK_EIS_OFF) {
 		LOG_DEBUG("EIS is off, no need to deinit GDC\n");
 		return ret;
@@ -802,8 +847,51 @@ static int gdc_record_deinit(void) {
 		fclose(rk_mode_param.vi_debug_file);
 		fclose(rk_mode_param.imu_debug_file);
 	}
-	if (ret == RK_SUCCESS)
-		LOG_INFO("gdc deinit success\n");
+	LOG_INFO("gdc deinit cost time %lld ms\n",
+			rkipc_get_curren_time_ms() - before_time);
+	return ret;
+}
+
+static int gdc_dummy_init(void) {
+	int ret = 0;
+	int width = 720; // unused
+	int height = 480; // unused
+	GDC_CHN_ATTR_S gdc_attr = {0};
+	if (!rk_mode_param.enable_smart_ae) {
+		LOG_DEBUG("smart ae is off, no need to init dummy GDC\n");
+		return ret;
+	}
+	gdc_attr.u32MaxInQueue = 1;
+	gdc_attr.u32MaxOutQueue = 1;
+	gdc_attr.s32SrcWidth = width;
+	gdc_attr.s32SrcHeight = height;
+	gdc_attr.s32DstWidth = width;
+	gdc_attr.s32DstHeight = height;
+	gdc_attr.enPixelFormat = RK_FMT_YUV420SP;
+	gdc_attr.enCompMode = COMPRESS_MODE_NONE;
+	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
+	GDC_INFO_CB_S gdc_info_cb = {};
+	gdc_info_cb.pfnSensorCB = gdc_aiq_imu_callback;
+	gdc_info_cb.pfnVframeCB = gdc_aiq_frame_callback;
+	RK_MPI_GDC_Register_InfoCB(GDC_DUMMY_CHN, NULL, &gdc_info_cb);
+	ret = RK_MPI_GDC_CreateChn(GDC_DUMMY_CHN, &gdc_attr);
+	if (ret) {
+		LOG_ERROR("ERROR: create GDC aiq channel error! ret=%#X\n", ret);
+		return ret;
+	}
+	LOG_INFO("gdc dummy create success\n");
+	return ret;
+}
+
+static int gdc_dummy_deinit(void) {
+	int ret = 0;
+	if (!rk_mode_param.enable_smart_ae) {
+		LOG_DEBUG("smart ae is off, no need to deinit dummy GDC\n");
+		return ret;
+	}
+	ret = RK_MPI_GDC_DestroyChn(GDC_DUMMY_CHN);
+	if (ret)
+		LOG_ERROR("ERROR: destroy GDC aiq channel error! ret=%#X\n", ret);
 	return ret;
 }
 
@@ -1152,23 +1240,10 @@ static int bind_media_pipe(void) {
 			}
 		}
 	} else if (rk_mode_param.mode == RK_PHOTO_MODE) {
-		if (rk_mode_param.eis_mode == RK_EIS_OFF) {
-			ret = RK_MPI_SYS_Bind(&vi_main_chn, &jpeg_chn);
-			if (ret != RK_SUCCESS) {
-				LOG_ERROR("vi main chn bind jpeg chn fail:%x\n", ret);
-				return ret;
-			}
-		} else {
-			ret = RK_MPI_SYS_Bind(&vi_main_chn, &gdc_main_chn);
-			if (ret != RK_SUCCESS) {
-				LOG_ERROR("vi main chn bind gdc main chn fail:%x\n", ret);
-				return ret;
-			}
-			ret = RK_MPI_SYS_Bind(&gdc_main_chn, &jpeg_chn);
-			if (ret != RK_SUCCESS) {
-				LOG_ERROR("gdc main chn bind jpeg chn fail:%x\n", ret);
-				return ret;
-			}
+		ret = RK_MPI_SYS_Bind(&vi_main_chn, &jpeg_chn);
+		if (ret != RK_SUCCESS) {
+			LOG_ERROR("vi main chn bind jpeg chn fail:%x\n", ret);
+			return ret;
 		}
 	} else {
 		ret = RK_MPI_SYS_Bind(&vi_main_chn, &venc_chn);
@@ -1215,18 +1290,9 @@ static int unbind_media_pipe(void) {
 				LOG_ERROR("vi main chn unbind gdc main chn fail:%x\n", ret);
 		}
 	} else if (rk_mode_param.mode == RK_PHOTO_MODE) {
-		if (rk_mode_param.eis_mode == RK_EIS_OFF) {
 			ret = RK_MPI_SYS_UnBind(&vi_main_chn, &jpeg_chn);
 			if (ret != RK_SUCCESS)
 				LOG_ERROR("vi main chn unbind jpeg chn fail:%x\n", ret);
-		} else {
-			ret = RK_MPI_SYS_UnBind(&gdc_main_chn, &jpeg_chn);
-			if (ret != RK_SUCCESS)
-				LOG_ERROR("gdc main chn unbind jpeg chn fail:%x\n", ret);
-			ret = RK_MPI_SYS_UnBind(&vi_main_chn, &gdc_main_chn);
-			if (ret != RK_SUCCESS)
-				LOG_ERROR("vi main chn unbind gdc main chn fail:%x\n", ret);
-		}
 	} else {
 		ret = RK_MPI_SYS_UnBind(&vi_main_chn, &venc_chn);
 		if (ret != RK_SUCCESS)
@@ -1257,6 +1323,11 @@ int rk_video_init(void) {
 	ret = gdc_display_init();
 	if (ret) {
 		LOG_ERROR("ERROR: gdc_display_init failed! ret=%d\n", ret);
+		return ret;
+	}
+	ret = gdc_dummy_init();
+	if (ret) {
+		LOG_ERROR("ERROR: gdc_dummy_init failed! ret=%d\n", ret);
 		return ret;
 	}
 	ret = venc_init();
@@ -1299,6 +1370,9 @@ int rk_video_deinit(void) {
 	ret = gdc_display_deinit();
 	if (ret)
 		LOG_ERROR("ERROR: gdc_display_deinit failed! ret=%d\n", ret);
+	ret = gdc_dummy_deinit();
+	if (ret)
+		LOG_ERROR("ERROR: gdc_dummy_deinit failed! ret=%d\n", ret);
 	ret = vo_deinit();
 	if (ret)
 		LOG_ERROR("ERROR: vo_deinit failed! ret=%d\n", ret);
@@ -1319,6 +1393,7 @@ int rk_init_mode(void) {
 	rk_mode_param.enable_eis_debug = rk_param_get_int("video.source:enable_eis_debug", 0);
 	rk_mode_param.enable_display = rk_param_get_int("video.source:enable_display", 1);
 	rk_mode_param.enable_rtsp = rk_param_get_int("video.source:enable_rtsp", 0);
+	rk_mode_param.enable_smart_ae = rk_param_get_int("video.source:enable_smart_ae", 0);
 	rk_mode_param.max_photo_num = 5;
 	rk_mode_param.hdr_mode = RK_LINEAR_MODE;
 	rk_mode_param.enable_compress = rk_param_get_int("video.source:enable_compress", 0);
@@ -1387,6 +1462,10 @@ int rk_set_eis_mode(RK_EIS_MODE_E eis_mode) {
 	}
 	if (eis_mode == RK_DISTORTION_CORRECTION || eis_mode == RK_HORIZON_STEADY) {
 		LOG_ERROR("eis mode %d is not support\n", eis_mode);
+		return -1;
+	}
+	if (rk_mode_param.mode != RK_VIDEO_MODE) {
+		LOG_INFO("only video mode can set eis mode\n");
 		return -1;
 	}
 	rk_video_deinit();
@@ -1467,6 +1546,29 @@ int rk_set_hdr(RK_HDR_MODE_E hdr_mode) {
 
 RK_HDR_MODE_E rk_get_hdr(void) {
 	return rk_mode_param.hdr_mode;
+}
+
+int rk_set_smart_ae(bool enable) {
+	int ret = 0;
+	if (enable == rk_mode_param.enable_smart_ae) {
+		LOG_DEBUG("smart ae is already %d, no need to set smart ae again\n", enable);
+		return 0;
+	}
+	if (rk_mode_param.hdr_mode == RK_HDR_STAGGERED_MODE) {
+		LOG_ERROR("smart ae is not support when hdr mode is %d\n", rk_mode_param.hdr_mode);
+		return -1;
+	}
+	rk_video_deinit();
+	rk_isp_deinit(0);
+	rk_mode_param.enable_smart_ae = enable;
+	rk_param_set_int("video.source:enable_smart_ae", enable);
+	rk_isp_init(0, rkipc_iq_file_path_);
+	rk_video_init();
+	return 0;
+}
+
+int rk_get_smart_ae(void) {
+	return rk_mode_param.enable_smart_ae;
 }
 
 int rk_set_rtsp(bool enable) {
