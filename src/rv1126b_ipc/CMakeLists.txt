@@ -102,3 +102,4 @@ install(PROGRAMS ${PROJECT_SOURCE_DIR}/common/uvc/rkipc_usb_config.sh DESTINATIO
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/image.bmp DESTINATION share)
 install(FILES rv1126b_fecMesh_src3840x2160_dst3840x2160_step32x16_level255.bin DESTINATION share RENAME rv1126b.bin)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/SourceHanSansCN.ttf DESTINATION share)
+install(FILES ${PROJECT_SOURCE_DIR}/common/osd/SourceHanSansEN.ttf DESTINATION share)
