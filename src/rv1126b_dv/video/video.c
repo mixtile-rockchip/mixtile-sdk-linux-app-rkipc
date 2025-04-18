@@ -391,6 +391,7 @@ static void *take_photo_loop(void *arg) {
 	const char *photo_folder_name = rk_param_get_string("storage.3:folder_name", "photo");
 	video_stream.pstPack = malloc(sizeof(VENC_PACK_S));
 	char folder_path[256] = {0};
+	char photo_type[8] = {0};
 
 	prctl(PR_SET_NAME, __func__, 0, 0, 0);
 	LOG_INFO("enter\n");
@@ -403,6 +404,12 @@ static void *take_photo_loop(void *arg) {
 			return NULL;
 		}
 	}
+	if (rk_mode_param.hdr_mode == RK_HDR_DAG_MODE)
+		snprintf(photo_type, sizeof(photo_type), "hdr1");
+	else if (rk_mode_param.hdr_mode == RK_HDR_STAGGERED_MODE)
+		snprintf(photo_type, sizeof(photo_type), "hdr2");
+	else
+		snprintf(photo_type, sizeof(photo_type), "normal");
 
 	while (rk_mode_param.start_take_photo) {
 		if (rk_mode_param.remain_photo_num <= 0) {
@@ -410,6 +417,7 @@ static void *take_photo_loop(void *arg) {
 			continue;
 		}
 		// 5.get the frame
+		long long before_time = rkipc_get_curren_time_ms();
 		ret = RK_MPI_VENC_GetStream(JPEG_CHN, &video_stream, 1000);
 		if (ret == RK_SUCCESS) {
 			void *data = RK_MPI_MB_Handle2VirAddr(video_stream.pstPack->pMbBlk);
@@ -419,9 +427,10 @@ static void *take_photo_loop(void *arg) {
 			// save jpeg file
 			time_t t = time(NULL);
 			struct tm tm = *localtime(&t);
-			snprintf(file_name, 128, "%s/%s/%d%02d%02d%02d%02d%02d_%d.jpeg", mount_path,
+			snprintf(file_name, 128, "%s/%s/%d%02d%02d%02d%02d%02d_%s_%d.jpeg", mount_path,
 			         photo_folder_name, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
 			         tm.tm_min, tm.tm_sec,
+					 photo_type,
 			         rk_mode_param.max_photo_num - rk_mode_param.remain_photo_num);
 			LOG_INFO("file_name is %s\n", file_name);
 			FILE *fp = fopen(file_name, "wb");
@@ -438,7 +447,8 @@ static void *take_photo_loop(void *arg) {
 		} else {
 			LOG_ERROR("RK_MPI_VENC_GetStream timeout %x\n", ret);
 		}
-		usleep(100 * 1000);
+		LOG_INFO("take photo cost time is %lldms\n",
+		         rkipc_get_curren_time_ms() - before_time);
 	}
 	if (video_stream.pstPack)
 		free(video_stream.pstPack);
@@ -1388,8 +1398,8 @@ int rk_video_deinit(void) {
 
 int rk_init_mode(void) {
 	memset(&rk_mode_param, 0, sizeof(rk_mode_param));
-	rk_mode_param.mode = RK_VIDEO_MODE;
-	rk_mode_param.eis_mode = RK_NORMAL_STEADY;
+	rk_mode_param.mode = rk_param_get_int("video.source:mode", RK_VIDEO_MODE);
+	rk_mode_param.eis_mode = rk_param_get_int("video.source:eis_mode", RK_EIS_OFF);
 	rk_mode_param.enable_eis_debug = rk_param_get_int("video.source:enable_eis_debug", 0);
 	rk_mode_param.enable_display = rk_param_get_int("video.source:enable_display", 1);
 	rk_mode_param.enable_rtsp = rk_param_get_int("video.source:enable_rtsp", 0);
@@ -1428,16 +1438,21 @@ int rk_set_mode(RK_MODE_E mode) {
 	rk_video_deinit();
 	rk_isp_deinit(0);
 	rk_storage_deinit();
-	rk_param_deinit();
 	if (mode == RK_VIDEO_MODE) {
-		rk_param_init("/oem/usr/share/rkipc.ini");
+		rk_mode_param.eis_mode = RK_NORMAL_STEADY;
+		rk_mode_param.hdr_mode = RK_LINEAR_MODE;
+		rk_param_set_int("video.source:eis_mode", RK_NORMAL_STEADY);
 	} else if (mode == RK_PHOTO_MODE) {
 		rk_param_init("/oem/usr/share/rkipc.ini");
+		rk_mode_param.eis_mode = RK_EIS_OFF;
+		rk_mode_param.hdr_mode = RK_LINEAR_MODE;
+		rk_param_set_int("video.source:eis_mode", RK_EIS_OFF);
 	}
 	rk_storage_init();
 	//set_soc_freq();
 	set_camera_format();
 	rk_mode_param.mode = mode;
+	rk_param_set_int("video.source:mode", mode);
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_video_init();
 	LOG_INFO("set new mode %d, cost time %lld ms\n", mode, rkipc_get_curren_time_ms() - start_time);
@@ -1471,6 +1486,7 @@ int rk_set_eis_mode(RK_EIS_MODE_E eis_mode) {
 	rk_video_deinit();
 	rk_isp_deinit(0);
 	rk_mode_param.eis_mode = eis_mode;
+	rk_param_set_int("video.source:eis_mode", eis_mode);
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_video_init();
 	LOG_INFO("set new eis mode %d, cost time %lld ms\n", eis_mode, rkipc_get_curren_time_ms() - start_time);
@@ -1491,6 +1507,7 @@ int rk_set_eis_debug(bool enable) {
 	rk_video_deinit();
 	rk_isp_deinit(0);
 	rk_mode_param.enable_eis_debug = enable;
+	rk_param_set_int("video.source:enable_eis_debug", enable);
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_video_init();
 	LOG_INFO("set debug mode %d, cost time %lld ms\n", enable, rkipc_get_curren_time_ms() - start_time);

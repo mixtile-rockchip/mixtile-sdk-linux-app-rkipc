@@ -45,6 +45,8 @@ typedef struct {
 	lv_obj_t *eis_label_obj;
 	lv_obj_t *hdr_obj;
 	lv_obj_t *hdr_label_obj;
+	lv_obj_t *photo_obj;
+	lv_obj_t *photo_label_obj;
 	lv_obj_t *debug_obj;
 	lv_obj_t *smart_ae_obj;
 
@@ -154,6 +156,37 @@ static void smart_ae_event_handler(lv_event_t *e) {
 	}
 }
 
+static void photo_config_cb(void *userdata) {
+	int capture_num = (int)(size_t)userdata;
+	rk_photo_set_max_num(capture_num);
+}
+
+static const ui_option_entry_t photo_options[] = {
+	{"1F1S", photo_config_cb, (void *)1},
+	{"5F1S", photo_config_cb, (void *)5},
+	{"10F1S", photo_config_cb, (void *)10},
+	{"20F2S", photo_config_cb, (void *)20},
+};
+
+static void photo_event_handler(lv_event_t *e) {
+	lv_event_code_t code = lv_event_get_code(e);
+	lv_obj_t *obj = lv_event_get_target(e);
+	if (code == LV_EVENT_CLICKED) {
+		int index = 0;
+		int num = rk_photo_get_max_num();
+		if (num == 1)
+			index = 0;
+		else if (num == 5)
+			index = 1;
+		else if (num == 10)
+			index = 2;
+		else if (num == 20)
+			index = 3;
+		create_select_box("拍照配置", photo_options, sizeof(photo_options) / sizeof(photo_options[0])
+			, index);
+	}
+}
+
 static void video_setup_layout(lv_obj_t *page_obj) {
 	lv_obj_set_flex_flow(video_setup_ctrl.container_obj, LV_FLEX_FLOW_COLUMN);
 	lv_obj_set_flex_align(video_setup_ctrl.container_obj, LV_FLEX_ALIGN_START,
@@ -200,6 +233,10 @@ static void video_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_size(video_setup_ctrl.smart_ae_obj, lv_pct(100), lv_pct(10));
 	lv_obj_add_event_cb(video_setup_ctrl.smart_ae_obj, smart_ae_event_handler, LV_EVENT_CLICKED, NULL);
 
+	video_setup_ctrl.photo_obj = lv_btn_create(cont_obj);
+	lv_obj_set_size(video_setup_ctrl.photo_obj, lv_pct(100), lv_pct(10));
+	lv_obj_add_event_cb(video_setup_ctrl.photo_obj, photo_event_handler, LV_EVENT_CLICKED, NULL);
+	video_setup_ctrl.photo_label_obj = lv_label_create(video_setup_ctrl.photo_obj);
 }
 
 static void video_setup_set_text() {
@@ -290,6 +327,10 @@ static void video_setup_set_text() {
 	if (rk_get_smart_ae())
 		lv_obj_add_state(video_setup_ctrl.smart_ae_obj, LV_STATE_CHECKED);
 
+	lv_obj_add_style(video_setup_ctrl.photo_obj, &option_style, 0);
+	lv_obj_add_style(video_setup_ctrl.photo_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_label_set_text(video_setup_ctrl.photo_label_obj, "连拍设置");
 }
 
 static void video_setup_destroy_ctrl(void) {
@@ -312,6 +353,11 @@ static void video_setup_destroy_ctrl(void) {
 		ui_common_remove_stype_all(video_setup_ctrl.smart_ae_obj);
 		lv_obj_del(video_setup_ctrl.smart_ae_obj);
 		video_setup_ctrl.smart_ae_obj = NULL;
+	}
+	if (NULL != video_setup_ctrl.photo_obj) {
+		ui_common_remove_stype_all(video_setup_ctrl.photo_obj);
+		lv_obj_del(video_setup_ctrl.photo_obj);
+		video_setup_ctrl.photo_obj = NULL;
 	}
 	if (NULL != video_setup_ctrl.exit_obj) {
 		ui_common_remove_stype_all(video_setup_ctrl.exit_obj);
@@ -342,6 +388,7 @@ static void video_setup_add_indev(void) {
 	lv_group_add_obj(group, video_setup_ctrl.hdr_obj);
 	lv_group_add_obj(group, video_setup_ctrl.debug_obj);
 	lv_group_add_obj(group, video_setup_ctrl.smart_ae_obj);
+	lv_group_add_obj(group, video_setup_ctrl.photo_obj);
 
 	video_setup_ctrl.group = group;
 }
