@@ -96,6 +96,7 @@ void close_uvc(void) { LOG_INFO("close_uvc"); }
 
 #define AO_FREAD_SIZE 1024 * 4
 static void *wait_key_event(void *arg) {
+	int ret;
 	int key_fd;
 	key_fd = open("/dev/input/event1", O_RDONLY);
 	if (key_fd < 0) {
@@ -114,7 +115,13 @@ static void *wait_key_event(void *arg) {
 		timeout.tv_sec = 1;
 		FD_ZERO(&rfds);
 		FD_SET(key_fd, &rfds);
-		select(nfds, &rfds, NULL, NULL, &timeout);
+		ret = select(nfds, &rfds, NULL, NULL, &timeout);
+		if (ret < 0) {
+			LOG_ERROR("select failed : %s\n", strerror(errno));
+			continue;
+		}
+		if (ret == 0)
+			continue;
 		// wait for the key event to occur
 		if (FD_ISSET(key_fd, &rfds)) {
 			read(key_fd, &key_event, sizeof(key_event));
