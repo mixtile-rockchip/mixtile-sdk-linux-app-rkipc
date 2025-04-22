@@ -102,10 +102,6 @@ static void hdr_config_cb(void *userdata) {
 	RK_HDR_MODE_E hdr_mode = (RK_HDR_MODE_E)(size_t)userdata;
 	RK_EIS_MODE_E eis_mode = rk_get_eis_mode();
 	static char msg[128] = {0};
-	if (eis_mode != RK_EIS_OFF && hdr_mode == RK_HDR_STAGGERED_MODE) {
-		lv_async_call(ui_dialog_create_func, "EIS模式下不支持STAGGERED HDR!");
-		return;
-	}
 	ret = rk_set_hdr(hdr_mode);
 	hdr_mode = rk_get_hdr();
 	memset(msg, 0, sizeof(msg));

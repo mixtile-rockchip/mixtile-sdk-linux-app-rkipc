@@ -24,7 +24,7 @@
         "use_async": 1,
         "view_angle": 0.0,
         "frame_rate": 30.0,
-        "sensor_axes_type": 0,
+        "sensor_axes_type": 6,
         "motion_detect_mode": 0,
         "num_cores": 1,
         "affinity_mask": 6,
@@ -55,7 +55,7 @@
         "rs_skew": 32472000,
         "start_of_scanline": 0,
         "image_timestamp_offset": 0,
-        "gyro_timestamp_offset": 0,
+        "gyro_timestamp_offset": -32083000,
         "hall_timestamp_offset": 0,
         "src_ldc": {
             "k1": -5.94682135e-02,

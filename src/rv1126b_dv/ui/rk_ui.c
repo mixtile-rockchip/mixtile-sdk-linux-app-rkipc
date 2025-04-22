@@ -27,8 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <xf86drm.h>
-#include <xf86drmMode.h>
 
 #include "common.h"
 #include "disp.h"
@@ -44,29 +42,11 @@
 #include <rk_mpi_vo.h>
 #include <rk_mpi_vpss.h>
 
-/**********************
- *	  MACROS
- **********************/
-#define DRM_CARD "/dev/dri/card0"
-#define DRM_CONNECTOR_ID -1 /* -1 for the first connected one */
-
-#define DBG_TAG "drm"
-
 #define DIV_ROUND_UP(n, d) (((n) + (d)-1) / (d))
 
 #define UPALIGNED_16(x) (((x) + 15) & ~15)
+#define UPALIGNED_64(x) (((x) + 63) & ~63)
 
-/**********************
- *  GLOBAL PROTOTYPES
- **********************/
-
-/**********************
- *  GLOBAL VARIABLES
- **********************/
-
-/**********************
- *  STATIC PROTOTYPES
- **********************/
 struct disp_dev {
 	lv_disp_rot_t rot;
 	VIDEO_FRAME_INFO_S display_bufs[2];
@@ -75,137 +55,6 @@ struct disp_dev {
 	uint32_t width, height;
 	uint32_t mm_width, mm_height;
 } disp_dev;
-
-/**********************
- *  STATIC VARIABLES
- **********************/
-
-/**********************
- *   STATIC FUNCTIONS
- **********************/
-static int32_t drm_open(const char *path) {
-	int32_t fd, flags;
-	uint64_t has_dumb;
-	int32_t ret;
-
-	fd = open(path, O_RDWR);
-	if (fd < 0) {
-		LOG_ERROR("cannot open \"%s\" \n", path);
-		return -1;
-	}
-
-	/* set FD_CLOEXEC flag */
-	if ((flags = fcntl(fd, F_GETFD)) < 0 || fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0) {
-		LOG_ERROR("fcntl FD_CLOEXEC failed\n");
-		goto err;
-	}
-
-	/* check capability */
-	ret = drmGetCap(fd, DRM_CAP_DUMB_BUFFER, &has_dumb);
-	if (ret < 0 || has_dumb == 0) {
-		LOG_ERROR("drmGetCap DRM_CAP_DUMB_BUFFER failed or \"%s\" doesn't have dumb "
-		          "buffer\n",
-		          path);
-		goto err;
-	}
-
-	return fd;
-err:
-	close(fd);
-	return -1;
-}
-
-static int drm_find_connector(int32_t dev_fd) {
-	drmModeConnector *conn = NULL;
-	drmModeRes *res = NULL;
-	int32_t i;
-
-	if ((res = drmModeGetResources(dev_fd)) == NULL) {
-		LOG_ERROR("drmModeGetResources() failed\n");
-		return -1;
-	}
-
-	if (res->count_crtcs <= 0) {
-		LOG_ERROR("no Crtcs\n");
-		goto free_res;
-	}
-
-	/* find all available connectors */
-	for (i = 0; i < res->count_connectors; i++) {
-		conn = drmModeGetConnector(dev_fd, res->connectors[i]);
-		if (!conn)
-			continue;
-
-#if DRM_CONNECTOR_ID >= 0
-		if (conn->connector_id != DRM_CONNECTOR_ID) {
-			drmModeFreeConnector(conn);
-			continue;
-		}
-#endif
-
-		if (conn->connection == DRM_MODE_CONNECTED) {
-			LOG_DEBUG("drm: connector %d: connected\n", conn->connector_id);
-		} else if (conn->connection == DRM_MODE_DISCONNECTED) {
-			LOG_DEBUG("drm: connector %d: disconnected\n", conn->connector_id);
-		} else if (conn->connection == DRM_MODE_UNKNOWNCONNECTION) {
-			LOG_DEBUG("drm: connector %d: unknownconnection\n", conn->connector_id);
-		} else {
-			LOG_DEBUG("drm: connector %d: unknown\n", conn->connector_id);
-		}
-
-		if (conn->connection == DRM_MODE_CONNECTED && conn->count_modes > 0)
-			break;
-
-		drmModeFreeConnector(conn);
-		conn = NULL;
-	};
-
-	if (!conn) {
-		LOG_ERROR("suitable connector not found\n");
-		goto free_res;
-	}
-
-	disp_dev.width = conn->modes[0].hdisplay;
-	disp_dev.height = conn->modes[0].vdisplay;
-	disp_dev.mm_width = conn->mmWidth;
-	disp_dev.mm_height = conn->mmHeight;
-	LOG_INFO("width %d, height %d, mm_width %d, mm_height %d\n", disp_dev.width, disp_dev.height,
-	         disp_dev.mm_width, disp_dev.mm_height);
-
-	return 0;
-
-free_res:
-	drmModeFreeResources(res);
-
-	return -1;
-}
-
-static int32_t get_disp_info(void) {
-	int32_t dev_fd, ret;
-	const char *device_path = NULL;
-
-	device_path = getenv("DRM_CARD");
-	if (!device_path)
-		device_path = DRM_CARD;
-
-	dev_fd = drm_open(device_path);
-	if (dev_fd < 0)
-		return -1;
-
-	ret = drm_find_connector(dev_fd);
-	if (ret) {
-		LOG_ERROR("available drm devices not found\n");
-		close(dev_fd);
-		return -1;
-	}
-
-	close(dev_fd);
-
-	LOG_INFO("rk_disp: %dx%d (%dmm X% dmm)\n", disp_dev.width, disp_dev.height, disp_dev.mm_width,
-	         disp_dev.mm_height);
-
-	return 0;
-}
 
 static int32_t rk_disp_setup(void) {
 	int32_t ret;
@@ -401,12 +250,9 @@ static void rk_disp_teardown_buffers(void) {
 int32_t rk_disp_init(lv_disp_rot_t rotate_disp) {
 	int32_t ret;
 
-	ret = get_disp_info();
-	if (0 != ret) {
-		LOG_ERROR("get display info failed\n");
-		return -1;
-	}
-
+	memset(&disp_dev, 0, sizeof(disp_dev));
+	disp_dev.width = rk_param_get_int("display:width", 1080);
+	disp_dev.height = rk_param_get_int("display:height", 1920);
 	ret = rk_disp_setup();
 	if (0 != ret) {
 		LOG_ERROR("rk_disp_setup failed");

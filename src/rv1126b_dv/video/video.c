@@ -1403,10 +1403,10 @@ int rk_init_mode(void) {
 	rk_mode_param.enable_eis_debug = rk_param_get_int("video.source:enable_eis_debug", 0);
 	rk_mode_param.enable_display = rk_param_get_int("video.source:enable_display", 1);
 	rk_mode_param.enable_rtsp = rk_param_get_int("video.source:enable_rtsp", 0);
-	rk_mode_param.enable_smart_ae = rk_param_get_int("video.source:enable_smart_ae", 0);
+	rk_mode_param.enable_smart_ae = rk_param_get_int("video.source:enable_smart_ae", 1);
 	rk_mode_param.max_photo_num = 5;
 	rk_mode_param.hdr_mode = RK_LINEAR_MODE;
-	rk_mode_param.enable_compress = rk_param_get_int("video.source:enable_compress", 0);
+	rk_mode_param.enable_compress = rk_param_get_int("video.source:enable_compress", 1);
 	if (rk_mode_param.hdr_mode == RK_HDR_DAG_MODE) {
 		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_dag_12bit.json");
 		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
@@ -1533,10 +1533,6 @@ int rk_set_hdr(RK_HDR_MODE_E hdr_mode) {
 		LOG_DEBUG("hdr is %d, but mode is %d, no need to set hdr\n", hdr_mode, rk_mode_param.mode);
 		return 0;
 	}
-	if (rk_mode_param.eis_mode != RK_EIS_OFF && hdr_mode == RK_HDR_STAGGERED_MODE) {
-		LOG_ERROR("hdr mode %d is not support when eis mode is %d\n", hdr_mode, rk_mode_param.eis_mode);
-		return -1;
-	}
 	rk_video_deinit();
 	rk_isp_deinit(0);
 	rk_mode_param.hdr_mode = hdr_mode;
@@ -1570,10 +1566,6 @@ int rk_set_smart_ae(bool enable) {
 	if (enable == rk_mode_param.enable_smart_ae) {
 		LOG_DEBUG("smart ae is already %d, no need to set smart ae again\n", enable);
 		return 0;
-	}
-	if (rk_mode_param.hdr_mode == RK_HDR_STAGGERED_MODE) {
-		LOG_ERROR("smart ae is not support when hdr mode is %d\n", rk_mode_param.hdr_mode);
-		return -1;
 	}
 	rk_video_deinit();
 	rk_isp_deinit(0);

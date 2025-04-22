@@ -74,7 +74,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-result -Wno-unused-but-set-varia
 
 target_link_libraries(${PROJECT_NAME}
 						pthread rockit rkaiq rtsp freetype rkmuxer m rga rkaudio
-						drm lvgl rkdemuxer png)
+						lvgl rkdemuxer png)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 install(FILES rkipc.ini DESTINATION share)
