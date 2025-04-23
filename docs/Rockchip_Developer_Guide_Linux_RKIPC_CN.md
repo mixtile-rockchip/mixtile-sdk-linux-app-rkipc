@@ -1191,6 +1191,58 @@ submitOne(groupName: string, isReboot: boolean = false, isAppRestart = false) {
 | rk_player_get_audio_duration | 获取音频总时长           |
 | rk_player_get_audio_position | 获取音频当前播放位置     |
 
+### UVC模块
+
+重要脚本位于：common\uvc\rkipc_usb_config.sh，默认只跑一路UVC，只支持一种分辨率和格式。需要多路和多种格式，请参考脚本中以下判断，自行添加。
+
+```shell
+#uvc config init
+uvc_device_config uvc.gs1 "UVC RGB" $FORMAT $WIDTH $HEIGHT
+if [ $UVC_MULTI = ONE ];then
+   uvc_device_config uvc.gs2 "RK UVC" "H.264" "1920" "1080"
+elif [ $UVC_MULTI = TWO ];then
+   uvc_device_config uvc.gs2 "RK UVC 1" "H.264" "1920" "1080"
+   uvc_device_config uvc.gs3 "RK UVC 2" "H.264" "1920" "1080"
+fi
+```
+
+主要代码：
+
+```C
+uint32_t flags = UVC_CONTROL_LOOP_ONCE;
+int open_uvc(int width, int height, int fcc, int fps) {
+	LOG_INFO("open uvc %dx%d %d %d\n", width, height, fcc, fps);
+	return 0;
+}
+
+void close_uvc(void) { LOG_INFO("close_uvc"); }
+
+// init
+system("/etc/init.d/S50usbdevice stop"); // stop old usb device
+sleep(2); // wait old usb change
+system("rkipc_usb_config.sh -f H.264 -w 1920 -h 1080");
+sleep(1);
+uvc_formats_init(output_data_type, width, height);
+register_uvc_open_camera(open_uvc);
+register_uvc_close_camera(close_uvc);
+uvc_control_run(flags);
+
+// send frame, in video.c
+while (g_video_run_) {
+	ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_0, &stFrame, 2500);
+	if (ret == RK_SUCCESS) {
+		void *data = RK_MPI_MB_Handle2VirAddr(stFrame.pstPack->pMbBlk);
+		uvc_read_camera_buffer(data, -1, stFrame.pstPack->u32Len, NULL, 0);
+		RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_0, &stFrame);
+	}
+}
+uvc_read_camera_buffer(data, -1, stFrame.pstPack->u32Len, NULL, 0);
+
+// deinit
+uvc_control_join(flags);
+uvc_formats_deinit();
+```
+
 ## ini参数说明
 
 **注意：由于各个产品类型定义不同，部分参数是特有的，部分参数的含义也可能不同，此处仅供参考，以实际ini文件中的注释为准。**
