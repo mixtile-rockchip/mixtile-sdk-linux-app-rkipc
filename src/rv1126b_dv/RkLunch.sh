@@ -111,6 +111,11 @@ post_chk()
 	echo 0.001064225 > /sys/bus/iio/devices/iio:device1/in_anglvel_scale
 	echo 121 > /sys/bus/iio/devices/iio:device1/in_accel_lpf_bw
 	echo 0 > /sys/bus/iio/devices/iio:device1/in_anglvel_lpf_bw
+
+	# swap sdi0 and sdi1
+	rk_mpi_amix_test --control "SAI2 Receive PATH0 Source Select" --value "From SDI1"
+	rk_mpi_amix_test --control "SAI2 Receive PATH1 Source Select" --value "From SDI0"
+
 	rkipc &
 }
 

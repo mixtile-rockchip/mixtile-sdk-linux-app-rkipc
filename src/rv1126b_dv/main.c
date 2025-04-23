@@ -106,10 +106,6 @@ int main(int argc, char **argv) {
 	ui_init();
 	rk_video_init();
 	if (rk_param_get_int("audio.0:enable", 0)) {
-		RK_MPI_AMIX_SetControl(0, "SAI2 Receive PATH0 Source Select", "From SDI1");
-		RK_MPI_AMIX_SetControl(0, "SAI2 Receive PATH1 Source Select", "From SDI0");
-		RK_MPI_AMIX_SetControl(0, "SAI2 SDI1 Loopback I2S LR", "Enable");
-		RK_MPI_AMIX_SetControl(0, "SAI2 SDI1 Loopback", "Enable");
 		rkipc_audio_init();
 	}
 

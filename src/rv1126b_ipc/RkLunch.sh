@@ -129,12 +129,8 @@ post_chk()
 	fi
 
 	# swap sdi0 and sdi1
-	amixer -c 0 sset 'SAI2 Receive PATH0 Source Select' 'From SDI1'
-	amixer -c 0 sset 'SAI2 Receive PATH1 Source Select' 'From SDI0'
-
-	# enable loopback for sdi1
-	amixer -c 0 sset "SAI2 SDI1 Loopback I2S LR" "Enable"
-	amixer -c 0 sset "SAI2 SDI1 Loopback" "Enable"
+	rk_mpi_amix_test --control "SAI2 Receive PATH0 Source Select" --value "From SDI1"
+	rk_mpi_amix_test --control "SAI2 Receive PATH1 Source Select" --value "From SDI0"
 
 	if [ -f "/oem/usr/share/speaker_test.wav" ];then
 		rk_mpi_ao_test -i /oem/usr/share/speaker_test.wav --sound_card_name=default --device_ch=2 --device_rate=8000 --input_rate=8000 --input_ch=2 --set_volume 50

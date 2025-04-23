@@ -89,10 +89,6 @@ static void audio_event_handler(lv_event_t *e) {
 		} else if (obj == audio_setup_ctrl.audio_enable_obj) {
 			if (lv_obj_has_state(obj, LV_STATE_CHECKED)) {
 				rk_param_set_int("audio.0:enable", 1);
-				RK_MPI_AMIX_SetControl(0, "SAI2 Receive PATH0 Source Select", "From SDI1");
-				RK_MPI_AMIX_SetControl(0, "SAI2 Receive PATH1 Source Select", "From SDI0");
-				RK_MPI_AMIX_SetControl(0, "SAI2 SDI1 Loopback I2S LR", "Enable");
-				RK_MPI_AMIX_SetControl(0, "SAI2 SDI1 Loopback", "Enable");
 				rkipc_audio_init();
 				LOG_INFO("enable audio\n");
 			} else {
