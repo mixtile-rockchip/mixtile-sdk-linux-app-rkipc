@@ -229,7 +229,11 @@ int rkipc_set_advanced_venc_params(int venc_chn_id) {
 	VENC_STATIC_WEIGHT_S static_weight_s;
 	RK_MPI_VENC_GetStaticWeight(venc_chn_id, &static_weight_s);
 	snprintf(entry, 127, "video.%d:static_frm_num", venc_chn_id);
+#ifdef RKIPC_RV1126B
+	static_weight_s.u32FrmNum = rk_param_get_int(entry, 0);
+#else
 	static_weight_s.u32FrmNum = rk_param_get_int(entry, 5);
+#endif
 	snprintf(entry, 127, "video.%d:madp16_th", venc_chn_id);
 	static_weight_s.u32Madp16Th = rk_param_get_int(entry, 15);
 	snprintf(entry, 127, "video.%d:skip16_wgt", venc_chn_id);
