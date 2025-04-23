@@ -2,9 +2,9 @@
 
 文件标识：RK-KF-YF-937
 
-发布版本：V1.7.4
+发布版本：V1.7.5
 
-日期：2025-04-16
+日期：2025-04-23
 
 文件密级：□绝密   □秘密   □内部资料   ■公开
 
@@ -54,6 +54,7 @@ Rockchip Electronics Co., Ltd.
 | RK3588                | Linux 5.10/Linux 6.1 |
 | RV1103/RV1106/RV1103B | Linux 5.10           |
 | RK3576                | Linux 6.1            |
+| RV1126B               | Linux 6.1            |
 
 **读者对象**
 
@@ -97,7 +98,8 @@ Rockchip Electronics Co., Ltd.
 | V1.7.1     | Yu Zheng   | 2025-02-12   | 修改RK3576DV的流程框图和部分参数说明<br/>增加播放显示模块API介绍 |
 | V1.7.2     | Fenrir Lin | 2025-03-25   | 新增RV1126B IPC的流程框图                                    |
 | V1.7.3     | Fenrir Lin | 2025-04-03   | 新增RV1126B Dual-IPC的流程框图                               |
-| V1.7.4     | Yu Zheng   | 2025-04-16   | 新增RV1126B DV的流程框图                               |
+| V1.7.4     | Yu Zheng   | 2025-04-16   | 新增RV1126B DV的流程框图                                     |
+| V1.7.5     | Fenrir Lin | 2025-04-24   | 新增UVC模块相关说明                                          |
 
 ---
 

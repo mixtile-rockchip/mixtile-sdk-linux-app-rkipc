@@ -2,9 +2,9 @@
 
 ID: RK-KF-YF-937
 
-Release Version: V1.7.1
+Release Version: V1.7.5
 
-Release Date: 2025-02-12
+Release Date: 2025-04-23
 
 Security Level: □Top-Secret   □Secret   □Internal   ■Public
 
@@ -48,6 +48,7 @@ This document provides instructions for RKIPC application development.
 | RK3588                | Linux 5.10/Linux 6.1 |
 | RV1103/RV1106/RV1103B | Linux 5.10           |
 | RK3576                | Linux 6.1            |
+| RV1126B               | Linux 6.1            |
 
 **Intended Audience**
 
@@ -89,6 +90,10 @@ Software development engineers
 | V1.6.9      | Fenrir Lin | 2024-08-29 | Modify the RV1106 Dual-IPC block diagram.                    |
 | V1.7.0      | Fenrir Lin | 2025-01-06 | Added RK3576 DV block diagram.                               |
 | V1.7.1      | Yu Zheng   | 2025-02-12 | Modified RK3576DV flow block diagram and part of the parameter description <br/>Added playback and display module API introduction |
+| V1.7.2      | Fenrir Lin | 2025-03-25 | Add RV1126B IPC block diagram.                               |
+| V1.7.3      | Fenrir Lin | 2025-04-03 | Add RV1126B Dual-IPC block diagram.                          |
+| V1.7.4      | Yu Zheng   | 2025-04-16 | Add RV1126B DV block diagram.                                |
+| V1.7.5      | Fenrir Lin | 2025-04-24 | Add UVC module related instructions.                         |
 
 ---
 
@@ -111,7 +116,7 @@ Software development engineers
 | rv1106_battery_ipc_client | rockit, rkaiq         | Battery-powered product for RV1103/RV1106 platforms, supports web and rtsp/rtmp preview, dynamic parameter modification, serves as a client for quick dual-process booting. |
 | rv1106_battery_ipc_tuya   | rockit, rkaiq         | Battery-powered product for RV1103/RV1106 platforms, supports preview via Tuya mobile app, with sleep&wake functionality. |
 | rv1106_dual_ipc           | rockit, rkaiq         | Binocular camera stitching product for RV1103/RV1106/RV1103B platforms, supports web and rtsp/rtmp preview, dynamic parameter modification. |
-| rv1106_aiisp              | rockit、rkaiq         | IPC product for RV1103/RV1106/RV1103B platforms,based on aiisp, supports web and rtsp/rtmp preview, dynamic parameter modification. |
+| rv1106_aiisp              | rockit, rkaiq         | IPC product for RV1103/RV1106/RV1103B platforms,based on aiisp, supports web and rtsp/rtmp preview, dynamic parameter modification. |
 | rk3588_ipc                | rockit, rkaiq         | Single camera IPC product for the RK3588 platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
 | rk3588_muliti_ipc         | rockit, rkaiq         | Multi cameras IPC product for RK3588 platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
 | rv1126_ipc_rkmedia        | rockit, rkaiq         | IPC product for RV1126/RV1109 platforms, based on rkmedia, supports web and rtsp/rtmp preview, dynamic parameter modification. |
@@ -119,9 +124,13 @@ Software development engineers
 | rv1126_battery_ipc        | rockit, rkaiq         | Battery-powered product for RV1126/RV1109 platforms, supports preview via Tuya mobile app, with sleep&wake functionality. |
 | rv1126_dual_ipc           | rockit, rkaiq         | Binocular camera stitching product for RV1126/RV1109 platforms, supports web and rtsp/rtmp preview, dynamic parameter modification. |
 | rv1126_snapshot           | easymedia, rkaiq      | Snapshot-type product for RV1126/RV1109 platforms, supports offline frames, local image/video capture, screen display. |
-| rv1126_aiisp              | rockit、rkaiq         | IPC product for RV1126/RV1109 platforms,based on aiisp, supports web and rtsp/rtmp preview, dynamic parameter modification. |
+| rv1126_aiisp              | rockit, rkaiq         | IPC product for RV1126/RV1109 platforms,based on aiisp, supports web and rtsp/rtmp preview, dynamic parameter modification. |
 | rk3576_ipc                | rockit, rkaiq         | Single camera IPC product for the RK3576 platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
 | rk3576_muliti_ipc         | rockit, rkaiq         | Multi cameras IPC product for RK3576 platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
+| rk3576_dv                 | rockit、rkaiq         | For sports DV products on the RK3576 platform, it supports local photography/recording, decoding playback, and screen display. |
+| rv1126b_ipc               | rockit、rkaiq         | Single camera IPC product for the RV1126B platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
+| rv1126b_dual_ipc          | rockit、rkaiq         | Multi cameras IPC product for RV1126B platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
+| rv1126b_dv                | rockit、rkaiq         | For sports DV products on the RV1126B platform, it supports local photography/recording, decoding playback, and screen display. |
 
 ### RV1103 IPC
 
@@ -371,6 +380,70 @@ graph LR
 	VI_1-->GDC_1-->VO
 ```
 
+### RV1126B IPC
+
+**默认FEC close，当isp.0.enhancement:distortion_correction=FEC，会走不一样的数据流。**
+
+```mermaid
+graph LR
+AI-->AENC-->RTSP_RTMP_0
+
+subgraph "FEC close, VPSS online"
+    VI_PIPE-->VI_ext_3
+    VI_PIPE-->VI_ext_4
+    VI_PIPE-->VI_ext_2
+    VI_PIPE-->VI_ext_5
+end
+VI_ext_3--RFBC_or_WRAP-->VENC_0_draw_nn_result-->MUXER-->MP4
+VENC_0_draw_nn_result-->UVC
+VENC_0_draw_nn_result--combo-->JPEG
+VI_ext_4-->NPU
+VI_ext_4-->IVS_for_OD_MD
+VENC_0_draw_nn_result-->RTSP_RTMP_0
+VI_ext_2-->VENC_1-->RTSP_RTMP_1
+VI_ext_5-->VO
+
+subgraph "FEC open, VPSS offline"
+	VI_0-.TILE.->GDC-.RFBC.->VPSS_GRP
+	VPSS_GRP-.->VPSS_CHN_0
+	VPSS_GRP-.->VPSS_CHN_1
+	VPSS_GRP-.->VPSS_CHN_2
+	VPSS_GRP-.->VPSS_CHN_3
+end
+VPSS_CHN_0-.RFBC.->VENC_0_draw_nn_result
+VPSS_CHN_2-.->NPU
+VPSS_CHN_2-.->IVS_for_OD_MD
+VPSS_CHN_1-.->VENC_1
+VPSS_CHN_3-.->VO
+
+AIISP-.->VI_PIPE
+AIISP-.->VI_0
+cover/mosaic-->VI_PIPE
+cover/mosaic-.->VPSS_GRP
+```
+
+### RV1126 Dual-IPC
+
+```mermaid
+graph LR
+       VI_0_0-->VENC_0-->RTSP_0
+       VI_0_4-->VO
+       VI_1_0-->VENC_1-->RTSP_1
+       VI_1_4-->VO
+```
+
+### RV1126B DV
+
+```mermaid
+graph LR
+	AI-->AENC-->RTSP_RTMP_0
+	AENC-->MUXER
+	VI_0--TILE-->GDC_0--FBC-->VENC_0_normal-->MUXER-->MP4
+	GDC_0-.->VENC_3-.->JPEG
+	VENC_0_normal-->RTSP_RTMP_0
+	VI_1-->GDC_1-->VO
+```
+
 ## Code Structure
 
 ```shell
@@ -396,7 +469,7 @@ graph LR
 │   └── system # System management modules
 │   └── tuya_ipc # Tuya IPC module
 ├── format.sh # Formatting script
-├── lib # Prebuilt libraries of different toolchains，for 32/64-bit versions
+├── lib # Prebuilt libraries of different toolchains, for 32/64-bit versions
 │   ├── aarch64-rockchip1031-linux-gnu
 │   └── arm-rockchip830-linux-gnueabihf
 │   └── arm-rockchip830-linux-uclibcgnueabihf
@@ -1113,6 +1186,58 @@ Currently only supported for rv1126_ipc_rkmedia.
 | rk_player_audio_seek         | Set the time from which the audio starts playing |
 | rk_player_get_audio_duration | Get the total duration of the audio              |
 | rk_player_get_audio_position | Get the current position of the audio            |
+
+### UVC Module
+
+The important script is located at: common\uvc\rkipc_usb_config.sh， By default, only one UVC is run, and only one resolution and format are supported. Multiple channels and formats are required. Please refer to the following judgment in the script and add them yourself.
+
+```shell
+#uvc config init
+uvc_device_config uvc.gs1 "UVC RGB" $FORMAT $WIDTH $HEIGHT
+if [ $UVC_MULTI = ONE ];then
+   uvc_device_config uvc.gs2 "RK UVC" "H.264" "1920" "1080"
+elif [ $UVC_MULTI = TWO ];then
+   uvc_device_config uvc.gs2 "RK UVC 1" "H.264" "1920" "1080"
+   uvc_device_config uvc.gs3 "RK UVC 2" "H.264" "1920" "1080"
+fi
+```
+
+Main code:
+
+```C
+uint32_t flags = UVC_CONTROL_LOOP_ONCE;
+int open_uvc(int width, int height, int fcc, int fps) {
+	LOG_INFO("open uvc %dx%d %d %d\n", width, height, fcc, fps);
+	return 0;
+}
+
+void close_uvc(void) { LOG_INFO("close_uvc"); }
+
+// init
+system("/etc/init.d/S50usbdevice stop"); // stop old usb device
+sleep(2); // wait old usb change
+system("rkipc_usb_config.sh -f H.264 -w 1920 -h 1080");
+sleep(1);
+uvc_formats_init(output_data_type, width, height);
+register_uvc_open_camera(open_uvc);
+register_uvc_close_camera(close_uvc);
+uvc_control_run(flags);
+
+// send frame, in video.c
+while (g_video_run_) {
+	ret = RK_MPI_VENC_GetStream(VIDEO_PIPE_0, &stFrame, 2500);
+	if (ret == RK_SUCCESS) {
+		void *data = RK_MPI_MB_Handle2VirAddr(stFrame.pstPack->pMbBlk);
+		uvc_read_camera_buffer(data, -1, stFrame.pstPack->u32Len, NULL, 0);
+		RK_MPI_VENC_ReleaseStream(VIDEO_PIPE_0, &stFrame);
+	}
+}
+uvc_read_camera_buffer(data, -1, stFrame.pstPack->u32Len, NULL, 0);
+
+// deinit
+uvc_control_join(flags);
+uvc_formats_deinit();
+```
 
 ## ini Parameter Introduction
 
