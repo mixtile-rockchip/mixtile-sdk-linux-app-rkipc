@@ -54,7 +54,11 @@ int rkipc_set_advanced_venc_params(int venc_chn_id) {
 		LOG_ERROR("RK_MPI_VENC_EnableMotionDeblur error! ret=%#x\n", ret);
 
 	snprintf(entry, 127, "video.%d:motion_deblur_strength", venc_chn_id);
+#ifdef RKIPC_RV1126B
+	ret = RK_MPI_VENC_SetMotionDeblurStrength(venc_chn_id, rk_param_get_int(entry, 5));
+#else
 	ret = RK_MPI_VENC_SetMotionDeblurStrength(venc_chn_id, rk_param_get_int(entry, 0));
+#endif
 	if (ret)
 		LOG_ERROR("RK_MPI_VENC_SetMotionDeblurStrength error! ret=%#x\n", ret);
 
@@ -207,7 +211,7 @@ int rkipc_set_advanced_venc_params(int venc_chn_id) {
 	anti_line_s.u32AntiLine = rk_param_get_int(entry, 3);
 	RK_MPI_VENC_SetAntiLine(venc_chn_id, &anti_line_s);
 
-#ifdef RKIPC_RV1103B
+#if defined(RKIPC_RV1103B) || defined(RKIPC_RV1126B)
 	VENC_LAMBDA_S lambda_s;
 	RK_MPI_VENC_GetLambda(venc_chn_id, &lambda_s);
 	snprintf(entry, 127, "video.%d:lambda", venc_chn_id);
