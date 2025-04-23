@@ -1358,6 +1358,7 @@ int rk_video_init(void) {
 	if (rk_mode_param.enable_rtsp)
 		rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
 	LOG_INFO("exit\n");
+	return ret;
 }
 
 int rk_video_deinit(void) {
@@ -1477,7 +1478,7 @@ int rk_set_eis_mode(RK_EIS_MODE_E eis_mode) {
 	}
 	if (eis_mode == RK_DISTORTION_CORRECTION || eis_mode == RK_HORIZON_STEADY) {
 		LOG_ERROR("eis mode %d is not support\n", eis_mode);
-		return -1;
+		return 0;
 	}
 	if (rk_mode_param.mode != RK_VIDEO_MODE) {
 		LOG_INFO("only video mode can set eis mode\n");
@@ -1487,8 +1488,16 @@ int rk_set_eis_mode(RK_EIS_MODE_E eis_mode) {
 	rk_isp_deinit(0);
 	rk_mode_param.eis_mode = eis_mode;
 	rk_param_set_int("video.source:eis_mode", eis_mode);
-	rk_isp_init(0, rkipc_iq_file_path_);
-	rk_video_init();
+	ret = rk_isp_init(0, rkipc_iq_file_path_);
+	if (ret) {
+		LOG_ERROR("ERROR: rk_isp_init failed! ret=%d\n", ret);
+		return ret;
+	}
+	ret = rk_video_init();
+	if (ret) {
+		LOG_ERROR("ERROR: rk_video_init failed! ret=%d\n", ret);
+		return ret;
+	}
 	LOG_INFO("set new eis mode %d, cost time %lld ms\n", eis_mode, rkipc_get_curren_time_ms() - start_time);
 	return 0;
 }
@@ -1550,9 +1559,21 @@ int rk_set_hdr(RK_HDR_MODE_E hdr_mode) {
 		rk_param_set_string("isp.0.blc:hdr", "close");
 	}
 
-	set_camera_format();
-	rk_isp_init(0, rkipc_iq_file_path_);
-	rk_video_init();
+	ret = set_camera_format();
+	if (ret) {
+		LOG_ERROR("ERROR: set_camera_format failed! ret=%d\n", ret);
+		return ret;
+	}
+	ret = rk_isp_init(0, rkipc_iq_file_path_);
+	if (ret) {
+		LOG_ERROR("ERROR: rk_isp_init failed! ret=%d\n", ret);
+		return ret;
+	}
+	ret = rk_video_init();
+	if (ret) {
+		LOG_ERROR("ERROR: rk_video_init failed! ret=%d\n", ret);
+		return ret;
+	}
 	LOG_INFO("set hdr %d, cost time %lld ms\n", hdr_mode, rkipc_get_curren_time_ms() - start_time);
 	return 0;
 }

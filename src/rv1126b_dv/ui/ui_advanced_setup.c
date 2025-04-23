@@ -43,6 +43,10 @@ typedef struct {
 	lv_obj_t *exit_label_obj;
 	lv_obj_t *comp_enable_obj;
 	lv_obj_t *rtsp_enable_obj;
+	lv_obj_t *hdr_test_obj;
+	lv_obj_t *hdr_test_label_obj;
+	lv_obj_t *eis_test_obj;
+	lv_obj_t *eis_test_label_obj;
 	lv_group_t *group;
 
 } UI_ADVANCED_SETUP_CONTROL_S;
@@ -77,6 +81,148 @@ static void set_done_func(void *arg) {
 		ui_dialog_create("INFO", "切换压缩模式成功!");
 }
 
+static lv_timer_t *test_timer = NULL;
+static lv_obj_t *test_dialog = NULL;
+static lv_obj_t *test_status_obj = NULL;
+static int test_total_count = 0;
+static int test_success_count = 0;
+static int test_fail_count = 0;
+
+static pthread_t test_task_id;
+
+static void create_test_dialog(const char *title) {
+	lv_obj_t *obj, *obj_bg, *context_obj;
+	lv_color_t color;
+	lv_color_t text_color;
+	lv_color_t dialog_color = {
+		.full = 0xFF222D30,
+	};
+	static lv_style_t style;
+
+	text_color.full = 0xffffffff;
+	color.full = 0xFF000000;
+
+	lv_style_reset(&style);
+	lv_style_init(&style);
+	lv_style_set_layout(&style, LV_LAYOUT_FLEX);
+	lv_style_set_flex_flow(&style, LV_FLEX_FLOW_COLUMN_WRAP);
+	lv_style_set_flex_main_place(&style, LV_FLEX_ALIGN_SPACE_EVENLY);
+	lv_style_set_flex_cross_place(&style, LV_FLEX_ALIGN_CENTER);
+
+	test_dialog = obj = lv_obj_create(lv_scr_act());
+	lv_obj_set_size(obj, lv_pct(100), lv_pct(100));
+	lv_obj_align(obj, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_set_style_bg_color(obj, color, 0);
+	lv_obj_set_style_border_color(obj, color, 0);
+	lv_obj_set_style_radius(obj, 0, 0);
+	lv_obj_set_style_bg_opa(obj, LV_OPA_50, 0);
+
+	obj_bg = obj = lv_obj_create(obj);
+	lv_obj_set_size(obj, lv_pct(50), lv_pct(40));
+	lv_obj_set_style_bg_color(obj, dialog_color, 0);
+	lv_obj_set_style_border_color(obj, dialog_color, 0);
+	lv_obj_set_style_radius(obj, 0, 0);
+	lv_obj_set_style_bg_opa(obj, LV_OPA_80, 0);
+	lv_obj_align(obj, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_add_style(obj, &style, 0);
+
+	obj = lv_label_create(obj_bg);
+	lv_obj_set_style_text_font(obj, ttf_info_32.font, 0);
+	lv_obj_set_style_text_color(obj, text_color, 0);
+	lv_obj_set_size(obj, lv_pct(100), LV_SIZE_CONTENT);
+	lv_obj_set_style_text_align(obj, LV_TEXT_ALIGN_CENTER, 0);
+	lv_label_set_text(obj, title);
+	lv_label_set_long_mode(obj, LV_LABEL_LONG_SCROLL_CIRCULAR);
+
+	obj = lv_label_create(obj_bg);
+	lv_label_set_text(obj, LV_SYMBOL_WARNING);
+	lv_obj_set_style_text_font(obj, &lv_font_montserrat_48, 0);
+	lv_obj_set_style_text_color(obj, lv_palette_main(LV_PALETTE_BLUE), 0);
+	lv_obj_add_flag(obj, LV_OBJ_FLAG_IGNORE_LAYOUT);
+	lv_obj_align(obj, LV_ALIGN_TOP_RIGHT, 0, 0);
+
+	context_obj = obj = lv_obj_create(obj_bg);
+	lv_obj_set_width(obj, lv_pct(100));
+	lv_obj_set_style_radius(obj, 0, 0);
+	lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);
+	lv_obj_set_style_border_side(obj, LV_BORDER_SIDE_TOP, 0);
+	lv_obj_add_style(obj, &style, 0);
+	lv_obj_set_flex_grow(obj, 1);
+
+	text_color.full = 0xffffffff;
+	test_status_obj = obj = lv_label_create(context_obj);
+	lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
+	lv_obj_set_style_text_font(obj, ttf_info_32.font, 0);
+	lv_obj_set_style_text_color(obj, text_color, 0);
+	lv_obj_set_style_text_align(obj, LV_TEXT_ALIGN_CENTER, 0);
+	lv_obj_set_width(obj, lv_pct(100));
+}
+
+static void test_timer_func(lv_timer_t *timer) {
+	if (test_total_count == (test_success_count + test_fail_count) && test_total_count > 0) {
+		if (test_status_obj) {
+			lv_obj_del(test_status_obj);
+			test_status_obj = NULL;
+		}
+		if (test_dialog) {
+			lv_obj_del(test_dialog);
+			test_dialog = NULL;
+		}
+		lv_timer_del(test_timer);
+		pthread_join(test_task_id, NULL);
+		test_timer = NULL;
+		test_total_count = 0;
+		test_success_count = 0;
+		test_fail_count = 0;
+		test_task_id = 0;
+		ui_dialog_create("INFO", "测试完成!");
+	}
+	if (test_status_obj) {
+		static char info[64];
+		snprintf(info, sizeof(info), "TOTAL: %d, SUCCESS: %d, FAIL: %d", 
+		         test_total_count, test_success_count, test_fail_count);
+		lv_label_set_text(test_status_obj, info);
+	}
+}
+
+static void* hdr_test_func(void *arg) {
+	test_total_count = rk_param_get_int("video.source:hdr_test_loop_count", 30);
+	int hdr_mode = 0;
+	int ret = 0;
+	for (int i = 0; i < test_total_count; i++) {
+		hdr_mode = (hdr_mode + 1) % RK_HDR_MODE_NUM;
+		ret = rk_set_hdr(hdr_mode);
+		usleep(1000 * 1000);
+		if (ret != 0) {
+			LOG_ERROR("=============== loop %d, set hdr mode %d failed! ===============\n", i, hdr_mode);
+			++test_fail_count;
+		} else {
+			LOG_INFO("=============== loop %d, set hdr mode %d success! ===============\n", i, hdr_mode);
+			++test_success_count;
+		}
+	}
+	return NULL;
+}
+
+static void* eis_test_func(void *arg) {
+	test_total_count = rk_param_get_int("video.source:eis_test_loop_count", 20);
+	int eis_mode = 0;
+	int ret = 0;
+	for (int i = 0; i < test_total_count; i++) {
+		eis_mode = (eis_mode + 1) % RK_EIS_MODE_NUM;
+		ret = rk_set_eis_mode(eis_mode);
+		usleep(1000 * 1000);
+		if (ret != 0) {
+			LOG_ERROR("=============== loop %d, set eis mode %d failed! ===============\n", i, eis_mode);
+			++test_fail_count;
+		} else {
+			LOG_INFO("=============== loop %d, set eis mode %d success! ===============\n", i, eis_mode);
+			++test_success_count;
+		}
+	}
+	return NULL;
+}
+
 static void event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
@@ -89,6 +235,16 @@ static void event_handler(lv_event_t *e) {
 			} else {
 				rk_set_rtsp(false);
 			}
+		} else if (obj == advanced_setup_ctrl.hdr_test_obj) {
+			create_test_dialog("HDR切换测试");
+			test_timer = lv_timer_create(test_timer_func, 500, NULL);
+			pthread_create(&test_task_id, NULL, hdr_test_func, NULL);
+		} else if (obj == advanced_setup_ctrl.eis_test_obj) {
+			create_test_dialog("EIS切换测试");
+			test_timer = lv_timer_create(test_timer_func, 500, NULL);
+			pthread_create(&test_task_id, NULL, eis_test_func, NULL);
+		} else {
+			LOG_ERROR("unknown event\n");
 		}
 	}
 }
@@ -128,6 +284,16 @@ static void advanced_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_add_flag(obj, LV_OBJ_FLAG_CHECKABLE);
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
 	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
+
+	advanced_setup_ctrl.hdr_test_obj = obj = lv_obj_create(cont_obj);
+	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
+	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
+	advanced_setup_ctrl.hdr_test_label_obj = lv_label_create(obj);
+
+	advanced_setup_ctrl.eis_test_obj = obj = lv_obj_create(cont_obj);
+	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
+	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
+	advanced_setup_ctrl.eis_test_label_obj = lv_label_create(obj);
 }
 
 static void advanced_setup_set_text() {
@@ -205,9 +371,29 @@ static void advanced_setup_set_text() {
 	lv_obj_set_style_radius(advanced_setup_ctrl.rtsp_enable_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
 	if (rk_get_rtsp())
 		lv_obj_add_state(advanced_setup_ctrl.rtsp_enable_obj, LV_STATE_CHECKED);
+
+	lv_obj_add_style(advanced_setup_ctrl.hdr_test_obj, &option_style, 0);
+	lv_obj_add_style(advanced_setup_ctrl.hdr_test_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_label_set_text(advanced_setup_ctrl.hdr_test_label_obj, "HDR测试");
+
+	lv_obj_add_style(advanced_setup_ctrl.eis_test_obj, &option_style, 0);
+	lv_obj_add_style(advanced_setup_ctrl.eis_test_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_label_set_text(advanced_setup_ctrl.eis_test_label_obj, "EIS测试");
 }
 
 static void advanced_setup_destroy_ctrl(void) {
+	if (NULL != advanced_setup_ctrl.hdr_test_obj) {
+		ui_common_remove_stype_all(advanced_setup_ctrl.hdr_test_obj);
+		lv_obj_del(advanced_setup_ctrl.hdr_test_obj);
+		advanced_setup_ctrl.hdr_test_obj = NULL;
+	}
+	if (NULL != advanced_setup_ctrl.eis_test_obj) {
+		ui_common_remove_stype_all(advanced_setup_ctrl.eis_test_obj);
+		lv_obj_del(advanced_setup_ctrl.eis_test_obj);
+		advanced_setup_ctrl.eis_test_obj = NULL;
+	}
 	if (NULL != advanced_setup_ctrl.comp_enable_obj) {
 		ui_common_remove_stype_all(advanced_setup_ctrl.comp_enable_obj);
 		lv_obj_del(advanced_setup_ctrl.comp_enable_obj);
@@ -244,6 +430,8 @@ static void advanced_setup_add_indev(void) {
 	lv_group_add_obj(group, advanced_setup_ctrl.exit_obj);
 	lv_group_add_obj(group, advanced_setup_ctrl.comp_enable_obj);
 	lv_group_add_obj(group, advanced_setup_ctrl.rtsp_enable_obj);
+	lv_group_add_obj(group, advanced_setup_ctrl.hdr_test_obj);
+	lv_group_add_obj(group, advanced_setup_ctrl.eis_test_obj);
 	advanced_setup_ctrl.group = group;
 }
 
