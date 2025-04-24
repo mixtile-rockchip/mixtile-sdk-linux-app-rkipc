@@ -320,5 +320,19 @@ int rkipc_set_advanced_venc_params(int venc_chn_id) {
 	}
 #endif
 
+#ifdef RKIPC_RV1126B
+	if (!strcmp(tmp_output_data_type, "H.265")) {
+		VENC_H265_SAO_S sao_s;
+		RK_MPI_VENC_GetH265Sao(venc_chn_id, &sao_s);
+		snprintf(entry, 127, "video.%d:sao_str_i", venc_chn_id);
+		sao_s.u32SaoStrengthI = rk_param_get_int(entry, 0);
+		snprintf(entry, 127, "video.%d:sao_str_p", venc_chn_id);
+		sao_s.u32SaoStrengthP = rk_param_get_int(entry, 0);
+		RK_MPI_VENC_SetH265Sao(venc_chn_id, &sao_s);
+	}
+	snprintf(entry, 127, "video.%d:speed", venc_chn_id);
+	RK_MPI_VENC_SetSpeed(venc_chn_id, rk_param_get_int(entry, 1));
+#endif
+
 	return ret;
 }

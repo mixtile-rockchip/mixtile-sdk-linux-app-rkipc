@@ -1352,6 +1352,9 @@ skip32_wgt = 6
 qbias_arr = 3,6,13,144,144,144,144,3,6,13,144,144,171,144,85,85,85,85
 aq_rnge_arr = 8,8,12,12,12,8,8,12,12,12
 lgt_chg_lvl = 0
+sao_str_i = 0
+sao_str_p = 0
+speed = 1
 
 [video.1]
 input_buffer_count = 1 ; 输入buffer个数，RV1106比较特殊，卷绕模式下，子码流支持单个buffer
