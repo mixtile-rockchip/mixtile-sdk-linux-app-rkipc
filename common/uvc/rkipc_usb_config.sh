@@ -14,9 +14,33 @@ usage() {
     echo "  -f FORMAT (YUYV/MJPEG/H.264/H.265)"
     echo "  -w WIDTH"
     echo "  -h HEIGHT"
+    echo "  -a Enable UAC2 audio"
     echo "example:"
     echo "  $0 -f H.264 -w 1920 -h 1080"
+    echo "  $0 -f H.264 -w 1920 -h 1080 -a"
+    echo "  $0 -a"
 }
+
+# parse parameters
+ENABLE_UAC2=false
+while getopts "f:w:h:a" opt; do
+    case $opt in
+        f) FORMAT="$OPTARG" ;;
+        w) WIDTH="$OPTARG" ;;
+        h) HEIGHT="$OPTARG" ;;
+        a) ENABLE_UAC2=true ;;
+        ?) usage; exit 1 ;;
+    esac
+done
+
+#Process the remaining non optional parameters
+shift $((OPTIND-1))
+for arg in "$@"; do
+    case "$arg" in
+        uac2) ENABLE_UAC2=true ;;
+        *) usage; exit 1 ;;
+    esac
+done
 
 syslink_function()
 {
@@ -220,7 +244,8 @@ uac2_device_config()
   echo 1 > ${UAC_GS0}/p_mute_present
   echo 1 > ${UAC_GS0}/p_volume_present
   echo -5120 > ${UAC_GS0}/p_volume_min #-20db min must > -96db
-  echo 8000,16000,44100,48000 > ${UAC_GS0}/p_srate
+  # echo 8000,16000,44100,48000 > ${UAC_GS0}/p_srate
+  echo 8000 > ${UAC_GS0}/p_srate
 
   echo 3 > ${UAC_GS0}/c_chmask
   echo 2 > ${UAC_GS0}/c_ssize
@@ -230,7 +255,8 @@ uac2_device_config()
   echo -3200 > ${UAC_GS0}/c_volume_min #-12.5db
   echo 0 > ${UAC_GS0}/c_volume_max   #0db
   echo 32 > ${UAC_GS0}/c_volume_res #0.125db
-  echo 8000,16000,44100,48000 > ${UAC_GS0}/c_srate
+  # echo 8000,16000,44100,48000 > ${UAC_GS0}/c_srate
+  echo 8000 > ${UAC_GS0}/c_srate
 
   syslink_function ${UAC}.gs0
 }
@@ -265,14 +291,7 @@ pre_run_adb()
 }
 
 ##main
-while getopts "f:w:h:" opt; do
-  case $opt in
-    f) FORMAT="$OPTARG" ;;
-    w) WIDTH="$OPTARG" ;;
-    h) HEIGHT="$OPTARG" ;;
-    ?) usage; exit 1 ;;
-  esac
-done
+
 #init usb config
 ifconfig lo up   # for adb ok
 umount /sys/kernel/config
@@ -357,7 +376,16 @@ uac2_rndis)
    echo "config uvc ..."
 esac
 
-syslink_function uvc.gs1
+if [ "$ENABLE_UAC2" = true ]; then
+   uac2_device_config uac2
+   echo "config uac2..."
+fi
+
+if [ -n "$FORMAT" ] && [ -n "$WIDTH" ] && [ -n "$HEIGHT" ]; then
+   uvc_device_config uvc.gs1 "UVC RGB" $FORMAT $WIDTH $HEIGHT
+   syslink_function uvc.gs1
+fi
+
 if [ $UVC_MULTI = ONE ];then
    syslink_function uvc.gs2
 elif [ $UVC_MULTI = TWO ];then

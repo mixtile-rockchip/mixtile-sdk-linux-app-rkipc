@@ -3,16 +3,16 @@
 // found in the LICENSE file.
 #include "common.h"
 #include "log.h"
+#include "rkaudio_mp3.h"
 #include "rtsp.h"
 #include "storage.h"
-#include "rkaudio_mp3.h"
 
 #include <rk_debug.h>
 #include <rk_mpi_adec.h>
 #include <rk_mpi_aenc.h>
 #include <rk_mpi_ai.h>
-#include <rk_mpi_ao.h>
 #include <rk_mpi_amix.h>
+#include <rk_mpi_ao.h>
 #include <rk_mpi_mb.h>
 #include <rk_mpi_sys.h>
 #include <stdint.h>
@@ -28,6 +28,9 @@
 
 pthread_t save_ai_tid, save_aenc_tid, ai_get_detect_result_tid;
 static int ai_dev_id = 0;
+static int ao_dev_id = 0;
+static int usb_ai_dev_id = 1;
+static int usb_ao_dev_id = 1;
 static int ai_chn_id = 0;
 static int aenc_dev_id = 0;
 static int aenc_chn_id = 0;
@@ -403,8 +406,7 @@ int rkipc_aenc_deinit() {
 	return 0;
 }
 
-static bool check_rk730_sound_card(void)
-{
+static bool check_rk730_sound_card(void) {
 	FILE *fp;
 	char line[256];
 	bool found = false;
@@ -666,10 +668,8 @@ int rkipc_audio_player_send(uint8_t *data, uint32_t len, uint64_t pts) {
 			LOG_ERROR("RK_MPI_ADEC_SendStream failed[%x]\n", ret);
 		RK_MPI_MB_ReleaseMB(audio_stream.pMbBlk);
 	}
-	LOG_DEBUG("send stream pts %lld, len %d, data %p %s\n"
-			, pts, len, data
-			, ret ? "failed" : "success"
-		);
+	LOG_DEBUG("send stream pts %lld, len %d, data %p %s\n", pts, len, data,
+	          ret ? "failed" : "success");
 	return ret;
 }
 
@@ -842,4 +842,316 @@ int rk_audio_set_encode_type(int stream_id, const char *value) {
 	rk_param_set_string(entry, value);
 
 	return 0;
+}
+
+int rkipc_usb_ai_init() {
+	int ret;
+	AIO_ATTR_S aiAttr;
+
+	memset(&aiAttr, 0, sizeof(AIO_ATTR_S));
+	const char *card_name = "hw:1,0";
+	snprintf(aiAttr.u8CardName, sizeof(aiAttr.u8CardName), "%s", card_name);
+	LOG_INFO("aiAttr.u8CardName is %s\n", aiAttr.u8CardName);
+	aiAttr.soundCard.channels = 2;
+	aiAttr.soundCard.sampleRate = rk_param_get_int("audio.0:sample_rate", 16000);
+	const char *format = rk_param_get_string("audio.0:format", NULL);
+	if (!strcmp(format, "S16")) {
+		aiAttr.soundCard.bitWidth = AUDIO_BIT_WIDTH_16;
+		aiAttr.enBitwidth = AUDIO_BIT_WIDTH_16;
+	} else if (!strcmp(format, "U8")) {
+		aiAttr.soundCard.bitWidth = AUDIO_BIT_WIDTH_8;
+		aiAttr.enBitwidth = AUDIO_BIT_WIDTH_8;
+	} else {
+		LOG_ERROR("not support %s\n", format);
+	}
+	aiAttr.enSamplerate = rk_param_get_int("audio.0:sample_rate", 16000);
+	aiAttr.u32FrmNum = 4;
+	aiAttr.u32PtNumPerFrm = rk_param_get_int("audio.0:frame_size", 1024);
+	aiAttr.u32EXFlag = 0;
+	aiAttr.u32ChnCnt = 2;
+	if (rk_param_get_int("audio.0:channels", 2) == 2)
+		aiAttr.enSoundmode = AUDIO_SOUND_MODE_STEREO;
+	else
+		aiAttr.enSoundmode = AUDIO_SOUND_MODE_MONO;
+
+	ret = RK_MPI_AI_SetPubAttr(usb_ai_dev_id, &aiAttr);
+	if (ret != 0) {
+		LOG_ERROR("ai set attr fail, reason = %d\n", ret);
+		return RK_FAILURE;
+	}
+
+	ret = RK_MPI_AI_Enable(usb_ai_dev_id);
+	if (ret != 0) {
+		LOG_ERROR("ai enable fail, reason = %d\n", ret);
+		return RK_FAILURE;
+	}
+
+	ret = RK_MPI_AI_EnableChn(usb_ai_dev_id, ai_chn_id);
+	if (ret != 0) {
+		LOG_ERROR("ai enable channel fail, aoChn = %d, reason = %x\n", ai_chn_id, ret);
+		return RK_FAILURE;
+	}
+
+	// ret = RK_MPI_AI_EnableReSmp(ai_dev_id, ai_chn_id,
+	//                               (AUDIO_SAMPLE_RATE_E)params->s32SampleRate);
+	// if (ret != 0) {
+	//     LOG_ERROR("ai enable resample fail, reason = %x, aoChn = %d\n", ret, ai_chn_id);
+	//     return RK_FAILURE;
+	// }
+
+	RK_MPI_AI_SetVolume(usb_ai_dev_id, rk_param_get_int("audio.0:volume", 100));
+	if (rk_param_get_int("audio.0:channels", 2) == 1) {
+		RK_MPI_AI_SetTrackMode(usb_ai_dev_id, AUDIO_TRACK_FRONT_LEFT);
+	}
+
+	// pthread_create(&save_ai_tid, RK_NULL, save_ai_thread, NULL);
+
+	return 0;
+}
+
+int rkipc_usb_ai_deinit() {
+	int ret = RK_MPI_AI_DisableChn(usb_ai_dev_id, ai_chn_id);
+	if (ret != 0) {
+		LOG_ERROR("ai disable channel fail, reason = %d\n", ret);
+		return RK_FAILURE;
+	}
+	ret = RK_MPI_AI_Disable(usb_ai_dev_id);
+	if (ret != 0) {
+		LOG_ERROR("ai disable fail, reason = %d\n", ret);
+		return RK_FAILURE;
+	}
+	return 0;
+}
+
+int rkipc_usb_ao_init(void) {
+	int ret = 0;
+	int sample_rate = rk_param_get_int("audio.0:sample_rate", 16000);
+	int channels = rk_param_get_int("audio.0:channels", 2);
+	const char *card_name = "hw:1,0";
+	AO_CHN aoChn = 0;
+	AIO_ATTR_S aoAttr;
+	AO_CHN_PARAM_S pstParams;
+
+	memset(&pstParams, 0, sizeof(AO_CHN_PARAM_S));
+	memset(&aoAttr, 0, sizeof(AIO_ATTR_S));
+	sprintf((char *)aoAttr.u8CardName, "%s", card_name);
+
+	aoAttr.soundCard.channels = channels;
+	aoAttr.soundCard.sampleRate = sample_rate;
+	const char *format = rk_param_get_string("audio.0:format", NULL);
+	if (!strcmp(format, "S16")) {
+		aoAttr.soundCard.bitWidth = AUDIO_BIT_WIDTH_16;
+		aoAttr.enBitwidth = AUDIO_BIT_WIDTH_16;
+	} else if (!strcmp(format, "U8")) {
+		aoAttr.soundCard.bitWidth = AUDIO_BIT_WIDTH_8;
+		aoAttr.enBitwidth = AUDIO_BIT_WIDTH_8;
+	} else {
+		LOG_ERROR("not support %s\n", format);
+		return RK_FAILURE;
+	}
+	aoAttr.enSamplerate = (AUDIO_SAMPLE_RATE_E)sample_rate;
+
+	if (channels == 1)
+		aoAttr.enSoundmode = AUDIO_SOUND_MODE_MONO;
+	else if (channels == 2)
+		aoAttr.enSoundmode = AUDIO_SOUND_MODE_STEREO;
+	else {
+		LOG_ERROR("unsupport = %d\n", channels);
+		return RK_FAILURE;
+	}
+
+	aoAttr.u32PtNumPerFrm = rk_param_get_int("audio.0:ao_frame_size", 1024);
+	aoAttr.u32FrmNum = 4;
+	aoAttr.u32EXFlag = 0;
+	aoAttr.u32ChnCnt = 2;
+
+	RK_MPI_AO_SetPubAttr(usb_ao_dev_id, &aoAttr);
+	ret = RK_MPI_AO_Enable(usb_ao_dev_id);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_AO_Enable failed %#X\n", ret);
+		return RK_FAILURE;
+	}
+	/*==============================================================================*/
+	pstParams.enLoopbackMode = AUDIO_LOOPBACK_NONE;
+	ret = RK_MPI_AO_SetChnParams(usb_ao_dev_id, aoChn, &pstParams);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("ao set channel params, aoChn = %d", aoChn);
+		return RK_FAILURE;
+	}
+
+	if (channels == 1)
+		RK_MPI_AO_SetTrackMode(usb_ao_dev_id, AUDIO_TRACK_OUT_STEREO);
+	else
+		RK_MPI_AO_SetTrackMode(usb_ao_dev_id, AUDIO_TRACK_NORMAL);
+	if (rk_param_get_int("audio.0:enable_ao_vqe", 0)) {
+		const char *vqe_file_path = rk_param_get_string("audio.0:ao_vqe_file", NULL);
+		if (vqe_file_path) {
+			AO_VQE_CONFIG_S vqe_config = {};
+			strncpy(vqe_config.aCfgFile, vqe_file_path, strlen(vqe_file_path));
+			vqe_config.enCfgMode = AIO_VQE_CONFIG_LOAD_FILE;
+			ret = RK_MPI_AO_SetVqeAttr(usb_ao_dev_id, aoChn, &vqe_config);
+			if (ret != RK_SUCCESS) {
+				LOG_ERROR("RK_MPI_AO_SetVqeAttr failed %#X\n", ret);
+				return RK_FAILURE;
+			}
+			ret = RK_MPI_AO_EnableVqe(usb_ao_dev_id, aoChn);
+			if (ret != RK_SUCCESS) {
+				LOG_ERROR("RK_MPI_AO_EnableVqe failed %#X\n", ret);
+				return RK_FAILURE;
+			}
+		}
+	}
+	/*==============================================================================*/
+	ret = RK_MPI_AO_EnableChn(usb_ao_dev_id, aoChn);
+	if (ret != 0) {
+		LOG_ERROR("ao enable channel fail, aoChn = %d, reason = %x", aoChn, ret);
+		return RK_FAILURE;
+	}
+	/*==============================================================================*/
+	// set sample rate of input data
+	ret = RK_MPI_AO_EnableReSmp(usb_ao_dev_id, aoChn, (AUDIO_SAMPLE_RATE_E)sample_rate);
+	if (ret != 0) {
+		LOG_ERROR("ao enable channel fail, reason = %x, aoChn = %d", ret, aoChn);
+		return RK_FAILURE;
+	}
+
+	ret = RK_MPI_AO_SetVolume(usb_ao_dev_id, rk_param_get_int("audio.0:volume", 100));
+	if (ret != 0) {
+		LOG_ERROR("RK_MPI_AO_SetVolume failed %#X\n", ret);
+		return RK_FAILURE;
+	}
+	LOG_INFO("create usb ao success\n");
+
+	return RK_SUCCESS;
+}
+
+int rkipc_usb_ao_deinit(void) {
+	RK_MPI_AO_DisableReSmp(usb_ao_dev_id, 0);
+	RK_MPI_AO_DisableChn(usb_ao_dev_id, 0);
+	RK_MPI_AO_Disable(usb_ao_dev_id);
+}
+
+int uac_record_start() {
+	int ret = 0;
+	LOG_INFO("uac_record_start\n");
+	rkipc_usb_ai_init();
+	rkipc_ao_init();
+	MPP_CHN_S src_chn = {}, dst_chn = {};
+	src_chn.enModId = RK_ID_AI;
+	src_chn.s32DevId = usb_ai_dev_id;
+	src_chn.s32ChnId = 0;
+	dst_chn.enModId = RK_ID_AO;
+	dst_chn.s32DevId = ao_dev_id;
+	dst_chn.s32ChnId = 0;
+	RK_MPI_SYS_Bind(&src_chn, &dst_chn);
+	return ret;
+}
+
+int uac_record_stop() {
+	LOG_INFO("uac_record_stop\n");
+	MPP_CHN_S src_chn = {}, dst_chn = {};
+	src_chn.enModId = RK_ID_AI;
+	src_chn.s32DevId = usb_ai_dev_id;
+	src_chn.s32ChnId = 0;
+	dst_chn.enModId = RK_ID_AO;
+	dst_chn.s32DevId = ao_dev_id;
+	dst_chn.s32ChnId = 0;
+	RK_MPI_SYS_UnBind(&src_chn, &dst_chn);
+	rkipc_usb_ai_deinit();
+	rkipc_ao_deinit();
+
+	return 0;
+}
+
+int uac_playback_start() {
+	LOG_INFO("uac_playback_start\n");
+	// the default ai is created by default, so there is no need to init
+	rkipc_usb_ao_init();
+	MPP_CHN_S src_chn = {}, dst_chn = {};
+	src_chn.enModId = RK_ID_AI;
+	src_chn.s32DevId = ai_dev_id;
+	src_chn.s32ChnId = 0;
+	dst_chn.enModId = RK_ID_AO;
+	dst_chn.s32DevId = usb_ao_dev_id;
+	dst_chn.s32ChnId = 0;
+	RK_MPI_SYS_Bind(&src_chn, &dst_chn);
+
+	return 0;
+}
+
+int uac_playback_stop() {
+	LOG_INFO("uac_playback_stop\n");
+	MPP_CHN_S src_chn = {}, dst_chn = {};
+	src_chn.enModId = RK_ID_AI;
+	src_chn.s32DevId = ai_dev_id;
+	src_chn.s32ChnId = 0;
+	dst_chn.enModId = RK_ID_AO;
+	dst_chn.s32DevId = usb_ao_dev_id;
+	dst_chn.s32ChnId = 0;
+	RK_MPI_SYS_UnBind(&src_chn, &dst_chn);
+	rkipc_usb_ao_deinit();
+	// the default ai is created by default, so there is no need to deinit
+
+	return 0;
+}
+
+void uac_set_sample_rate(int type, int sampleRate) {
+	if (sampleRate == 0)
+		return;
+	LOG_INFO("type = %d, sampleRate = %d\n", type, sampleRate);
+	/*
+	 * 1. for usb capture, we update audio config to capture
+	 * 2. for usb playback, if there is resample before usb playback,
+	 *    we set audio config to this resample, the new config will
+	 *    pass to usb playback from resample to usb playback when
+	 *    the datas move from resample to usb.
+	 * 3. we alway use samperate=48K to open mic and speaker,
+	 *    because usually, they use the same group i2s, and
+	 *    not allowned to use diffrent samplerate.
+	 */
+	if (type == 0) {
+		// the usb record always the first node
+		AI_CHN_ATTR_S params;
+		memset(&params, 0, sizeof(AI_CHN_ATTR_S));
+		params.u32SampleRate = sampleRate;
+		params.enChnAttr = AUDIO_CHN_ATTR_RATE;
+		RK_MPI_AI_SetChnAttr(usb_ai_dev_id, 0, &params);
+	} else {
+		// find the resample before usb playback
+		AO_CHN_ATTR_S params;
+		memset(&params, 0, sizeof(AO_CHN_ATTR_S));
+		params.u32SampleRate = sampleRate;
+		params.enChnAttr = AUDIO_CHN_ATTR_RATE;
+		RK_MPI_AO_SetChnAttr(usb_ao_dev_id, 0, &params);
+	}
+}
+
+void uac_set_volume(int type, int volume) {
+	LOG_INFO("type = %d, volume = %d\n", type, volume);
+	AUDIO_FADE_S aFade;
+	memset(&aFade, 0, sizeof(AUDIO_FADE_S));
+	RK_BOOL bMute = RK_FALSE;
+	if (type == 0) {
+		RK_MPI_AO_SetMute(ao_dev_id, bMute, &aFade);
+		RK_MPI_AO_SetVolume(ao_dev_id, volume);
+	} else {
+		RK_MPI_AO_SetMute(usb_ao_dev_id, bMute, &aFade);
+		RK_MPI_AO_SetVolume(usb_ao_dev_id, volume);
+	}
+}
+
+void uac_set_mute(int type, int mute) {
+	LOG_INFO("type = %d, mute = %d\n", type, mute);
+	AUDIO_FADE_S aFade;
+	memset(&aFade, 0, sizeof(AUDIO_FADE_S));
+	if (type == 0) {
+		RK_MPI_AO_SetMute(ao_dev_id, mute, &aFade);
+	} else {
+		RK_MPI_AO_SetMute(usb_ao_dev_id, mute, &aFade);
+	}
+}
+
+void uac_set_ppm(int type, int ppm) {
+	LOG_INFO("type = %d, ppm = %d\n", type, ppm);
+	// need amixer set, and sound card support, example 'PCM Clk Compensation In PPM'
 }

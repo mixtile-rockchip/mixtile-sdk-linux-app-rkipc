@@ -192,20 +192,31 @@ int main(int argc, char **argv) {
 	const char *output_data_type = rk_param_get_string("video.0:output_data_type", "H.264");
 	int width = rk_param_get_int("video.0:width", 1920);
 	int height = rk_param_get_int("video.0:height", 1080);
-	uint32_t flags = UVC_CONTROL_LOOP_ONCE;
-	if (rk_param_get_int("video.source:enable_uvc", 0)) {
+	uint32_t flags = 0; // UVC_CONTROL_LOOP_ONCE;
+	int enable_uvc = rk_param_get_int("video.source:enable_uvc", 0);
+	int enable_uac = rk_param_get_int("audio.0:enable_uac", 0);
+	if (enable_uvc || enable_uac) {
 		memset(usb_config_cmd, 0, sizeof(usb_config_cmd));
-		snprintf(usb_config_cmd, sizeof(usb_config_cmd), "rkipc_usb_config.sh -f %s -w %d -h %d",
-		         output_data_type, width, height);
-		LOG_INFO("usb_config_cmd is %s\n", usb_config_cmd);
 		system("/etc/init.d/S50usbdevice stop");
 		sleep(2); // wait old usb change
+		if (enable_uvc && enable_uac) {
+			snprintf(usb_config_cmd, sizeof(usb_config_cmd),
+			         "rkipc_usb_config.sh -f %s -w %d -h %d -a", output_data_type, width, height);
+		} else if (enable_uvc) {
+			snprintf(usb_config_cmd, sizeof(usb_config_cmd),
+			         "rkipc_usb_config.sh -f %s -w %d -h %d", output_data_type, width, height);
+		} else if (enable_uac) {
+			snprintf(usb_config_cmd, sizeof(usb_config_cmd), "rkipc_usb_config.sh -a");
+		}
+		LOG_INFO("usb_config_cmd is %s\n", usb_config_cmd);
 		system(usb_config_cmd);
 		sleep(1);
-		uvc_formats_init(output_data_type, width, height);
-		register_uvc_open_camera(open_uvc);
-		register_uvc_close_camera(close_uvc);
-		uvc_control_run(flags);
+		if (enable_uvc) {
+			uvc_formats_init(output_data_type, width, height);
+			register_uvc_open_camera(open_uvc);
+			register_uvc_close_camera(close_uvc);
+		}
+		uvc_control_run(flags); // also monitor uac
 	}
 	LOG_INFO("rkipc init over\n");
 

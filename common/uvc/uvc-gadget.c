@@ -2646,7 +2646,9 @@ static void uvc_events_process_class(struct uvc_device *dev, struct usb_ctrlrequ
 	if ((ctrl->bRequestType & USB_RECIP_MASK) != USB_RECIP_INTERFACE)
 		return;
 
-	if ((ctrl->wIndex & 0xff) % 2 != get_uvc_streaming_intf() % 2) {
+	// when add uvc, get_uvc_streaming_intf will return 4, not 1
+	// if ((ctrl->wIndex & 0xff) % 2 != get_uvc_streaming_intf() % 2) {
+	if ((ctrl->wIndex & 0xff) % 2 != 1 % 2) {
 		uvc_events_process_control(dev, ctrl->bRequest, ctrl->wValue >> 8, ctrl->wIndex >> 8,
 		                           ctrl->wLength, resp);
 	} else {
