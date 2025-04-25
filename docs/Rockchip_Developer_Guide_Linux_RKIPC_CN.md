@@ -428,7 +428,7 @@ cover/mosaic-->VI_PIPE
 cover/mosaic-.->VPSS_GRP
 ```
 
-### RV1126 Dual-IPC
+### RV1126B Dual-IPC
 
 ```mermaid
 graph LR
@@ -1195,7 +1195,7 @@ submitOne(groupName: string, isReboot: boolean = false, isAppRestart = false) {
 
 ### UVC模块
 
-重要脚本位于：common\uvc\rkipc_usb_config.sh，默认只跑一路UVC，只支持一种分辨率和格式。需要多路和多种格式，请参考脚本中以下判断，自行添加。
+重要脚本位于：common\uvc\rkipc_usb_config.sh，默认只跑一路UVC，只支持一种分辨率和格式。如果需要多路和多种格式，请参考脚本中以下判断，自行添加。
 
 ```shell
 #uvc config init
@@ -1745,4 +1745,3 @@ intf_type = LCD ; 显示设备类型
 play_chn_id = 1 ; 播放通道id
 play_chn_priority = 2 ; 播放通道的优先级，高优先级的通道会覆盖低优先级通道
 ```
-

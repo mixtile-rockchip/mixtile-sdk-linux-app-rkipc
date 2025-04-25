@@ -127,10 +127,10 @@ Software development engineers
 | rv1126_aiisp              | rockit, rkaiq         | IPC product for RV1126/RV1109 platforms,based on aiisp, supports web and rtsp/rtmp preview, dynamic parameter modification. |
 | rk3576_ipc                | rockit, rkaiq         | Single camera IPC product for the RK3576 platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
 | rk3576_muliti_ipc         | rockit, rkaiq         | Multi cameras IPC product for RK3576 platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
-| rk3576_dv                 | rockit、rkaiq         | For sports DV products on the RK3576 platform, it supports local photography/recording, decoding playback, and screen display. |
-| rv1126b_ipc               | rockit、rkaiq         | Single camera IPC product for the RV1126B platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
-| rv1126b_dual_ipc          | rockit、rkaiq         | Multi cameras IPC product for RV1126B platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
-| rv1126b_dv                | rockit、rkaiq         | For sports DV products on the RV1126B platform, it supports local photography/recording, decoding playback, and screen display. |
+| rk3576_dv                 | rockit, rkaiq         | For sports DV products on the RK3576 platform, it supports local photography/recording, decoding playback, and screen display. |
+| rv1126b_ipc               | rockit, rkaiq         | Single camera IPC product for the RV1126B platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
+| rv1126b_dual_ipc          | rockit, rkaiq         | Multi cameras IPC product for RV1126B platform, supports web and rtsp/rtmp preview, dynamic parameter modification. |
+| rv1126b_dv                | rockit, rkaiq         | For sports DV products on the RV1126B platform, it supports local photography/recording, decoding playback, and screen display. |
 
 ### RV1103 IPC
 
@@ -382,7 +382,7 @@ graph LR
 
 ### RV1126B IPC
 
-**默认FEC close，当isp.0.enhancement:distortion_correction=FEC，会走不一样的数据流。**
+**It is "FEC close" by default, when isp.0.enhancement: distortion_correction=FEC, it will follow a different data flow.**
 
 ```mermaid
 graph LR
@@ -422,7 +422,7 @@ cover/mosaic-->VI_PIPE
 cover/mosaic-.->VPSS_GRP
 ```
 
-### RV1126 Dual-IPC
+### RV1126B Dual-IPC
 
 ```mermaid
 graph LR
@@ -1189,7 +1189,7 @@ Currently only supported for rv1126_ipc_rkmedia.
 
 ### UVC Module
 
-The important script is located at: common\uvc\rkipc_usb_config.sh， By default, only one UVC is run, and only one resolution and format are supported. Multiple channels and formats are required. Please refer to the following judgment in the script and add them yourself.
+The important script is located at: common\uvc\rkipc_usb_config.sh, By default, only one UVC is run, and only one resolution and format are supported. If multiple channels and formats are required. Please refer to the following judgment in the script and add them yourself.
 
 ```shell
 #uvc config init
@@ -1738,4 +1738,3 @@ intf_type = LCD ; Display device type
 play_chn_id = 1 ; Display channel id
 play_chn_priority = 2 ; The priority of the playback channel. The channel with higher priority overwrites the channel with lower priority
 ```
-
