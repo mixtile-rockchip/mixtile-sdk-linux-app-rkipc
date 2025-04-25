@@ -396,6 +396,8 @@ static void rga_copy_area(VIDEO_FRAME_INFO_S *dst_frame, const lv_area_t *area,
 		LOG_DEBUG("imcheck success!\n");
 	} else {
 		LOG_ERROR("imcheck failed! %s\n", imStrError(ret));
+		releasebuffer_handle(fg_handle);
+		releasebuffer_handle(bg_handle);
 		return;
 	}
 

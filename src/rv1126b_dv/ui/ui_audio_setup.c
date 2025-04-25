@@ -301,6 +301,7 @@ static void audio_setup_add_indev(void) {
 	lv_group_t *group = lv_port_indev_group_create();
 	if (NULL == group)
 		return;
+	lv_group_add_obj(group, audio_setup_ctrl.exit_obj);
 	lv_group_add_obj(group, audio_setup_ctrl.audio_enable_obj);
 	lv_group_add_obj(group, audio_setup_ctrl.audio_anr_obj);
 	lv_group_add_obj(group, audio_setup_ctrl.record_slider_obj);
