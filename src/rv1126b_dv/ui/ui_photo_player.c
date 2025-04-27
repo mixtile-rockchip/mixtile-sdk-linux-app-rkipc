@@ -133,10 +133,6 @@ static void menu_event_cb(lv_event_t *e) {
 	uint32_t cur_index = photo_player_ctx.cur_file_index;
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			ui_page_pop_page();
-			return;
-		}
 		switch (ctrl_id) {
 		case UI_CTRL_ESC:
 			ui_page_pop_page();

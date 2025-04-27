@@ -210,10 +210,6 @@ static void capture_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			rk_enter_sleep();
-			return;
-		}
 		switch (rkipc_storage_dev_mount_status_get()) {
 		case DISK_UNMOUNTED:
 			ui_nosdcard_dialog_create();
@@ -241,10 +237,6 @@ static void record_event_handler(lv_event_t *e) {
 
 	LOG_INFO("record_event_handler code %d\n", code);
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			rk_enter_sleep();
-			return;
-		}
 		switch (rkipc_storage_dev_mount_status_get()) {
 		case DISK_UNMOUNTED:
 			ui_nosdcard_dialog_create();
@@ -281,10 +273,6 @@ static void media_event_handler(lv_event_t *e) {
 
 	LOG_INFO("media_event_handler code %d\n", code);
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			rk_enter_sleep();
-			return;
-		}
 		switch (rkipc_storage_dev_mount_status_get()) {
 		case DISK_UNMOUNTED:
 			ui_nosdcard_dialog_create();
@@ -309,10 +297,6 @@ static void set_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			rk_enter_sleep();
-			return;
-		}
 		ui_page_push_page("settings", NULL);
 	}
 }

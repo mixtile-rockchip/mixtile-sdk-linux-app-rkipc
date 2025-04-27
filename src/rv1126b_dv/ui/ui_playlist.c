@@ -309,7 +309,6 @@ static void playlist_create_ctrl(lv_obj_t *page_obj) {
 }
 
 static void playlist_add_indev(void) {
-	evdev_force_translate_to_click(true);
 	lv_group_t *group = lv_port_indev_group_create();
 	if (NULL == group)
 		return;
@@ -319,7 +318,6 @@ static void playlist_add_indev(void) {
 }
 
 static void playlist_delete_indev(void) {
-	evdev_force_translate_to_click(false);
 	if (NULL != playlist_ctx.group) {
 		lv_port_indev_group_destroy(playlist_ctx.group);
 		playlist_ctx.group = NULL;

@@ -99,7 +99,8 @@ EVDEV_ATTR_S *evdev_set_file(const char *dev_name) {
  */
 void evdev_read(EVDEV_ATTR_S *evdev_attr, lv_indev_drv_t *drv, lv_indev_data_t *data) {
 	struct input_event in;
-
+	// reset key value in each read loop
+	current_key_value = 0;
 	while (read(evdev_attr->evdev_fd, &in, sizeof(struct input_event)) > 0) {
 		if (in.type == EV_REL) {
 			if (in.code == REL_X)

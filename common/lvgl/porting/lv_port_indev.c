@@ -91,10 +91,15 @@ static void indev_match_device(const char *dev_path) {
 		char name[256] = "Unknown";
 		ioctl(fd, EVIOCGNAME(sizeof(name)), name);
 		// Check if the device is a keyboard device
+#ifdef LVGL_SUPPORT_KEY
 		if (NULL != strstr(name, "key"))
 			indev_add_device(dev_path, LV_INDEV_TYPE_KEYPAD);
-		else if (NULL != strstr(name, "goodix-ts"))
+#endif
+
+#ifdef LVGL_SUPPORT_TOUCHSCREEN
+		if (NULL != strstr(name, "goodix-ts"))
 			indev_add_device(dev_path, LV_INDEV_TYPE_POINTER);
+#endif
 		close(fd);
 	}
 }

@@ -115,8 +115,6 @@ static void format_start_event_cb(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 	if (code == LV_EVENT_CLICKED) {
 		ui_format_dialog_destory();
-		if (evdev_get_current_code() == KEY_POWER)
-			return;
 		start_format();
 	}
 }

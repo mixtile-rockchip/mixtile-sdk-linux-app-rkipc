@@ -61,7 +61,7 @@ include_directories(video
 
 message(STATUS "RK_APP_ARCH_TYPE is ${RK_APP_ARCH_TYPE}")
 
-add_definitions(-DDRAW_UI_BY_VO=1)
+add_definitions(-DDRAW_UI_BY_VO=1 -DLVGL_SUPPORT_TOUCHSCREEN)
 add_definitions(-DISP_HW_V35)
 add_definitions(-g -ggdb)
 add_definitions(-DRV1126B=1)

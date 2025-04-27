@@ -1809,3 +1809,11 @@ int rk_photo_stop(void) {
 		LOG_ERROR("ERROR: stop recv frame error! ret=%d\n", ret);
 	return 0;
 }
+
+int rk_enter_sleep(void) {
+	LOG_INFO("enter\n");
+	// enter sleep
+	write_sysfs_string("state", "/sys/power", "mem");
+	LOG_INFO("exit\n");
+	return 0;
+}

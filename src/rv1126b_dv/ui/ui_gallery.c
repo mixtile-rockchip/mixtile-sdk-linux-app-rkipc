@@ -76,10 +76,6 @@ static void btn_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 	RK_MODE_E mode = (RK_MODE_E)lv_event_get_user_data(e);
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			ui_page_pop_page();
-			return;
-		}
 		ui_page_push_page("playlist", (void *)mode);
 	} else if (code == LV_EVENT_FOCUSED) {
 		lv_obj_set_size(obj, lv_pct(40), lv_pct(40));

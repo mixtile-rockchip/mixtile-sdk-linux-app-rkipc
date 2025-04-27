@@ -11,6 +11,7 @@
 #include "video.h"
 #include <linux/input.h>
 #include <rk_mpi_amix.h>
+#include <stdlib.h>
 
 #ifdef LOG_TAG
 #undef LOG_TAG
@@ -86,7 +87,66 @@ void rkipc_get_opt(int argc, char *argv[]) {
 	}
 }
 
+static void *wait_key_event(void *arg) {
+	int ret;
+	int key_fd;
+	key_fd = open("/dev/input/event1", O_RDONLY);
+	if (key_fd < 0) {
+		LOG_ERROR("can't open /dev/input/event1\n");
+		return NULL;
+	}
+	fd_set rfds;
+	int nfds = key_fd + 1;
+	bool exit_sleep = false;
+	struct timeval timeout;
+	struct input_event key_event;
+
+	while (g_main_run_) {
+		// The rfds collection must be emptied every time,
+		// otherwise the descriptor changes cannot be detected
+		memset(&timeout, 0, sizeof(timeout));
+		timeout.tv_sec = 1;
+		FD_ZERO(&rfds);
+		FD_SET(key_fd, &rfds);
+		ret = select(nfds, &rfds, NULL, NULL, &timeout);
+		if (ret < 0) {
+			LOG_ERROR("select failed : %s\n", strerror(errno));
+			continue;
+		}
+		if (ret == 0)
+			continue;
+		// wait for the key event to occur
+		if (FD_ISSET(key_fd, &rfds)) {
+			read(key_fd, &key_event, sizeof(key_event));
+			LOG_INFO("[timeval:sec:%d,usec:%d,type:%d,code:%d,value:%d]\n",
+			         key_event.input_event_sec, key_event.input_event_usec, key_event.type,
+			         key_event.code, key_event.value);
+			if ((key_event.code == KEY_POWER) && key_event.value) {
+				if (!exit_sleep) {
+					LOG_INFO("enter sleep now\n");
+					rk_enter_sleep();
+					exit_sleep = true;
+				} else
+					exit_sleep = false;
+			}
+			// For EVB1, power key is not supported, so use ESC key to enter sleep mode
+			if ((key_event.code == KEY_ESC) && key_event.value) {
+				rk_enter_sleep();
+				exit_sleep = false;
+			}
+		}
+	}
+
+	if (key_fd) {
+		close(key_fd);
+		key_fd = 0;
+	}
+	LOG_DEBUG("wait key event out\n");
+	return NULL;
+}
+
 int main(int argc, char **argv) {
+	pthread_t key_chk;
 	LOG_INFO("main begin\n");
 	rkipc_version_dump();
 	signal(SIGINT, sig_proc);
@@ -109,9 +169,11 @@ int main(int argc, char **argv) {
 		rkipc_audio_init();
 	}
 
+	pthread_create(&key_chk, NULL, wait_key_event, NULL);
 	while (g_main_run_) {
 		ui_loop();
 	}
+	pthread_join(key_chk, NULL);
 	if (rk_param_get_int("audio.0:enable", 0))
 		rkipc_audio_deinit();
 	rk_video_deinit();

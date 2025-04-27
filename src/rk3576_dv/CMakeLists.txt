@@ -75,7 +75,7 @@ link_directories(${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1031-linux-gnu)
 
 add_definitions(-DISP_HW_V39)
 add_definitions(-g -ggdb)
-add_definitions(-DDRAW_UI_BY_VO=1)
+add_definitions(-DDRAW_UI_BY_VO=1 -DLVGL_SUPPORT_KEY)
 
 add_executable(${PROJECT_NAME} ${SRCS})
 

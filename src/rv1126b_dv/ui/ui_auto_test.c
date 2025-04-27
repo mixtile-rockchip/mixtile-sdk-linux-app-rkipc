@@ -55,6 +55,8 @@ typedef struct {
 	lv_obj_t *photo_test_label_obj;
 	lv_obj_t *player_test_obj;
 	lv_obj_t *player_test_label_obj;
+	lv_obj_t *sleep_test_obj;
+	lv_obj_t *sleep_test_label_obj;
 	lv_obj_t *all_test_obj;
 	lv_obj_t *all_test_label_obj;
 	lv_group_t *group;
@@ -67,6 +69,7 @@ typedef enum {
 	TEST_TYPE_VIDEO,
 	TEST_TYPE_PHOTO,
 	TEST_TYPE_PLAYER,
+	TEST_TYPE_SLEEP,
 	TEST_TYPE_ALL,
 } UI_TEST_TYPE;
 
@@ -474,6 +477,26 @@ static void player_test_routine(int fd) {
 	fsync(fd);
 }
 
+static void sleep_test_routine(int fd) {
+	int count = rk_param_get_int("auto_test:sleep_test_loop_count", 30);
+	int ret = 0, len = 0, success_count = 0, fail_count = 0;
+	char msg[256] = {'\0'};
+	// set sleep time
+	system("io -4 0x20834310 32768");
+	for (int i = 0; i < count; i++) {
+		rk_enter_sleep();
+		sleep(5);
+		++test_total_success_count;
+		++success_count;
+		LOG_ERROR("[SLEEP TEST] loop %d test success\n", i);
+	}
+	memset(msg, 0, sizeof(msg));
+	len = snprintf(msg, sizeof(msg), "[SLEEP TEST] success count %d, failed count %d\n"
+		, success_count, fail_count);
+	write(fd, msg, len);
+	fsync(fd);
+}
+
 static void* test_func(void *arg) {
 	int ret = 0, fd = -1;
 	char file_name[256] = {'\0'};
@@ -504,6 +527,11 @@ static void* test_func(void *arg) {
 		snprintf(file_name, sizeof(file_name)
 			, "/userdata/test_result_player_%d%02d%02d%02d%02d%02d.txt"
 			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	} else if (test_type == TEST_TYPE_SLEEP) {
+		test_total_count = rk_param_get_int("auto_test:sleep_test_loop_count", 30);
+		snprintf(file_name, sizeof(file_name)
+			, "/userdata/test_result_sleep_%d%02d%02d%02d%02d%02d.txt"
+			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	} else if (test_type == TEST_TYPE_ALL) {
 		test_total_count = 0;
 		test_total_count += rk_param_get_int("auto_test:restart_test_loop_count", 30);
@@ -529,6 +557,8 @@ static void* test_func(void *arg) {
 		photo_test_routine(fd);
 	} else if (test_type == TEST_TYPE_PLAYER) {
 		player_test_routine(fd);
+	} else if (test_type == TEST_TYPE_SLEEP) {
+		sleep_test_routine(fd);
 	} else if (test_type == TEST_TYPE_ALL) {
 		restart_test_routine(fd);
 		mode_switch_test_routine(fd);
@@ -550,6 +580,9 @@ static void* test_func(void *arg) {
 		         test_total_success_count, test_total_fail_count);
 	} else if (test_type == TEST_TYPE_PLAYER) {
 		snprintf(test_result_msg, sizeof(test_result_msg), "播放测试完成, SUCCESS: %d, FAIL: %d",
+		         test_total_success_count, test_total_fail_count);
+	} else if (test_type == TEST_TYPE_SLEEP) {
+		snprintf(test_result_msg, sizeof(test_result_msg), "休眠唤醒测试完成, SUCCESS: %d, FAIL: %d",
 		         test_total_success_count, test_total_fail_count);
 	} else if (test_type == TEST_TYPE_ALL) {
 		snprintf(test_result_msg, sizeof(test_result_msg), "全流程测试完成, SUCCESS: %d, FAIL: %d",
@@ -587,6 +620,11 @@ static void event_handler(lv_event_t *e) {
 			create_test_dialog("播放测试");
 			test_timer = lv_timer_create(test_timer_func, 500, NULL);
 			test_type = TEST_TYPE_PLAYER;
+			pthread_create(&test_task_id, NULL, test_func, NULL);
+		} else if (obj == auto_test_ctrl.sleep_test_obj) {
+			create_test_dialog("休眠唤醒测试");
+			test_timer = lv_timer_create(test_timer_func, 500, NULL);
+			test_type = TEST_TYPE_SLEEP;
 			pthread_create(&test_task_id, NULL, test_func, NULL);
 		} else if (obj == auto_test_ctrl.all_test_obj) {
 			create_test_dialog("全流程测试");
@@ -651,6 +689,11 @@ static void auto_test_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
 	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
 	auto_test_ctrl.player_test_label_obj = lv_label_create(obj);
+
+	auto_test_ctrl.sleep_test_obj = obj = lv_obj_create(cont_obj);
+	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
+	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
+	auto_test_ctrl.sleep_test_label_obj = lv_label_create(obj);
 
 	auto_test_ctrl.all_test_obj = obj = lv_obj_create(cont_obj);
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
@@ -745,6 +788,11 @@ static void auto_test_set_text() {
 	                 LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_label_set_text(auto_test_ctrl.player_test_label_obj, "播放测试");
 
+	lv_obj_add_style(auto_test_ctrl.sleep_test_obj, &option_style, 0);
+	lv_obj_add_style(auto_test_ctrl.sleep_test_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_label_set_text(auto_test_ctrl.sleep_test_label_obj, "休眠唤醒测试");
+
 	lv_obj_add_style(auto_test_ctrl.all_test_obj, &option_style, 0);
 	lv_obj_add_style(auto_test_ctrl.all_test_obj, &option_focus_style,
 	                 LV_PART_MAIN | LV_STATE_FOCUSED);
@@ -756,6 +804,11 @@ static void auto_test_destroy_ctrl(void) {
 		ui_common_remove_style_all(auto_test_ctrl.all_test_obj);
 		lv_obj_del(auto_test_ctrl.all_test_obj);
 		auto_test_ctrl.all_test_obj = NULL;
+	}
+	if (NULL != auto_test_ctrl.sleep_test_obj) {
+		ui_common_remove_style_all(auto_test_ctrl.sleep_test_obj);
+		lv_obj_del(auto_test_ctrl.sleep_test_obj);
+		auto_test_ctrl.sleep_test_obj = NULL;
 	}
 	if (NULL != auto_test_ctrl.player_test_obj) {
 		ui_common_remove_style_all(auto_test_ctrl.player_test_obj);
@@ -811,6 +864,7 @@ static void auto_test_add_indev(void) {
 	lv_group_add_obj(group, auto_test_ctrl.video_test_obj);
 	lv_group_add_obj(group, auto_test_ctrl.photo_test_obj);
 	lv_group_add_obj(group, auto_test_ctrl.player_test_obj);
+	lv_group_add_obj(group, auto_test_ctrl.sleep_test_obj);
 	lv_group_add_obj(group, auto_test_ctrl.all_test_obj);
 	auto_test_ctrl.group = group;
 }

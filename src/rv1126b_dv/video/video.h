@@ -72,7 +72,7 @@ int rk_photo_get_max_num(void);
 int rk_photo_get_done_num(void);
 int rk_photo_start(void); 
 int rk_photo_stop(void); 
-static int rk_enter_sleep(void) { return 0; }
+int rk_enter_sleep(void);
 
 int rk_video_init(void);
 int rk_video_deinit(void);

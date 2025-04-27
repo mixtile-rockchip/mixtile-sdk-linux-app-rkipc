@@ -216,10 +216,6 @@ static void menu_event_cb(lv_event_t *e) {
 	UI_CTRL_ID_E ctrl_id = (UI_CTRL_ID_E)lv_event_get_user_data(e);
 
 	if (code == LV_EVENT_CLICKED) {
-		if (evdev_get_current_code() == KEY_POWER) {
-			ui_page_pop_page();
-			return;
-		}
 		switch (ctrl_id) {
 		case UI_CTRL_ESC:
 			ui_page_pop_page();
