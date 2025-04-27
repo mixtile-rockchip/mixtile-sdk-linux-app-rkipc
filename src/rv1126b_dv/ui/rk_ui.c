@@ -391,7 +391,7 @@ static void rga_copy_area(VIDEO_FRAME_INFO_S *dst_frame, const lv_area_t *area,
 		bg_rect.height = fg_height;
 	}
 	LOG_DEBUG("bg_rect x %d y %d w %d h %d\n", bg_rect.x, bg_rect.y, bg_rect.width, bg_rect.height);
-	ret = imcheck(fg_img, bg_img, dummy_rect, bg_rect);
+	ret = imcheck(fg_img, bg_img, dummy_rect, bg_rect, usage);
 	if (ret == IM_STATUS_NOERROR) {
 		LOG_DEBUG("imcheck success!\n");
 	} else {
