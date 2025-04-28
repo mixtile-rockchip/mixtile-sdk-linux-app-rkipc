@@ -63,21 +63,15 @@ extern char *rkipc_iq_file_path_;
 #define SUBDEV_PATH "/dev/v4l-subdev4" // use media-ctl -p to get the path
 #define FIXED_PAD 0
 
-static int set_camera_format(void) {
-	uint32_t width = rk_param_get_int("video.source:width", -1);
-	uint32_t height = rk_param_get_int("video.source:height", -1);
-	uint32_t fps = rk_param_get_int("isp.0.adjustment:fps", 30);
-	uint32_t format = MEDIA_BUS_FMT_SRGGB10_1X10;
+static int set_camera_format(uint32_t width, uint32_t height, uint32_t fps, uint32_t bps) {
+	uint32_t format = (bps == 10) ? MEDIA_BUS_FMT_SRGGB10_1X10 : MEDIA_BUS_FMT_SRGGB12_1X12;
 	int fd = open(SUBDEV_PATH, O_RDWR);
 	if (fd < 0) {
 		LOG_ERROR("Failed to open subdev\n");
 		return -1;
 	}
 
-	// INFO: just for gc8613 dag HDR
-	if (rk_mode_param.hdr_mode == RK_HDR_DAG_MODE)
-		format = MEDIA_BUS_FMT_SRGGB12_1X12;
-
+	LOG_INFO("width %d, height %d, fps %d, bps %d\n", width, height, fps, bps);
 	struct v4l2_subdev_format fmt = {.which = V4L2_SUBDEV_FORMAT_ACTIVE,
 	                                 .pad = FIXED_PAD,
 	                                 .format = {.width = width,
@@ -1312,6 +1306,51 @@ static int unbind_media_pipe(void) {
 	return ret;
 }
 
+static int set_camera_format_by_mode(void) {
+	uint32_t width, height, fps, bps;
+	const char *iq_name = NULL;
+	if (rk_mode_param.mode == RK_SLOW_MOTION_MODE) {
+		width = rk_param_get_int("sensor.binning:width", 1920);
+		height = rk_param_get_int("sensor.binning:height", 1080);
+		fps = rk_param_get_int("sensor.binning:fps", 120);
+		bps = rk_param_get_int("sensor.binning:bps", 10);
+		iq_name = rk_param_get_string("sensor.binning:iq_name", NULL);
+		rk_param_set_string("isp.0.adjustment:force_iq_name", NULL);
+		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
+		rk_param_set_string("isp.0.blc:hdr", "close");
+	} else {
+		if (rk_mode_param.hdr_mode == RK_HDR_DAG_MODE) {
+			width = rk_param_get_int("sensor.dag_hdr:width", 3840);
+			height = rk_param_get_int("sensor.dag_hdr:height", 2160);
+			fps = rk_param_get_int("sensor.dag_hdr:fps", 30);
+			bps = rk_param_get_int("sensor.dag_hdr:bps", 12);
+			iq_name = rk_param_get_string("sensor.dag_hdr:iq_name", NULL);
+			rk_param_set_string("isp.0.adjustment:force_iq_name", iq_name);
+			rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
+			rk_param_set_string("isp.0.blc:hdr", "close");
+		} else if (rk_mode_param.hdr_mode == RK_HDR_STAGGERED_MODE) {
+			width = rk_param_get_int("sensor.stagger_hdr:width", 3840);
+			height = rk_param_get_int("sensor.stagger_hdr:height", 2160);
+			fps = rk_param_get_int("sensor.stagger_hdr:fps", 30);
+			bps = rk_param_get_int("sensor.stagger_hdr:bps", 10);
+			iq_name = rk_param_get_string("sensor.stagger_hdr:iq_name", NULL);
+			rk_param_set_string("isp.0.adjustment:force_iq_name", iq_name);
+			rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_ISP_HDR2);
+			rk_param_set_string("isp.0.blc:hdr", "HDR2");
+		} else {
+			width = rk_param_get_int("sensor.linear:width", 3840);
+			height = rk_param_get_int("sensor.linear:height", 2160);
+			fps = rk_param_get_int("sensor.linear:fps", 30);
+			bps = rk_param_get_int("sensor.linear:bps", 10);
+			iq_name = rk_param_get_string("sensor.linear:iq_name", NULL);
+			rk_param_set_string("isp.0.adjustment:force_iq_name", iq_name);
+			rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
+			rk_param_set_string("isp.0.blc:hdr", "close");
+		}
+	}
+	return set_camera_format(width, height, fps, bps);
+}
+
 int rk_video_init(void) {
 	int ret = 0;
 	LOG_INFO("enter\n");
@@ -1398,6 +1437,8 @@ int rk_video_deinit(void) {
 }
 
 int rk_init_mode(void) {
+	uint32_t width, height, fps, bps;
+	const char *iq_name = NULL;
 	memset(&rk_mode_param, 0, sizeof(rk_mode_param));
 	rk_mode_param.mode = rk_param_get_int("video.source:mode", RK_VIDEO_MODE);
 	rk_mode_param.eis_mode = rk_param_get_int("video.source:eis_mode", RK_EIS_OFF);
@@ -1408,20 +1449,7 @@ int rk_init_mode(void) {
 	rk_mode_param.max_photo_num = 5;
 	rk_mode_param.hdr_mode = RK_LINEAR_MODE;
 	rk_mode_param.enable_compress = rk_param_get_int("video.source:enable_compress", 1);
-	if (rk_mode_param.hdr_mode == RK_HDR_DAG_MODE) {
-		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_dag_12bit.json");
-		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
-		rk_param_set_string("isp.0.blc:hdr", "close");
-	} else if (rk_mode_param.hdr_mode == RK_HDR_STAGGERED_MODE) {
-		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_linear_10bit.json");
-		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_ISP_HDR2);
-		rk_param_set_string("isp.0.blc:hdr", "HDR2");
-	} else {
-		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_linear_10bit.json");
-		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
-		rk_param_set_string("isp.0.blc:hdr", "close");
-	}
-	set_camera_format();
+	set_camera_format_by_mode();
 	return 0;
 }
 
@@ -1451,7 +1479,7 @@ int rk_set_mode(RK_MODE_E mode) {
 	}
 	rk_storage_init();
 	//set_soc_freq();
-	set_camera_format();
+	set_camera_format_by_mode();
 	rk_mode_param.mode = mode;
 	rk_param_set_int("video.source:mode", mode);
 	rk_isp_init(0, rkipc_iq_file_path_);
@@ -1528,7 +1556,9 @@ int rk_get_eis_debug(void) {
 
 int rk_set_hdr(RK_HDR_MODE_E hdr_mode) {
 	int ret = 0;
+	uint32_t width, height, fps, bps;
 	long long start_time = rkipc_get_curren_time_ms();
+	const char *iq_name = NULL;
 	if (hdr_mode == rk_mode_param.hdr_mode) {
 		LOG_DEBUG("hdr is already %d, no need to set hdr again\n", hdr_mode);
 		return 0;
@@ -1542,24 +1572,18 @@ int rk_set_hdr(RK_HDR_MODE_E hdr_mode) {
 		LOG_DEBUG("hdr is %d, but mode is %d, no need to set hdr\n", hdr_mode, rk_mode_param.mode);
 		return 0;
 	}
+	if (hdr_mode == RK_HDR_DAG_MODE && !rk_param_get_int("sensor.dag_hdr:width", 0)) {
+		RK_LOGE("this sensor not support dag hdr");
+		return -1;
+	}
+	if (hdr_mode == RK_HDR_STAGGERED_MODE && !rk_param_get_int("sensor.stagger_hdr:width", 0)) {
+		RK_LOGE("this sensor not support stagger hdr");
+		return -1;
+	}
 	rk_video_deinit();
 	rk_isp_deinit(0);
 	rk_mode_param.hdr_mode = hdr_mode;
-	if (rk_mode_param.hdr_mode == RK_HDR_DAG_MODE) {
-		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_dag_12bit.json");
-		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
-		rk_param_set_string("isp.0.blc:hdr", "close");
-	} else if (rk_mode_param.hdr_mode == RK_HDR_STAGGERED_MODE) {
-		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_linear_10bit.json");
-		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_ISP_HDR2);
-		rk_param_set_string("isp.0.blc:hdr", "HDR2");
-	} else {
-		rk_param_set_string("isp.0.adjustment:force_iq_name", "gc8613_linear_10bit.json");
-		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
-		rk_param_set_string("isp.0.blc:hdr", "close");
-	}
-
-	ret = set_camera_format();
+	ret = set_camera_format_by_mode();
 	if (ret) {
 		LOG_ERROR("ERROR: set_camera_format failed! ret=%d\n", ret);
 		return ret;
