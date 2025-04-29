@@ -4,6 +4,9 @@
 #include <stdint.h>
 int rkipc_audio_init();
 int rkipc_audio_deinit();
+int rkipc_ao_init();
+int rkipc_ao_deinit();
+int rkipc_ao_write(unsigned char *data, int data_len);
 int rkipc_audio_player_init(int sample_rate, int channels, const char *encode_type);
 int rkipc_audio_player_deinit();
 int rkipc_audio_player_send(uint8_t *data, uint32_t len, uint64_t pts);

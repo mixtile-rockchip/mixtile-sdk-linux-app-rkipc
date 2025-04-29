@@ -22,7 +22,7 @@ aux_source_directory(./ SRCS)
 aux_source_directory(video SRCS)
 aux_source_directory(server SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/ SRCS)
-aux_source_directory(${PROJECT_SOURCE_DIR}/common/audio/rv1126 SRCS)
+aux_source_directory(${PROJECT_SOURCE_DIR}/common/audio SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/isp/rv1126 SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/socket_server SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/param SRCS)
@@ -41,7 +41,7 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/common/region_clip SRCS)
 include_directories(video
 					server
 					${PROJECT_SOURCE_DIR}/common
-					${PROJECT_SOURCE_DIR}/common/audio/rv1126
+					${PROJECT_SOURCE_DIR}/common/audio
 					${PROJECT_SOURCE_DIR}/common/isp/rv1126
 					${PROJECT_SOURCE_DIR}/common/socket_server
 					${PROJECT_SOURCE_DIR}/common/rtsp
@@ -66,7 +66,7 @@ add_definitions(-g -ggdb)
 add_executable(${PROJECT_NAME} ${SRCS})
 
 target_link_libraries(${PROJECT_NAME}
-						pthread rockit rkaiq rtsp freetype wpa_client rkmuxer m rksysutils iconv rockiva rga)
+						pthread rockit rkaiq rtsp freetype wpa_client rkmuxer m rksysutils iconv rockiva rga rkaudio)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 install(FILES rkipc-os04a10.ini DESTINATION share)

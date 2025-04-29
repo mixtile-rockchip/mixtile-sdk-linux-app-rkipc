@@ -17,8 +17,7 @@ aux_source_directory(./ SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/param SRCS)
 
-include_directories(audio
-					${PROJECT_SOURCE_DIR}/common
+include_directories(${PROJECT_SOURCE_DIR}/common
 					${PROJECT_SOURCE_DIR}/common/param
 					)
 

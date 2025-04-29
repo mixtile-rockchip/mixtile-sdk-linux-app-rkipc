@@ -18,7 +18,7 @@ aux_source_directory(./ SRCS)
 aux_source_directory(video SRCS)
 aux_source_directory(server SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/ SRCS)
-aux_source_directory(${PROJECT_SOURCE_DIR}/common/audio/rv1126 SRCS)
+aux_source_directory(${PROJECT_SOURCE_DIR}/common/audio SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/isp/rv1126 SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/socket_server SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/param SRCS)
@@ -37,7 +37,7 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/common/region_clip SRCS)
 include_directories(video
 					server
 					${PROJECT_SOURCE_DIR}/common
-					${PROJECT_SOURCE_DIR}/common/audio/rv1126
+					${PROJECT_SOURCE_DIR}/common/audio
 					${PROJECT_SOURCE_DIR}/common/isp/rv1126
 					${PROJECT_SOURCE_DIR}/common/socket_server
 					${PROJECT_SOURCE_DIR}/common/rtsp
@@ -64,7 +64,7 @@ link_directories(${PROJECT_SOURCE_DIR}/lib/arm-rockchip830-linux-gnueabihf)
 # link_libraries(asan)
 
 add_executable(${PROJECT_NAME} ${SRCS})
-target_link_libraries(${PROJECT_NAME} pthread rockit rockchip_mpp rkaiq rtsp wpa_client m rkmuxer freetype rockiva iconv rga stdc++ rksysutils)
+target_link_libraries(${PROJECT_NAME} pthread rockit rockchip_mpp rkaiq rtsp wpa_client m rkmuxer freetype rockiva iconv rga stdc++ rksysutils rkaudio)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 install(FILES rkipc.ini DESTINATION share)

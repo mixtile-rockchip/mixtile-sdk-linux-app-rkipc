@@ -29,7 +29,6 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/common/lvgl/drivers SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/lvgl/porting SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/ SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/audio SRCS)
-aux_source_directory(${PROJECT_SOURCE_DIR}/common/audio/rk3588 SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/isp/rk3576 SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/socket_server SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/param SRCS)
@@ -55,7 +54,6 @@ include_directories(video
 					${PROJECT_SOURCE_DIR}/common/lvgl/drivers
 					${PROJECT_SOURCE_DIR}/common/lvgl/porting
 					${PROJECT_SOURCE_DIR}/common/audio
-					${PROJECT_SOURCE_DIR}/common/audio/rk3588
 					${PROJECT_SOURCE_DIR}/common/isp/rk3576
 					${PROJECT_SOURCE_DIR}/common/socket_server
 					${PROJECT_SOURCE_DIR}/common/rtsp
