@@ -38,7 +38,7 @@
             "th3": 8.0
         },
         "opencl_lib_path": "/usr/lib/libOpenCL.so",
-        "opencl_program_path": "/usr/share/rkEIS_CLProgram_Bifrost-G52-g13p0-01eac0.bin"
+        "opencl_program_path": "/usr/lib/rkEIS_CLProgram_Bifrost-G52-g13p0-01eac0.bin"
     },
     "estParams": {
         "view_angle": 0.0,
