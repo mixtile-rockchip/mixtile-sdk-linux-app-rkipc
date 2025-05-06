@@ -93,8 +93,8 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 		snprintf(entry, 127, "isp.%d.adjustment:force_hdr_mode", cam_id);
 		rk_aiq_working_mode_t force_hdr_mode =
 		    (rk_aiq_working_mode_t)rk_param_get_int(entry, RK_AIQ_WORKING_MODE_NORMAL);
-		rk_aiq_uapi2_sysctl_preInit(aiq_static_info.sensor_info.sensor_name
-			, force_hdr_mode, force_iq_name);
+		rk_aiq_uapi2_sysctl_preInit(aiq_static_info.sensor_info.sensor_name, force_hdr_mode,
+		                            force_iq_name);
 		LOG_INFO("preinit hdr mode id %d, iq name is %s\n", force_hdr_mode, force_iq_name);
 	}
 	int ret;
@@ -665,6 +665,13 @@ int rk_isp_get_hdr(int cam_id, const char **value) {
 int rk_isp_set_hdr(int cam_id, const char *value) {
 	int ret = 0;
 	int format, sensor_num, pipe_id, vi_chn_id;
+	int enable_venc_0 = rk_param_get_int("video.source:enable_venc_0", 1);
+	int enable_venc_1 = rk_param_get_int("video.source:enable_venc_1", 1);
+	int enable_npu = rk_param_get_int("video.source:enable_npu", 0);
+	int enable_ivs = rk_param_get_int("video.source:enable_ivs", 1);
+	int g_enable_vo = rk_param_get_int("video.source:enable_vo", 1);
+	const char *distortion_correction =
+	    rk_param_get_string("isp.0.enhancement:distortion_correction", "close");
 	RK_ISP_CHECK_CAMERA_ID(cam_id);
 	char entry[128] = {'\0'};
 	const char *old_value = NULL;
@@ -674,36 +681,52 @@ int rk_isp_set_hdr(int cam_id, const char *value) {
 	if (strcmp(value, old_value)) {
 		if (rkipc_aiq_use_group) {
 			format = rk_param_get_int("avs:format", 0);
-			sensor_num = rk_param_get_int("avs:sensor_num", 6);
+			sensor_num = rk_param_get_int("avs:sensor_num", 2);
 			for (int i = 0; i < sensor_num; i++) {
-				if (format)
-					ret |= RK_MPI_VI_PauseChn(i, 2);
-				else
-					ret |= RK_MPI_VI_PauseChn(i, 0);
+				ret |= RK_MPI_VI_PauseChn(i, 3);
+				if (g_enable_vo)
+					ret |= RK_MPI_VI_PauseChn(i, 4);
 			}
 			rk_isp_group_deinit(0);
 			rk_param_set_string(entry, value);
 			// usleep(100 * 1000);
 			rk_isp_group_init(0, g_iq_file_dir_);
 			for (int i = 0; i < sensor_num; i++) {
-				if (format)
-					ret |= RK_MPI_VI_ResumeChn(i, 2);
-				else
-					ret |= RK_MPI_VI_ResumeChn(i, 0);
+				ret |= RK_MPI_VI_ResumeChn(i, 3);
+				if (g_enable_vo)
+					ret |= RK_MPI_VI_ResumeChn(i, 4);
 			}
 		} else {
 			pipe_id = rk_param_get_int("video.source:camera_id", 0);
 			vi_chn_id = rk_param_get_int("video.source:vi_chn_id", 0);
-			RK_MPI_VI_PauseChn(pipe_id, vi_chn_id);
-			if (rk_param_get_int("video.source:enable_vo", 0))
-				RK_MPI_VI_PauseChn(pipe_id, 1);
+			if (!strcmp(distortion_correction, "FEC")) {
+				RK_MPI_VI_PauseChn(pipe_id, vi_chn_id);
+			} else {
+				if (enable_venc_0)
+					RK_MPI_VI_PauseChn(pipe_id, 3);
+				if (enable_venc_1)
+					RK_MPI_VI_PauseChn(pipe_id, 2);
+				if (enable_npu || enable_ivs)
+					RK_MPI_VI_PauseChn(pipe_id, 4);
+				if (g_enable_vo)
+					RK_MPI_VI_PauseChn(pipe_id, 5);
+			}
 			rk_isp_deinit(pipe_id);
 			rk_param_set_string(entry, value);
 			// usleep(100 * 1000);
 			rk_isp_init(pipe_id, g_iq_file_dir_);
-			RK_MPI_VI_ResumeChn(pipe_id, vi_chn_id);
-			if (rk_param_get_int("video.source:enable_vo", 0))
-				RK_MPI_VI_ResumeChn(pipe_id, 1);
+			if (!strcmp(distortion_correction, "FEC")) {
+				RK_MPI_VI_ResumeChn(pipe_id, vi_chn_id);
+			} else {
+				if (enable_venc_0)
+					RK_MPI_VI_ResumeChn(pipe_id, 3);
+				if (enable_venc_1)
+					RK_MPI_VI_ResumeChn(pipe_id, 2);
+				if (enable_npu || enable_ivs)
+					RK_MPI_VI_ResumeChn(pipe_id, 4);
+				if (g_enable_vo)
+					RK_MPI_VI_ResumeChn(pipe_id, 5);
+			}
 		}
 	}
 
@@ -1676,6 +1699,4 @@ int rk_isp_group_deinit(int cam_group_id) {
 	return isp_camera_group_stop(cam_group_id);
 }
 
-void *rk_isp_get_ctx(int cam_id) {
-	return g_aiq_ctx[cam_id];
-}
+void *rk_isp_get_ctx(int cam_id) { return g_aiq_ctx[cam_id]; }
