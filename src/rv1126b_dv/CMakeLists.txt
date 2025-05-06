@@ -28,7 +28,7 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/common/lvgl/common SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/lvgl/drivers SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/lvgl/porting SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/audio SRCS)
-aux_source_directory(${PROJECT_SOURCE_DIR}/common/isp/rk3576 SRCS)
+aux_source_directory(${PROJECT_SOURCE_DIR}/common/isp/rv1126b SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/param SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/player SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/system SRCS)
@@ -47,7 +47,7 @@ include_directories(video
 					${PROJECT_SOURCE_DIR}/common/lvgl/common
 					${PROJECT_SOURCE_DIR}/common/lvgl/drivers
 					${PROJECT_SOURCE_DIR}/common/lvgl/porting
-					${PROJECT_SOURCE_DIR}/common/isp/rk3576
+					${PROJECT_SOURCE_DIR}/common/isp/rv1126b
 					${PROJECT_SOURCE_DIR}/common/rtsp
 					${PROJECT_SOURCE_DIR}/common/param
 					${PROJECT_SOURCE_DIR}/common/player

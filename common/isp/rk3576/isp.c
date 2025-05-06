@@ -128,15 +128,9 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 	// if (MultiCam)
 	// 	rk_aiq_uapi2_sysctl_setMulCamConc(aiq_ctx, true);
 
-#if defined(RKIPC_RV1126B)
-	aibnr_api_attrib_t aibnr_attr;
-	rk_aiq_user_api2_aibnr_GetAttrib(aiq_ctx, &aibnr_attr);
-	aibnr_attr.en = rk_param_get_int("video.source:enable_aiisp", 0);
-	rk_aiq_user_api2_aibnr_SetAttrib(aiq_ctx, &aibnr_attr);
-#else
 	if (rk_param_get_int("video.source:enable_aiisp", 0))
 		rk_aiq_uapi2_sysctl_initAiisp(aiq_ctx, NULL, NULL);
-#endif
+
 	g_aiq_ctx[cam_id] = aiq_ctx;
 
 	return 0;
@@ -1145,15 +1139,7 @@ int rk_isp_set_distortion_correction(int cam_id, const char *value) {
 
 	char entry[128] = {'\0'};
 	snprintf(entry, 127, "isp.%d.enhancement:distortion_correction", cam_id);
-#if defined(RKIPC_RV1126B)
-	LOG_INFO("old_value is %s, new value is %s\n", old_value, value);
-	if (strcmp(old_value, value)) {
-		rk_param_set_string(entry, value);
-		rk_video_restart();
-	}
-#else
 	rk_param_set_string(entry, value);
-#endif
 
 	return ret;
 }

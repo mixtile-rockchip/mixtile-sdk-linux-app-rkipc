@@ -16,6 +16,7 @@
 
 #include "uvc_control.h"
 #include "uvc_video.h"
+#include "uvc-gadget.h"
 
 #ifdef LOG_TAG
 #undef LOG_TAG

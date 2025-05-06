@@ -39,10 +39,12 @@
 #include <string.h>
 #include <sys/prctl.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include <linux/netlink.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <math.h>
 
 #include "audio.h"
 #include "uevent.h"

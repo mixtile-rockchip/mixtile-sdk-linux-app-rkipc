@@ -4,6 +4,7 @@
 
 #include "video.h"
 #include "venc.h"
+#include "uvc_control.h"
 
 #ifdef LOG_TAG
 #undef LOG_TAG
@@ -3114,7 +3115,7 @@ int rk_video_init() {
 	enable_ivs = rk_param_get_int("video.source:enable_ivs", 1);
 	enable_wrap = rk_param_get_int("video.source:enable_wrap", 0);
 	enable_osd = rk_param_get_int("osd.common:enable_osd", 1);
-	char *distortion_correction =
+	const char *distortion_correction =
 	    rk_param_get_string("isp.0.enhancement:distortion_correction", "close");
 	if (!strcmp(distortion_correction, "FEC"))
 		enable_fec = 1;
