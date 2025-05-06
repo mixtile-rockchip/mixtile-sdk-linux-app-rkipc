@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 #include "video.h"
-#include "libRkEisApi.h"
 #include "list.h"
 #include "rk_mpi_gdc.h"
 #include "rk_sysfs.h"
