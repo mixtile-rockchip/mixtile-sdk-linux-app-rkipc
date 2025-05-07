@@ -95,7 +95,7 @@ int open_uvc(int width, int height, int fcc, int fps) {
 
 void close_uvc(void) { LOG_INFO("close_uvc"); }
 
-#define AO_FREAD_SIZE 1024 * 4
+#define AO_FREAD_SIZE 1024
 static void *wait_key_event(void *arg) {
 	int ret;
 	int key_fd;
