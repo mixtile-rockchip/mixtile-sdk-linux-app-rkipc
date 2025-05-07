@@ -46,7 +46,7 @@ int uvc_encode_init(struct uvc_encode *e, int width, int height, int fcc) {
 	e->width = width;
 	e->height = height;
 	e->fcc = fcc;
-	if (fcc == V4L2_PIX_FMT_YUYV)
+	if ((fcc == V4L2_PIX_FMT_YUYV) || (fcc == V4L2_PIX_FMT_NV12))
 		return 0;
 
 	return 0;
@@ -74,6 +74,10 @@ bool uvc_encode_process(struct uvc_encode *e, void *virt, int fd, size_t size) {
 	case V4L2_PIX_FMT_YUYV:
 		if (virt)
 			uvc_buffer_write(0, NULL, 0, virt, width * height * 2, fcc, e->video_id);
+		break;
+	case V4L2_PIX_FMT_NV12:
+		if (virt)
+			uvc_buffer_write(0, NULL, 0, virt, width * height * 3 / 2, fcc, e->video_id);
 		break;
 	case V4L2_PIX_FMT_MJPEG:
 		if (virt)

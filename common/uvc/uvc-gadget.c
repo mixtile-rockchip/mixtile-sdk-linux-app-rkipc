@@ -352,6 +352,13 @@ int uvc_formats_init(const char *output_data_type, int width, int height) {
 		frames[0].intervals[2] = 1000000;
 		frames[0].intervals[3] = 2000000;
 		frames[0].intervals[4] = 0;
+	} else if (strcmp(output_data_type, "NV12") == 0) {
+		uvc_formats[0].fcc = V4L2_PIX_FMT_NV12;
+		frames[0].intervals[0] = 333333;
+		frames[0].intervals[1] = 666666;
+		frames[0].intervals[2] = 1000000;
+		frames[0].intervals[3] = 2000000;
+		frames[0].intervals[4] = 0;
 	} else { // 默认YUYV
 		uvc_formats[0].fcc = V4L2_PIX_FMT_YUYV;
 		frames[0].intervals[0] = 333333;
@@ -1381,6 +1388,10 @@ static int uvc_video_reqbufs_userptr(struct uvc_device *dev, int nbufs) {
 			bpl = dev->width * 2;
 			payload_size = dev->width * dev->height * 2;
 			break;
+		case V4L2_PIX_FMT_NV12:
+			bpl = dev->width * 1.5;
+			payload_size = dev->width * dev->height * 1.5;
+			break;
 		case V4L2_PIX_FMT_MJPEG:
 		case V4L2_PIX_FMT_H264:
 		case V4L2_PIX_FMT_HEVC:
@@ -1399,7 +1410,7 @@ static int uvc_video_reqbufs_userptr(struct uvc_device *dev, int nbufs) {
 				goto err;
 			}
 
-			if (V4L2_PIX_FMT_YUYV == dev->fcc)
+			if ((V4L2_PIX_FMT_YUYV == dev->fcc) || (V4L2_PIX_FMT_NV12 == dev->fcc))
 				for (j = 0; j < dev->height; ++j)
 					memset(dev->dummy_buf[i].start + j * bpl, dev->color++, bpl);
 
@@ -1529,6 +1540,9 @@ static void uvc_fill_streaming_control(struct uvc_device *dev, struct uvc_stream
 	switch (format->fcc) {
 	case V4L2_PIX_FMT_YUYV:
 		ctrl->dwMaxVideoFrameSize = frame->width * frame->height * 2;
+		break;
+	case V4L2_PIX_FMT_NV12:
+		ctrl->dwMaxVideoFrameSize = frame->width * frame->height * 1.5;
 		break;
 	case V4L2_PIX_FMT_MJPEG:
 	case V4L2_PIX_FMT_H264:
@@ -2874,6 +2888,9 @@ static int uvc_events_process_data(struct uvc_device *dev, struct uvc_request_da
 	case V4L2_PIX_FMT_YUYV:
 		target->dwMaxVideoFrameSize = frame->width * frame->height * 2;
 		break;
+	case V4L2_PIX_FMT_NV12:
+		target->dwMaxVideoFrameSize = frame->width * frame->height * 3 / 2;
+		break;
 	case V4L2_PIX_FMT_MJPEG:
 	case V4L2_PIX_FMT_H264:
 	case V4L2_PIX_FMT_HEVC:
@@ -2912,6 +2929,9 @@ static int uvc_events_process_data(struct uvc_device *dev, struct uvc_request_da
 		switch (format->fcc) {
 		case V4L2_PIX_FMT_YUYV:
 			fmt.fmt.pix.sizeimage = (fmt.fmt.pix.width * fmt.fmt.pix.height * 2);
+			break;
+		case V4L2_PIX_FMT_NV12:
+			fmt.fmt.pix.sizeimage = (fmt.fmt.pix.width * fmt.fmt.pix.height * 3 / 2);
 			break;
 		case V4L2_PIX_FMT_MJPEG:
 		case V4L2_PIX_FMT_H264:
@@ -3033,6 +3053,9 @@ static void uvc_events_init(struct uvc_device *dev) {
 	switch (dev->fcc) {
 	case V4L2_PIX_FMT_YUYV:
 		payload_size = dev->width * dev->height * 2;
+		break;
+	case V4L2_PIX_FMT_NV12:
+		payload_size = dev->width * dev->height * 3 / 2;
 		break;
 	case V4L2_PIX_FMT_MJPEG:
 	case V4L2_PIX_FMT_H264:
@@ -3304,26 +3327,15 @@ int uvc_gadget_main(int id) {
 	}
 
 	/* Set parameters as passed by user. */
-	udev->width = (default_resolution == 0) ? 640 : 1280;
-	udev->height = (default_resolution == 0) ? 360 : 720;
-	udev->imgsize = (default_format == 0) ? (udev->width * udev->height * 2)
-	                                      : (udev->width * udev->height * 2 /*1.5*/);
-	switch (default_format) {
-	case 1:
-		udev->fcc = V4L2_PIX_FMT_MJPEG;
-		break;
-	case 2:
-		udev->fcc = V4L2_PIX_FMT_H264;
-		break;
-	case 3:
-		udev->fcc = V4L2_PIX_FMT_HEVC;
-		break;
+	udev->width = uvc_formats[0].frames[0].width;
+	udev->height = uvc_formats[0].frames[0].height;
+	udev->fcc = uvc_formats[0].fcc;
+	if (udev->fcc == V4L2_PIX_FMT_NV12)
+		udev->imgsize = udev->width * udev->height * 3 / 2;
+	else
+		udev->imgsize = udev->width * udev->height * 2;
+	printf("udev w,h,imgsize = %d,%d,%d\n", udev->width, udev->height, udev->imgsize);
 
-	case 0:
-	default:
-		udev->fcc = V4L2_PIX_FMT_YUYV;
-		break;
-	}
 	uvc_set_user_fcc(udev->fcc, udev->video_id);
 	udev->io = uvc_io_method;
 	udev->bulk = bulk_mode;

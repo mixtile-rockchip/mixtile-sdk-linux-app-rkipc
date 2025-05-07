@@ -48,6 +48,23 @@ syslink_function()
 	let USB_FUNCTIONS_CNT=USB_FUNCTIONS_CNT+1
 }
 
+configure_uvc_resolution_nv12()
+{
+   UVC_DISPLAY_W=$1
+   UVC_DISPLAY_H=$2
+   UVC_DISPLAY_DIR=${USB_FUNCTIONS_DIR}/$UVC_GS/streaming/uncompressed/u/${UVC_DISPLAY_W}_${UVC_DISPLAY_H}p
+   mkdir ${UVC_DISPLAY_DIR}
+   echo $UVC_DISPLAY_W > ${UVC_DISPLAY_DIR}/wWidth
+   echo $UVC_DISPLAY_H > ${UVC_DISPLAY_DIR}/wHeight
+   echo 333333 > ${UVC_DISPLAY_DIR}/dwDefaultFrameInterval
+   echo $((UVC_DISPLAY_W*UVC_DISPLAY_H*20)) > ${UVC_DISPLAY_DIR}/dwMinBitRate
+   echo $((UVC_DISPLAY_W*UVC_DISPLAY_H*20)) > ${UVC_DISPLAY_DIR}/dwMaxBitRate
+   echo $((UVC_DISPLAY_W*UVC_DISPLAY_H*2)) > ${UVC_DISPLAY_DIR}/dwMaxVideoFrameBufferSize
+   echo -e "333333\n666666\n1000000\n2000000" > ${UVC_DISPLAY_DIR}/dwFrameInterval
+   echo 12 > ${USB_FUNCTIONS_DIR}/$UVC_GS/streaming/uncompressed/u/bBitsPerPixel
+   echo -ne \\x4e\\x56\\x31\\x32\\x00\\x00\\x10\\x00\\x80\\x00\\x00\\xaa\\x00\\x38\\x9b\\x71 > ${USB_FUNCTIONS_DIR}/$UVC_GS/streaming/uncompressed/u/guidFormat
+}
+
 configure_uvc_resolution_yuyv()
 {
     UVC_DISPLAY_W=$1
@@ -61,6 +78,8 @@ configure_uvc_resolution_yuyv()
     echo $((UVC_DISPLAY_W*UVC_DISPLAY_H*20)) > ${UVC_DISPLAY_DIR}/dwMaxBitRate
     echo $((UVC_DISPLAY_W*UVC_DISPLAY_H*2)) > ${UVC_DISPLAY_DIR}/dwMaxVideoFrameBufferSize
     echo -e "333333\n666666\n1000000\n2000000" > ${UVC_DISPLAY_DIR}/dwFrameInterval
+    echo 16 > ${USB_FUNCTIONS_DIR}/$UVC_GS/streaming/uncompressed/u/bBitsPerPixel
+    echo -ne \\x59\\x55\\x59\\x32\\x00\\x00\\x10\\x00\\x80\\x00\\x00\\xaa\\x00\\x38\\x9b\\x71 > ${USB_FUNCTIONS_DIR}/$UVC_GS/streaming/uncompressed/u/guidFormat
 }
 
 configure_uvc_resolution_yuyv_720p()
@@ -204,6 +223,11 @@ uvc_device_config()
       configure_uvc_resolution_h265 $WIDTH $HEIGHT
       ln -s ${USB_FUNCTIONS_DIR}/$UVC_GS/streaming/framebased/f2 ${USB_FUNCTIONS_DIR}/$UVC_GS/streaming/header/h/f2
       ;;
+    "NV12")
+      mkdir /sys/kernel/config/usb_gadget/rockchip/functions/$UVC_GS/streaming/uncompressed/u
+      configure_uvc_resolution_nv12 $WIDTH $HEIGHT
+      ln -s ${USB_FUNCTIONS_DIR}/$UVC_GS/streaming/uncompressed/u ${USB_FUNCTIONS_DIR}/$UVC_GS/streaming/header/h/u
+      ;;
   esac
 
   ln -s ${USB_FUNCTIONS_DIR}/$UVC_GS/streaming/header/h ${USB_FUNCTIONS_DIR}/$UVC_GS/streaming/class/fs/h
@@ -327,14 +351,6 @@ elif [ $UVC_MULTI = TWO ];then
    echo 0x001A > /sys/kernel/config/usb_gadget/rockchip/idProduct
 fi
 
-#uvc config init
-uvc_device_config uvc.gs1 "UVC RGB" $FORMAT $WIDTH $HEIGHT
-if [ $UVC_MULTI = ONE ];then
-   uvc_device_config uvc.gs2 "RK UVC" "H.264" "1920" "1080"
-elif [ $UVC_MULTI = TWO ];then
-   uvc_device_config uvc.gs2 "RK UVC 1" "H.264" "1920" "1080"
-   uvc_device_config uvc.gs3 "RK UVC 2" "H.264" "1920" "1080"
-fi
 ##reset config,del default adb config
 if [ -e ${USB_CONFIGS_DIR}/ffs.adb ]; then
    #for rk1808 kernel 4.4

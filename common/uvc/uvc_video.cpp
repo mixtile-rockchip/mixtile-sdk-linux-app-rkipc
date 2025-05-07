@@ -490,6 +490,9 @@ static void _uvc_buffer_write(struct uvc_video *v, unsigned short stamp, void *e
 		if (buffer && buffer->buffer) {
 			if (buffer->total_size >= extra_size + size) {
 				switch (fcc) {
+				case V4L2_PIX_FMT_NV12:
+					memcpy(buffer->buffer, data, size);
+					break;
 				case V4L2_PIX_FMT_YUYV:
 #if YUYV_AS_RAW
 #ifdef USE_RK_MODULE
