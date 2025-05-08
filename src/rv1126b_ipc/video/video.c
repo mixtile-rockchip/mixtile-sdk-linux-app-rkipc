@@ -457,9 +457,10 @@ int rkipc_vi_gdc_vpss_init() {
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.u32Depth = 0;
 	if (rk_param_get_int("video.source:enable_compress", 0))
-		vi_chn_attr.enCompressMode = COMPRESS_TILE_4x4_MODE0;
+		vi_chn_attr.enVideoFormat = VIDEO_FORMAT_TILE_4x4;
 	else
-		vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
+		vi_chn_attr.enVideoFormat = VIDEO_FORMAT_LINEAR;
+	vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
 	ret = RK_MPI_VI_SetChnAttr(pipe_id_, g_vi_chn_id, &vi_chn_attr);
 	if (ret) {
 		LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
@@ -476,16 +477,12 @@ int rkipc_vi_gdc_vpss_init() {
 	stAttr.u32MaxInQueue = 3;
 	stAttr.u32MaxOutQueue = 3;
 	stAttr.s32Depth = 0;
-	stAttr.s32SrcWidth = rk_param_get_int("video.0:width", -1);
-	stAttr.s32SrcHeight = rk_param_get_int("video.0:height", -1);
 	stAttr.s32DstWidth = rk_param_get_int("video.0:width", -1);
 	stAttr.s32DstHeight = rk_param_get_int("video.0:height", -1);
 	stAttr.enDstPixelFormat = RK_FMT_YUV420SP;
 	if (rk_param_get_int("video.source:enable_compress", 0)) {
-		stAttr.enCompMode = COMPRESS_TILE_4x4_MODE0;
 		stAttr.enDstCompMode = COMPRESS_RFBC_64x4;
 	} else {
-		stAttr.enCompMode = COMPRESS_MODE_NONE;
 		stAttr.enDstCompMode = COMPRESS_MODE_NONE;
 	}
 
