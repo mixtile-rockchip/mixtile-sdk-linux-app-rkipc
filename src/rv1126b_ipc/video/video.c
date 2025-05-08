@@ -2620,6 +2620,13 @@ int rkipc_osd_cover_create(int id, osd_data_s *osd_data) {
 	}
 	LOG_INFO("RK_MPI_RGN_AttachToChn to vi/vpss success\n");
 
+	ret = RK_MPI_RGN_SetDisplayAttr(coverHandle, &stCoverChn, &stCoverChnAttr);
+	if (RK_SUCCESS != ret) {
+		LOG_ERROR("RK_MPI_RGN_SetDisplayAttr failed with 0x%#x\n", ret);
+		return RK_FAILURE;
+	}
+	LOG_INFO("RK_MPI_RGN_SetDisplayAttr to vi/vpss success\n");
+
 	return ret;
 }
 
