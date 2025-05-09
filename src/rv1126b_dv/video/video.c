@@ -123,7 +123,7 @@ static int gdc_aiq_imu_callback(RK_VOID *pUsr, GDC_SENSOR_INFO_S *pInfo) {
 		return GDC_INFO_CB_SUCCESS;
 	}
 	int ret = rk_aiq_user_api2_amtd_setImuData(aiq_ctx, &imu_data);
-	if (ret != 0)
+	if (ret != 0 && ret != 0x1) // ret == 1, bypass
 		LOG_ERROR("rk_aiq_user_api2_amtd_setImuData failed %#X\n", ret);
 	return GDC_INFO_CB_SUCCESS;
 }
@@ -535,11 +535,15 @@ static int vi_chn_init(void) {
 	vi_chn_attr.stSize.u32Width = video_width;
 	vi_chn_attr.stSize.u32Height = video_height;
 	if (rk_mode_param.enable_compress) {
-		if (rk_mode_param.eis_mode != RK_EIS_OFF && !rk_mode_param.enable_eis_debug)
-			vi_chn_attr.enCompressMode = COMPRESS_TILE_4x4_MODE0;
-		else
+		if (rk_mode_param.eis_mode != RK_EIS_OFF && !rk_mode_param.enable_eis_debug) {
+			vi_chn_attr.enVideoFormat = VIDEO_FORMAT_TILE_4x4;
+			vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
+		} else {
+			vi_chn_attr.enVideoFormat = VIDEO_FORMAT_LINEAR;
 			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
+		}
 	} else {
+		vi_chn_attr.enVideoFormat = VIDEO_FORMAT_LINEAR;
 		vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
 	}
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
@@ -735,12 +739,10 @@ static int gdc_display_init(void) {
 	}
 	gdc_attr.u32MaxInQueue = 4;
 	gdc_attr.u32MaxOutQueue = 4;
-	gdc_attr.s32SrcWidth = display_width;
-	gdc_attr.s32SrcHeight = display_height;
 	gdc_attr.s32DstWidth = display_width;
 	gdc_attr.s32DstHeight = display_height;
-	gdc_attr.enPixelFormat = RK_FMT_YUV420SP;
-	gdc_attr.enCompMode = COMPRESS_MODE_NONE;
+	gdc_attr.enDstPixelFormat = RK_FMT_YUV420SP;
+	gdc_attr.enDstCompMode = COMPRESS_MODE_NONE;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
 	if (rk_mode_param.eis_mode == RK_HORIZON_STEADY) {
 		LOG_ERROR("ERROR: horizon steady is not support now!\n");
@@ -792,19 +794,15 @@ static int gdc_record_init(void) {
 	}
 	gdc_attr.u32MaxInQueue = rk_param_get_int("video.source:gdc_in_buf", 4);
 	gdc_attr.u32MaxOutQueue = rk_param_get_int("video.source:gdc_out_buf", 3);
-	gdc_attr.s32SrcWidth = sensor_width;
-	gdc_attr.s32SrcHeight = sensor_height;
 	gdc_attr.s32DstWidth = video_width;
 	gdc_attr.s32DstHeight = video_height;
 	gdc_attr.s32Depth = rk_param_get_int("video.0:depth", 0);
 	if (rk_mode_param.enable_compress) {
-		gdc_attr.enCompMode = COMPRESS_TILE_4x4_MODE0;
 		gdc_attr.enDstCompMode = COMPRESS_RFBC_64x4;
 	} else {
-		gdc_attr.enCompMode = COMPRESS_MODE_NONE;
 		gdc_attr.enDstCompMode = COMPRESS_MODE_NONE;
 	}
-	gdc_attr.enPixelFormat = RK_FMT_YUV420SP;
+	gdc_attr.enDstPixelFormat = RK_FMT_YUV420SP;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
 	if (rk_mode_param.eis_mode == RK_HORIZON_STEADY) {
 		LOG_ERROR("ERROR: horizon steady is not support now!\n");
@@ -867,12 +865,10 @@ static int gdc_dummy_init(void) {
 	}
 	gdc_attr.u32MaxInQueue = 1;
 	gdc_attr.u32MaxOutQueue = 1;
-	gdc_attr.s32SrcWidth = width;
-	gdc_attr.s32SrcHeight = height;
 	gdc_attr.s32DstWidth = width;
 	gdc_attr.s32DstHeight = height;
-	gdc_attr.enPixelFormat = RK_FMT_YUV420SP;
-	gdc_attr.enCompMode = COMPRESS_MODE_NONE;
+	gdc_attr.enDstPixelFormat = RK_FMT_YUV420SP;
+	gdc_attr.enDstCompMode = COMPRESS_MODE_NONE;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
 	GDC_INFO_CB_S gdc_info_cb = {};
 	gdc_info_cb.pfnSensorCB = gdc_aiq_imu_callback;
