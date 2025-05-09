@@ -2705,6 +2705,12 @@ int rkipc_osd_mosaic_create(int id, osd_data_s *osd_data) {
 		return RK_FAILURE;
 	}
 	LOG_INFO("RK_MPI_RGN_AttachToChn to vi/vpss success\n");
+	ret = RK_MPI_RGN_SetDisplayAttr(mosaic_handle, &mosaic_chn, &mosaic_chn_attr);
+	if (RK_SUCCESS != ret) {
+		LOG_ERROR("RK_MPI_RGN_SetDisplayAttr (%d) failed with 0x%#x\n", mosaic_handle, ret);
+		return RK_FAILURE;
+	}
+	LOG_INFO("RK_MPI_RGN_SetDisplayAttr to vi/vpss success\n");
 
 	return ret;
 }
