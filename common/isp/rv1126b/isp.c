@@ -1276,9 +1276,15 @@ int rk_isp_get_fec_level(int cam_id, int *value) {
 }
 
 int rk_isp_set_fec_level(int cam_id, int value) {
+	int ret;
+	GDC_UPDATE_ATTR_S attr;
+
 	RK_ISP_CHECK_CAMERA_ID(cam_id);
-	// int ret = rk_aiq_uapi2_setFecCorrectLevel(g_aiq_ctx[cam_id],
-	//                                          (int)(value * 2.55)); // [0-100] -> [0->255]
+	RK_MPI_GDC_GetUpdateAttr(0, &attr);
+	attr.stFecAttr.stOnlineCfg.s32CorrectLevel = (int)(value * 2.55); // [0-100] -> [0->255]
+	ret = RK_MPI_GDC_Update(0, &attr);
+	if (ret)
+		LOG_ERROR("RK_MPI_GDC_Update fail, ret = %x\n", ret);
 	char entry[128] = {'\0'};
 	snprintf(entry, 127, "isp.%d.enhancement:fec_level", cam_id);
 	rk_param_set_int(entry, value);

@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 
 #include "video.h"
-#include "venc.h"
 #include "uvc_control.h"
+#include "venc.h"
 
 #ifdef LOG_TAG
 #undef LOG_TAG
@@ -474,6 +474,7 @@ int rkipc_vi_gdc_vpss_init() {
 
 	// GDC
 	GDC_CHN_ATTR_S stAttr = {0};
+	GDC_UPDATE_ATTR_S stUpdateAttr = {0};
 	stAttr.u32MaxInQueue = 3;
 	stAttr.u32MaxOutQueue = 3;
 	stAttr.s32Depth = 0;
@@ -494,24 +495,28 @@ int rkipc_vi_gdc_vpss_init() {
 	stAttr.stFecAttr.stBgVal.s32BgY = 255;
 	stAttr.stFecAttr.stBgVal.s32BgU = 100;
 	stAttr.stFecAttr.stBgVal.s32BgV = 0;
-#if 1
-	// only support for imx415
-	stAttr.stFecAttr.enFecMode = GDC_FEC_UPDATE_MESH_FROM_FILE;
-	memcpy(stAttr.stFecAttr.mesh0, "/oem/usr/share/rv1126b.bin",
-	       strlen("/oem/usr/share/rv1126b.bin"));
-	LOG_INFO("stAttr.stFecAttr.mesh0 is %s\n", stAttr.stFecAttr.mesh0);
-#else
-	stAttr.stFecAttr.enFecMode = GDC_FEC_UPDATE_MESH_ONLINE;
-	stAttr.stFecAttr.dLightCenter[0] = 1956.3909119999998438;
-	stAttr.stFecAttr.dLightCenter[1] = 1140.6355200000000422;
-	stAttr.stFecAttr.dCoeff[0] = -2819.4072493821618081;
-	stAttr.stFecAttr.dCoeff[1] = 0.0000316126581792;
-	stAttr.stFecAttr.dCoeff[2] = 0.0000000688410142;
-	stAttr.stFecAttr.dCoeff[3] = -0.0000000000130686;
-	stAttr.stFecAttr.s32CorrectLevel = 255;
+
+	const char *fec_ini_file = rk_param_get_string("isp.0.enhancement:fec_ini_file", NULL);
+	if (fec_ini_file) {
+		stUpdateAttr.enMode = GDC_CHN_MODE_FEC;
+		RK_MPI_GDC_GetAttrFromFile(&stUpdateAttr, fec_ini_file);
+		stAttr.stFecAttr.enFecMode = GDC_FEC_UPDATE_MESH_ONLINE;
+		stAttr.stFecAttr.dLightCenter[0] = stUpdateAttr.stFecAttr.stOnlineCfg.dLightCenter[0];
+		stAttr.stFecAttr.dLightCenter[1] = stUpdateAttr.stFecAttr.stOnlineCfg.dLightCenter[1];
+		for (int i = 0; i < 4; i++) {
+			stAttr.stFecAttr.dCoeff[i] = stUpdateAttr.stFecAttr.stOnlineCfg.dCoeff[i];
+		}
+		// stAttr.stFecAttr.s32CorrectLevel  = stUpdateAttr.stFecAttr.stOnlineCfg.s32CorrectLevel;
+		stAttr.stFecAttr.s32CorrectLevel =
+		    rk_param_get_int("isp.0.enhancement:fec_level", 0) * 2.55;
+		stAttr.stFecAttr.enStyle = stUpdateAttr.stFecAttr.stOnlineCfg.enStyle;
+	} else {
+		LOG_ERROR("fec_ini_file is NULL\n");
+		return -1;
+	}
 	stAttr.stFecAttr.enDirection = GDC_FEC_CORRECT_DIRECTION_XY;
 	stAttr.stFecAttr.enStyle = GDC_FEC_KEEP_ASPECT_RATIO_REDUCE_FOV;
-#endif
+
 	ret = RK_MPI_GDC_CreateChn(0, &stAttr);
 
 	// VPSS
