@@ -18,6 +18,9 @@
 #endif
 #define LOG_TAG "ui_advanced_setup.c"
 
+#include <stdio.h>
+#include <linux/input.h>
+#include <time.h>
 #include "audio.h"
 #include "common.h"
 #include "evdev.h"
@@ -31,7 +34,6 @@
 #include "ui_player.h"
 #include "ui_resource_manager.h"
 #include "video.h"
-#include <linux/input.h>
 
 /**********************
  *  STATIC PROTOTYPES
@@ -43,13 +45,27 @@ typedef struct {
 	lv_obj_t *exit_label_obj;
 	lv_obj_t *comp_enable_obj;
 	lv_obj_t *rtsp_enable_obj;
-	lv_obj_t *hdr_test_obj;
-	lv_obj_t *hdr_test_label_obj;
-	lv_obj_t *eis_test_obj;
-	lv_obj_t *eis_test_label_obj;
+	lv_obj_t *restart_test_obj;
+	lv_obj_t *restart_test_label_obj;
+	lv_obj_t *mode_test_obj;
+	lv_obj_t *mode_test_label_obj;
+	lv_obj_t *video_test_obj;
+	lv_obj_t *video_test_label_obj;
+	lv_obj_t *photo_test_obj;
+	lv_obj_t *photo_test_label_obj;
+	lv_obj_t *all_test_obj;
+	lv_obj_t *all_test_label_obj;
 	lv_group_t *group;
 
 } UI_ADVANCED_SETUP_CONTROL_S;
+
+typedef enum {
+	TEST_TYPE_RESTART = 0,
+	TEST_TYPE_MODE_SWITCH,
+	TEST_TYPE_VIDEO,
+	TEST_TYPE_PHOTO,
+	TEST_TYPE_ALL,
+} UI_TEST_TYPE;
 
 static UI_ADVANCED_SETUP_CONTROL_S advanced_setup_ctrl;
 
@@ -85,8 +101,10 @@ static lv_timer_t *test_timer = NULL;
 static lv_obj_t *test_dialog = NULL;
 static lv_obj_t *test_status_obj = NULL;
 static int test_total_count = 0;
-static int test_success_count = 0;
-static int test_fail_count = 0;
+static int test_total_success_count = 0;
+static int test_total_fail_count = 0;
+static char test_result_msg[128];
+static int test_type = TEST_TYPE_RESTART;
 
 static pthread_t test_task_id;
 
@@ -159,7 +177,7 @@ static void create_test_dialog(const char *title) {
 }
 
 static void test_timer_func(lv_timer_t *timer) {
-	if (test_total_count == (test_success_count + test_fail_count) && test_total_count > 0) {
+	if (test_total_count == (test_total_success_count + test_total_fail_count) && test_total_count > 0) {
 		if (test_status_obj) {
 			lv_obj_del(test_status_obj);
 			test_status_obj = NULL;
@@ -172,54 +190,278 @@ static void test_timer_func(lv_timer_t *timer) {
 		pthread_join(test_task_id, NULL);
 		test_timer = NULL;
 		test_total_count = 0;
-		test_success_count = 0;
-		test_fail_count = 0;
+		test_total_success_count = 0;
+		test_total_fail_count = 0;
 		test_task_id = 0;
-		ui_dialog_create("INFO", "测试完成!");
+		ui_dialog_create("INFO", test_result_msg);
 	}
 	if (test_status_obj) {
 		static char info[64];
-		snprintf(info, sizeof(info), "TOTAL: %d, SUCCESS: %d, FAIL: %d", 
-		         test_total_count, test_success_count, test_fail_count);
+		snprintf(info, sizeof(info), "TOTAL: %d, SUCCESS: %d, FAIL: %d",
+		         test_total_count, test_total_success_count, test_total_fail_count);
 		lv_label_set_text(test_status_obj, info);
 	}
 }
 
-static void* hdr_test_func(void *arg) {
-	test_total_count = rk_param_get_int("video.source:hdr_test_loop_count", 30);
-	int hdr_mode = 0;
+static int format_storage() {
 	int ret = 0;
-	for (int i = 0; i < test_total_count; i++) {
-		hdr_mode = (hdr_mode + 1) % RK_HDR_MODE_NUM;
-		ret = rk_set_hdr(hdr_mode);
-		usleep(1000 * 1000);
-		if (ret != 0) {
-			LOG_ERROR("=============== loop %d, set hdr mode %d failed! ===============\n", i, hdr_mode);
-			++test_fail_count;
-		} else {
-			LOG_INFO("=============== loop %d, set hdr mode %d success! ===============\n", i, hdr_mode);
-			++test_success_count;
-		}
+	ret |= rk_storage_deinit();
+	ret |= rk_storage_format();
+	ret |= rk_storage_init();
+	if (ret != 0) {
+		LOG_ERROR("format storage failed, ret %#X\n", ret);
 	}
-	return NULL;
+	return ret;
 }
 
-static void* eis_test_func(void *arg) {
-	test_total_count = rk_param_get_int("video.source:eis_test_loop_count", 20);
-	int eis_mode = 0;
-	int ret = 0;
-	for (int i = 0; i < test_total_count; i++) {
-		eis_mode = (eis_mode + 1) % RK_EIS_MODE_NUM;
-		ret = rk_set_eis_mode(eis_mode);
-		usleep(1000 * 1000);
+static void video_test_routine(int fd) {
+	int ret = 0, len = 0;
+	int count = rk_param_get_int("video.source:video_test_loop_count", 30);
+	int success_count = 0, fail_count = 0;
+	char msg[256] = {'\0'};
+	rk_set_mode(RK_VIDEO_MODE);
+	for (int i = 0; i < count; i++) {
+		ret = rk_video_start_record();
 		if (ret != 0) {
-			LOG_ERROR("=============== loop %d, set eis mode %d failed! ===============\n", i, eis_mode);
-			++test_fail_count;
-		} else {
-			LOG_INFO("=============== loop %d, set eis mode %d success! ===============\n", i, eis_mode);
-			++test_success_count;
+			++test_total_fail_count;
+			++fail_count;
+			memset(msg, 0, sizeof(msg));
+			len = snprintf(msg, sizeof(msg), "[VIDEO TEST] loop %d failed, rk_video_start_record failed %#X\n"
+					, i, ret);
+			write(fd, msg, len);
+			fsync(fd);
+			LOG_ERROR("[VIDEO TEST] loop %d test failed, rk_video_start_record failed %#X\n", i, ret);
+			continue;
 		}
+		usleep(5000 * 1000);
+		ret = rk_video_stop_record();
+		if (ret != 0) {
+			++test_total_fail_count;
+			++fail_count;
+			memset(msg, 0, sizeof(msg));
+			len = snprintf(msg, sizeof(msg), "[VIDEO TEST] loop %d failed, rk_video_stop_record failed %#X\n"
+					, i, ret);
+			write(fd, msg, len);
+			fsync(fd);
+			LOG_ERROR("[VIDEO TEST] loop %d test failed, rk_video_stop_record failed %#X\n", i, ret);
+			continue;
+		}
+		if (i > 0 && (i % 100) == 0) {
+			ret = format_storage();
+			if (ret != 0) {
+				++test_total_fail_count;
+				++fail_count;
+				memset(msg, 0, sizeof(msg));
+				len = snprintf(msg, sizeof(msg), "[VIDEO TEST] loop %d failed, format storage failed %#X\n"
+						, i, ret);
+				write(fd, msg, len);
+				fsync(fd);
+				continue;
+			}
+			LOG_ERROR("[VIDEO TEST] loop %d test failed, format storage failed %#X\n", i, ret);
+		}
+		++test_total_success_count;
+		++success_count;
+		LOG_ERROR("[VIDEO TEST] loop %d test success\n", i);
 	}
+	memset(msg, 0, sizeof(msg));
+	len = snprintf(msg, sizeof(msg), "[VIDEO TEST] success count %d, failed count %d\n"
+		, success_count, fail_count);
+	write(fd, msg, len);
+	fsync(fd);
+	format_storage();
+}
+
+static void photo_test_routine(int fd) {
+	int count = rk_param_get_int("video.source:photo_test_loop_count", 30);
+	int ret = 0, len = 0, success_count = 0, fail_count = 0;
+	char file_name[256] = {'\0'};
+	char msg[256] = {'\0'};
+	rk_set_mode(RK_PHOTO_MODE);
+	for (int i = 0; i < count; i++) {
+		ret = rk_photo_start();
+		if (ret != 0) {
+			++test_total_fail_count;
+			++fail_count;
+			memset(msg, 0, sizeof(msg));
+			len = snprintf(msg, sizeof(msg), "[PHOTO TEST] loop %d failed, rk_photo_start failed %#X\n"
+					, i, ret);
+			write(fd, msg, len);
+			fsync(fd);
+			LOG_ERROR("[PHOTO TEST] loop %d test failed, rk_photo_start failed %#X\n", i, ret);
+			continue;
+		}
+		while (rk_photo_get_done_num() != rk_photo_get_max_num()) {
+			sleep(1);
+			LOG_ERROR("[PHOTO TEST] wait for all photo done\n");
+		}
+		ret = rk_photo_stop();
+		if (ret != 0) {
+			++test_total_fail_count;
+			++fail_count;
+			memset(msg, 0, sizeof(msg));
+			len = snprintf(msg, sizeof(msg), "[PHOTO TEST] loop %d failed, rk_photo_stop failed %#X\n"
+					, i, ret);
+			write(fd, msg, len);
+			fsync(fd);
+			LOG_ERROR("[PHOTO TEST] loop %d test failed, rk_photo_stop failed %#X\n", i, ret);
+			continue;
+		}
+		if (i > 0 && (i % 500) == 0) {
+			ret = format_storage();
+			if (ret != 0) {
+				++test_total_fail_count;
+				++fail_count;
+				memset(msg, 0, sizeof(msg));
+				len = snprintf(msg, sizeof(msg), "[PHOTO TEST] loop %d failed, format storage failed %#X\n"
+						, i, ret);
+				write(fd, msg, len);
+				fsync(fd);
+				continue;
+				LOG_ERROR("[PHOTO TEST] loop %d test failed, format storage failed %#X\n", i, ret);
+			}
+		}
+		++test_total_success_count;
+		++success_count;
+		LOG_ERROR("[PHOTO TEST] loop %d test success\n", i);
+	}
+	memset(msg, 0, sizeof(msg));
+	len = snprintf(msg, sizeof(msg), "[VIDEO TEST] success count %d, failed count %d\n"
+		, success_count, fail_count);
+	write(fd, msg, len);
+	fsync(fd);
+	format_storage();
+}
+
+static void restart_test_routine(int fd) {
+	int count = rk_param_get_int("video.source:restart_test_loop_count", 30);
+	int ret = 0, len = 0, success_count = 0, fail_count = 0;
+	char msg[256] = {'\0'};
+	for (int i = 0; i < count; i++) {
+		ret = rk_video_restart();
+		if (ret != 0) {
+			++test_total_fail_count;
+			++fail_count;
+			memset(msg, 0, sizeof(msg));
+			len = snprintf(msg, sizeof(msg), "[RESTART TEST] loop %d failed, rk_video_restart failed %#X\n"
+					, i, ret);
+			write(fd, msg, len);
+			fsync(fd);
+			LOG_ERROR("[RESTART TEST] loop %d test failed %#X\n", i, ret);
+			continue;
+		}
+		++test_total_success_count;
+		++success_count;
+		LOG_ERROR("[RESTART TEST] loop %d test success\n", i);
+	}
+	memset(msg, 0, sizeof(msg));
+	len = snprintf(msg, sizeof(msg), "[RESTART TEST] success count %d, failed count %d\n"
+		, success_count, fail_count);
+	write(fd, msg, len);
+	fsync(fd);
+}
+
+static void mode_switch_test_routine(int fd) {
+	int count = rk_param_get_int("video.source:mode_test_loop_count", 30);
+	int ret = 0, mode = RK_PHOTO_MODE, len = 0, success_count = 0, fail_count = 0;
+	char msg[256] = {'\0'};
+	for (int i = 0; i < count; i++) {
+		mode = i % 2;
+		ret = rk_set_mode(mode);
+		if (ret != 0) {
+			++test_total_fail_count;
+			++fail_count;
+			memset(msg, 0, sizeof(msg));
+			len = snprintf(msg, sizeof(msg), "[MODE TEST] loop %d failed, rk_set_mode failed %#X\n"
+					, i, ret);
+			write(fd, msg, len);
+			fsync(fd);
+			LOG_ERROR("[MODE TEST] loop %d test failed %#X\n", i, ret);
+			continue;
+		}
+		++test_total_success_count;
+		++success_count;
+		LOG_ERROR("[MODE TEST] loop %d test success\n", i);
+	}
+	memset(msg, 0, sizeof(msg));
+	len = snprintf(msg, sizeof(msg), "[MODE TEST] success count %d, failed count %d\n"
+		, success_count, fail_count);
+	write(fd, msg, len);
+	fsync(fd);
+}
+
+static void* test_func(void *arg) {
+	int ret = 0, fd = -1;
+	char file_name[256] = {'\0'};
+	time_t t = time(NULL);
+	struct tm tm = *localtime(&t);
+	if (test_type == TEST_TYPE_RESTART) {
+		test_total_count = rk_param_get_int("video.source:restart_test_loop_count", 30);
+		snprintf(file_name, sizeof(file_name)
+			, "/userdata/test_result_restart_%d%02d%02d%02d%02d%02d.txt"
+			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	} else if (test_type == TEST_TYPE_MODE_SWITCH) {
+		test_total_count = rk_param_get_int("video.source:mode_test_loop_count", 30);
+		snprintf(file_name, sizeof(file_name)
+			, "/userdata/test_result_mode_%d%02d%02d%02d%02d%02d.txt"
+			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	} else if (test_type == TEST_TYPE_VIDEO) {
+		test_total_count = rk_param_get_int("video.source:video_test_loop_count", 30);
+		snprintf(file_name, sizeof(file_name)
+			, "/userdata/test_result_video_%d%02d%02d%02d%02d%02d.txt"
+			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	} else if (test_type == TEST_TYPE_PHOTO) {
+		test_total_count = rk_param_get_int("video.source:photo_test_loop_count", 30);
+		snprintf(file_name, sizeof(file_name)
+			, "/userdata/test_result_photo_%d%02d%02d%02d%02d%02d.txt"
+			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	} else if (test_type == TEST_TYPE_ALL) {
+		test_total_count = 0;
+		test_total_count += rk_param_get_int("video.source:restart_test_loop_count", 30);
+		test_total_count += rk_param_get_int("video.source:mode_test_loop_count", 30);
+		test_total_count += rk_param_get_int("video.source:video_test_loop_count", 30);
+		test_total_count += rk_param_get_int("video.source:photo_test_loop_count", 30);
+		snprintf(file_name, sizeof(file_name)
+			, "/userdata/test_result_all_%d%02d%02d%02d%02d%02d.txt"
+			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	}
+	fd = open(file_name, O_RDWR | O_CREAT);
+	if (fd < 0) {
+		LOG_ERROR("open %s failed\n", file_name);
+		return NULL;
+	}
+	if (test_type == TEST_TYPE_RESTART) {
+		restart_test_routine(fd);
+	} else if (test_type == TEST_TYPE_MODE_SWITCH) {
+		mode_switch_test_routine(fd);
+	} else if (test_type == TEST_TYPE_VIDEO) {
+		video_test_routine(fd);
+	} else if (test_type == TEST_TYPE_PHOTO) {
+		photo_test_routine(fd);
+	} else if (test_type == TEST_TYPE_ALL) {
+		restart_test_routine(fd);
+		mode_switch_test_routine(fd);
+		video_test_routine(fd);
+		photo_test_routine(fd);
+	}
+	memset(test_result_msg, 0, sizeof(test_result_msg));
+	if (test_type == TEST_TYPE_RESTART) {
+		snprintf(test_result_msg, sizeof(test_result_msg), "反初始化测试完成, SUCCESS: %d, FAIL: %d",
+		         test_total_success_count, test_total_fail_count);
+	} else if (test_type == TEST_TYPE_MODE_SWITCH) {
+		snprintf(test_result_msg, sizeof(test_result_msg), "模式切换测试完成, SUCCESS: %d, FAIL: %d",
+		         test_total_success_count, test_total_fail_count);
+	} else if (test_type == TEST_TYPE_VIDEO) {
+		snprintf(test_result_msg, sizeof(test_result_msg), "视频录制测试完成, SUCCESS: %d, FAIL: %d",
+		         test_total_success_count, test_total_fail_count);
+	} else if (test_type == TEST_TYPE_PHOTO) {
+		snprintf(test_result_msg, sizeof(test_result_msg), "拍照测试完成, SUCCESS: %d, FAIL: %d",
+		         test_total_success_count, test_total_fail_count);
+	} else if (test_type == TEST_TYPE_ALL) {
+		snprintf(test_result_msg, sizeof(test_result_msg), "全流程测试完成, SUCCESS: %d, FAIL: %d",
+		         test_total_success_count, test_total_fail_count);
+	}
+	close(fd);
 	return NULL;
 }
 
@@ -235,14 +477,33 @@ static void event_handler(lv_event_t *e) {
 			} else {
 				rk_set_rtsp(false);
 			}
-		} else if (obj == advanced_setup_ctrl.hdr_test_obj) {
-			create_test_dialog("HDR切换测试");
+		} else if (obj == advanced_setup_ctrl.restart_test_obj) {
+			create_test_dialog("反初始化测试");
 			test_timer = lv_timer_create(test_timer_func, 500, NULL);
-			pthread_create(&test_task_id, NULL, hdr_test_func, NULL);
-		} else if (obj == advanced_setup_ctrl.eis_test_obj) {
-			create_test_dialog("EIS切换测试");
+			test_type = TEST_TYPE_RESTART;
+			pthread_create(&test_task_id, NULL, test_func, NULL);
+		} else if (obj == advanced_setup_ctrl.mode_test_obj) {
+			create_test_dialog("模式切换测试");
 			test_timer = lv_timer_create(test_timer_func, 500, NULL);
-			pthread_create(&test_task_id, NULL, eis_test_func, NULL);
+			test_type = TEST_TYPE_MODE_SWITCH;
+			pthread_create(&test_task_id, NULL, test_func, NULL);
+		} else if (obj == advanced_setup_ctrl.video_test_obj) {
+			create_test_dialog("视频测试");
+			test_timer = lv_timer_create(test_timer_func, 500, NULL);
+			test_type = TEST_TYPE_VIDEO;
+			pthread_create(&test_task_id, NULL, test_func, NULL);
+		} else if (obj == advanced_setup_ctrl.photo_test_obj) {
+			create_test_dialog("拍照测试");
+			test_timer = lv_timer_create(test_timer_func, 500, NULL);
+			test_type = TEST_TYPE_PHOTO;
+			pthread_create(&test_task_id, NULL, test_func, NULL);
+		} else if (obj == advanced_setup_ctrl.all_test_obj) {
+			create_test_dialog("全流程测试");
+			test_timer = lv_timer_create(test_timer_func, 500, NULL);
+			test_type = TEST_TYPE_ALL;
+			pthread_create(&test_task_id, NULL, test_func, NULL);
+		} else if (obj == advanced_setup_ctrl.exit_obj) {
+			ui_page_pop_page();
 		} else {
 			LOG_ERROR("unknown event\n");
 		}
@@ -285,15 +546,30 @@ static void advanced_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
 	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
 
-	advanced_setup_ctrl.hdr_test_obj = obj = lv_obj_create(cont_obj);
+	advanced_setup_ctrl.restart_test_obj = obj = lv_obj_create(cont_obj);
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
 	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
-	advanced_setup_ctrl.hdr_test_label_obj = lv_label_create(obj);
+	advanced_setup_ctrl.restart_test_label_obj = lv_label_create(obj);
 
-	advanced_setup_ctrl.eis_test_obj = obj = lv_obj_create(cont_obj);
+	advanced_setup_ctrl.mode_test_obj = obj = lv_obj_create(cont_obj);
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
 	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
-	advanced_setup_ctrl.eis_test_label_obj = lv_label_create(obj);
+	advanced_setup_ctrl.mode_test_label_obj = lv_label_create(obj);
+
+	advanced_setup_ctrl.video_test_obj = obj = lv_obj_create(cont_obj);
+	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
+	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
+	advanced_setup_ctrl.video_test_label_obj = lv_label_create(obj);
+
+	advanced_setup_ctrl.photo_test_obj = obj = lv_obj_create(cont_obj);
+	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
+	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
+	advanced_setup_ctrl.photo_test_label_obj = lv_label_create(obj);
+
+	advanced_setup_ctrl.all_test_obj = obj = lv_obj_create(cont_obj);
+	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
+	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
+	advanced_setup_ctrl.all_test_label_obj = lv_label_create(obj);
 }
 
 static void advanced_setup_set_text() {
@@ -372,27 +648,57 @@ static void advanced_setup_set_text() {
 	if (rk_get_rtsp())
 		lv_obj_add_state(advanced_setup_ctrl.rtsp_enable_obj, LV_STATE_CHECKED);
 
-	lv_obj_add_style(advanced_setup_ctrl.hdr_test_obj, &option_style, 0);
-	lv_obj_add_style(advanced_setup_ctrl.hdr_test_obj, &option_focus_style,
+	lv_obj_add_style(advanced_setup_ctrl.restart_test_obj, &option_style, 0);
+	lv_obj_add_style(advanced_setup_ctrl.restart_test_obj, &option_focus_style,
 	                 LV_PART_MAIN | LV_STATE_FOCUSED);
-	lv_label_set_text(advanced_setup_ctrl.hdr_test_label_obj, "HDR测试");
+	lv_label_set_text(advanced_setup_ctrl.restart_test_label_obj, "反初始化测试");
 
-	lv_obj_add_style(advanced_setup_ctrl.eis_test_obj, &option_style, 0);
-	lv_obj_add_style(advanced_setup_ctrl.eis_test_obj, &option_focus_style,
+	lv_obj_add_style(advanced_setup_ctrl.mode_test_obj, &option_style, 0);
+	lv_obj_add_style(advanced_setup_ctrl.mode_test_obj, &option_focus_style,
 	                 LV_PART_MAIN | LV_STATE_FOCUSED);
-	lv_label_set_text(advanced_setup_ctrl.eis_test_label_obj, "EIS测试");
+	lv_label_set_text(advanced_setup_ctrl.mode_test_label_obj, "模式切换测试");
+
+	lv_obj_add_style(advanced_setup_ctrl.video_test_obj, &option_style, 0);
+	lv_obj_add_style(advanced_setup_ctrl.video_test_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_label_set_text(advanced_setup_ctrl.video_test_label_obj, "视频测试");
+
+	lv_obj_add_style(advanced_setup_ctrl.photo_test_obj, &option_style, 0);
+	lv_obj_add_style(advanced_setup_ctrl.photo_test_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_label_set_text(advanced_setup_ctrl.photo_test_label_obj, "拍照测试");
+
+	lv_obj_add_style(advanced_setup_ctrl.all_test_obj, &option_style, 0);
+	lv_obj_add_style(advanced_setup_ctrl.all_test_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_label_set_text(advanced_setup_ctrl.all_test_label_obj, "全部测试");
 }
 
 static void advanced_setup_destroy_ctrl(void) {
-	if (NULL != advanced_setup_ctrl.hdr_test_obj) {
-		ui_common_remove_stype_all(advanced_setup_ctrl.hdr_test_obj);
-		lv_obj_del(advanced_setup_ctrl.hdr_test_obj);
-		advanced_setup_ctrl.hdr_test_obj = NULL;
+	if (NULL != advanced_setup_ctrl.all_test_obj) {
+		ui_common_remove_stype_all(advanced_setup_ctrl.all_test_obj);
+		lv_obj_del(advanced_setup_ctrl.all_test_obj);
+		advanced_setup_ctrl.all_test_obj = NULL;
 	}
-	if (NULL != advanced_setup_ctrl.eis_test_obj) {
-		ui_common_remove_stype_all(advanced_setup_ctrl.eis_test_obj);
-		lv_obj_del(advanced_setup_ctrl.eis_test_obj);
-		advanced_setup_ctrl.eis_test_obj = NULL;
+	if (NULL != advanced_setup_ctrl.photo_test_obj) {
+		ui_common_remove_stype_all(advanced_setup_ctrl.photo_test_obj);
+		lv_obj_del(advanced_setup_ctrl.photo_test_obj);
+		advanced_setup_ctrl.photo_test_obj = NULL;
+	}
+	if (NULL != advanced_setup_ctrl.video_test_obj) {
+		ui_common_remove_stype_all(advanced_setup_ctrl.video_test_obj);
+		lv_obj_del(advanced_setup_ctrl.video_test_obj);
+		advanced_setup_ctrl.video_test_obj = NULL;
+	}
+	if (NULL != advanced_setup_ctrl.restart_test_obj) {
+		ui_common_remove_stype_all(advanced_setup_ctrl.restart_test_obj);
+		lv_obj_del(advanced_setup_ctrl.restart_test_obj);
+		advanced_setup_ctrl.restart_test_obj = NULL;
+	}
+	if (NULL != advanced_setup_ctrl.mode_test_obj) {
+		ui_common_remove_stype_all(advanced_setup_ctrl.mode_test_obj);
+		lv_obj_del(advanced_setup_ctrl.mode_test_obj);
+		advanced_setup_ctrl.mode_test_obj = NULL;
 	}
 	if (NULL != advanced_setup_ctrl.comp_enable_obj) {
 		ui_common_remove_stype_all(advanced_setup_ctrl.comp_enable_obj);
@@ -430,8 +736,11 @@ static void advanced_setup_add_indev(void) {
 	lv_group_add_obj(group, advanced_setup_ctrl.exit_obj);
 	lv_group_add_obj(group, advanced_setup_ctrl.comp_enable_obj);
 	lv_group_add_obj(group, advanced_setup_ctrl.rtsp_enable_obj);
-	lv_group_add_obj(group, advanced_setup_ctrl.hdr_test_obj);
-	lv_group_add_obj(group, advanced_setup_ctrl.eis_test_obj);
+	lv_group_add_obj(group, advanced_setup_ctrl.restart_test_obj);
+	lv_group_add_obj(group, advanced_setup_ctrl.mode_test_obj);
+	lv_group_add_obj(group, advanced_setup_ctrl.video_test_obj);
+	lv_group_add_obj(group, advanced_setup_ctrl.photo_test_obj);
+	lv_group_add_obj(group, advanced_setup_ctrl.all_test_obj);
 	advanced_setup_ctrl.group = group;
 }
 

@@ -76,5 +76,5 @@ static int rk_enter_sleep(void) { return 0; }
 
 int rk_video_init(void);
 int rk_video_deinit(void);
-static int rk_video_restart(void) { return 0; }
+int rk_video_restart(void);
 int rk_video_reset_frame_rate(int stream_id);

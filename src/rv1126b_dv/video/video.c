@@ -1083,7 +1083,7 @@ static int jpeg_init(void) {
 	jpeg_chn_attr.stVencAttr.u32VirWidth = video_width;
 	jpeg_chn_attr.stVencAttr.u32VirHeight = video_height;
 	jpeg_chn_attr.stVencAttr.u32StreamBufCnt = 2;
-	jpeg_chn_attr.stVencAttr.u32BufSize = video_width * video_height * 3;
+	jpeg_chn_attr.stVencAttr.u32BufSize = video_width * video_height * 3 / 2;
 	// jpeg_chn_attr.stVencAttr.u32Depth = 1;
 	ret = RK_MPI_VENC_CreateChn(JPEG_CHN, &jpeg_chn_attr);
 	if (ret) {
@@ -1429,6 +1429,15 @@ int rk_video_deinit(void) {
 	if (ret)
 		LOG_ERROR("ERROR: vi_dev_deinit failed! ret=%d\n", ret);
 	LOG_INFO("exit\n");
+	return ret;
+}
+
+int rk_video_restart(void) {
+	int ret = 0;
+	ret |= rk_video_deinit();
+	ret |= rk_isp_deinit(0);
+	ret |= rk_isp_init(0, rkipc_iq_file_path_);
+	ret |= rk_video_init();
 	return ret;
 }
 
