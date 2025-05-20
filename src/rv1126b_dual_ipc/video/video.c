@@ -13,7 +13,6 @@
 
 #define RKISP_MAINPATH 0
 #define RKISP_SELFPATH 1
-#define RKISP_FBCPATH 2
 #define VIDEO_PIPE_0 0
 #define VIDEO_PIPE_1 1
 #define VIDEO_PIPE_2 2
@@ -35,9 +34,7 @@
 #define RTMP_URL_1 "rtmp://127.0.0.1:1935/live/substream"
 #define RTMP_URL_2 "rtmp://127.0.0.1:1935/live/thirdstream"
 
-int g_vi_for_venc_1_id = 3;
-int g_vi_for_vo_chn_id = 4;
-int g_vi_for_npu_ivs_id = 1;
+int g_vi_for_vo_chn_id = RKISP_SELFPATH;
 int pipe1_id_ = 1;
 
 static int g_sensor_num = 2;
@@ -282,8 +279,8 @@ int rkipc_multi_vi_init() {
 	vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
 	vi_chn_attr.u32Depth = 0;
 	for (int i = 0; i < g_sensor_num; i++) {
-		ret = RK_MPI_VI_SetChnAttr(i, 0, &vi_chn_attr);
-		ret |= RK_MPI_VI_EnableChnExt(i, 0);
+		ret = RK_MPI_VI_SetChnAttr(i, RKISP_MAINPATH, &vi_chn_attr);
+		ret |= RK_MPI_VI_EnableChnExt(i, RKISP_MAINPATH);
 		if (ret) {
 			LOG_ERROR("%d: ERROR: RK_MPI_VI_EnableChnExt error! ret=%#x\n", i, ret);
 			return -1;

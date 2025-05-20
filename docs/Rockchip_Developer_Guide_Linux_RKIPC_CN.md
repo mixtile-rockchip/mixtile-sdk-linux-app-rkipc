@@ -432,10 +432,10 @@ cover/mosaic-.->VPSS_GRP
 
 ```mermaid
 graph LR
-       VI_0_0-->VENC_0-->RTSP_0
-       VI_0_4-->VO
-       VI_1_0-->VENC_1-->RTSP_1
-       VI_1_4-->VO
+       VI_PIPE_0-->VI_0_0-->VENC_0-->RTSP_0
+       VI_PIPE_0-->VI_0_1-->VO
+       VI_PIPE_1-->VI_1_0-->VENC_1-->RTSP_1
+       VI_PIPE_1-->VI_1_1-->VO
 ```
 
 ### RV1126B DV
