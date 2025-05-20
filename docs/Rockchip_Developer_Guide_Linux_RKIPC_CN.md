@@ -1245,6 +1245,30 @@ uvc_control_join(flags);
 uvc_formats_deinit();
 ```
 
+使用NV12格式，需要修改/data/rkipc.ini中以下配置：
+
+```ini
+[video.source]
+enable_uvc = 1
+enable_compress = 0
+[video.0]
+output_data_type = NV12
+```
+
+使用bulk传输，需要修改common/uvc/rkipc_usb_config.sh
+
+```shell
+# echo 2 > ${USB_FUNCTIONS_DIR}/$UVC_GS/uvc_num_request
+  echo 5 > ${USB_FUNCTIONS_DIR}/$UVC_GS/streaming_maxburst
+  echo 1 > /sys/kernel/config/usb_gadget/rockchip/functions/$UVC_GS/streaming_bulk
+```
+
+common/uvc/uvc-gadget.c中使能bulk_mode
+
+```c
+int bulk_mode = 1;
+```
+
 ## ini参数说明
 
 **注意：由于各个产品类型定义不同，部分参数是特有的，部分参数的含义也可能不同，此处仅供参考，以实际ini文件中的注释为准。**

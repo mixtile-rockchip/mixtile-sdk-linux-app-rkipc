@@ -57,7 +57,7 @@ static const char *tmp_gop_mode;
 static const char *tmp_rc_quality;
 static pthread_t venc_thread_0, venc_thread_1, venc_thread_2, jpeg_venc_thread_id,
     get_vpss_2_send_npu_thread, get_nn_update_osd_thread_id, get_vi_2_send_thread,
-    get_ivs_result_thread, cycle_snapshot_thread_id;
+    get_ivs_result_thread, cycle_snapshot_thread_id, get_vi_thread_id;
 
 static MPP_CHN_S vi_chn, vpss_in_chn, vi_for_vo_chn, vo_chn, vpss_out_chn[4], venc_chn, ivs_chn,
     gdc_chn;
@@ -111,41 +111,41 @@ RK_S32 draw_rect_2bpp(RK_U8 *buffer, RK_U32 width, RK_U32 height, int rgn_x, int
 	return 0;
 }
 
-// static void *test_get_vi(void *arg) {
-// 	printf("#Start %s thread, arg:%p\n", __func__, arg);
-// 	VI_FRAME_S stViFrame;
-// 	VI_CHN_STATUS_S stChnStatus;
-// 	int loopCount = 0;
-// 	int ret = 0;
+static void *test_get_vi(void *arg) {
+	printf("#Start %s thread, arg:%p\n", __func__, arg);
+	VIDEO_FRAME_INFO_S stViFrame;
+	VI_CHN_STATUS_S stChnStatus;
+	int loopCount = 0;
+	int ret = 0;
+	int get_vi_chn_id = g_vi_for_venc_0_id;
+	if (enable_fec)
+		get_vi_chn_id = g_vi_chn_id;
+	while (g_video_run_) {
+		// 5.get the frame
+		ret = RK_MPI_VI_GetChnFrame(pipe_id_, get_vi_chn_id, &stViFrame, 1000);
+		if (ret == RK_SUCCESS) {
+			void *data = RK_MPI_MB_Handle2VirAddr(stViFrame.stVFrame.pMbBlk);
+			// LOG_ERROR("RK_MPI_VI_GetChnFrame ok:data %p loop:%d seq:%d pts:%" PRId64 " ms\n",
+			// data,
+			//           loopCount, stViFrame.stVFrame.u32TimeRef, stViFrame.stVFrame.u64PTS /
+			//           1000);
+			if (rk_param_get_int("video.source:enable_uvc", 0))
+				uvc_read_camera_buffer(
+				    data, -1, stViFrame.stVFrame.u32Width * stViFrame.stVFrame.u32Height * 1.5,
+				    NULL, 0);
+			// 7.release the frame
+			ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, get_vi_chn_id, &stViFrame);
+			if (ret != RK_SUCCESS) {
+				LOG_ERROR("RK_MPI_VI_ReleaseChnFrame fail %x\n", ret);
+			}
+			loopCount++;
+		} else {
+			LOG_ERROR("RK_MPI_VI_GetChnFrame timeout %x\n", ret);
+		}
+	}
 
-// 	while (g_video_run_) {
-// 		// 5.get the frame
-// 		ret = RK_MPI_VI_GetChnFrame(pipe_id_, VIDEO_PIPE_2, &stViFrame, 1000);
-// 		if (ret == RK_SUCCESS) {
-// 			void *data = RK_MPI_MB_Handle2VirAddr(stViFrame.pMbBlk);
-// 			LOG_ERROR("RK_MPI_VI_GetChnFrame ok:data %p loop:%d seq:%d pts:%" PRId64 " ms\n", data,
-// 			          loopCount, stViFrame.s32Seq, stViFrame.s64PTS / 1000);
-// 			// 6.get the channel status
-// 			ret = RK_MPI_VI_QueryChnStatus(pipe_id_, VIDEO_PIPE_2, &stChnStatus);
-// 			LOG_ERROR("RK_MPI_VI_QueryChnStatus ret %x, "
-// 			          "w:%d,h:%d,enable:%d,lost:%d,framerate:%d,vbfail:%d\n",
-// 			          ret, stChnStatus.stSize.u32Width, stChnStatus.stSize.u32Height,
-// 			          stChnStatus.bEnable, stChnStatus.u32LostFrame, stChnStatus.u32FrameRate,
-// 			          stChnStatus.u32VbFail);
-// 			// 7.release the frame
-// 			ret = RK_MPI_VI_ReleaseChnFrame(pipe_id_, VIDEO_PIPE_2, &stViFrame);
-// 			if (ret != RK_SUCCESS) {
-// 				LOG_ERROR("RK_MPI_VI_ReleaseChnFrame fail %x\n", ret);
-// 			}
-// 			loopCount++;
-// 		} else {
-// 			LOG_ERROR("RK_MPI_VI_GetChnFrame timeout %x\n", ret);
-// 		}
-// 		usleep(10 * 1000);
-// 	}
-
-// 	return 0;
-// }
+	return 0;
+}
 
 static void *rkipc_get_venc_0(void *arg) {
 	printf("#Start %s thread, arg:%p\n", __func__, arg);
@@ -444,6 +444,7 @@ int rkipc_vi_gdc_vpss_init() {
 	int video_height = rk_param_get_int("video.0:height", -1);
 	int rotation = rk_param_get_int("video.source:rotation", 0);
 	int buf_cnt = 3;
+	tmp_output_data_type = rk_param_get_string("video.0:output_data_type", NULL);
 
 	// VI
 	VI_CHN_ATTR_S vi_chn_attr;
@@ -455,7 +456,8 @@ int rkipc_vi_gdc_vpss_init() {
 	vi_chn_attr.stSize.u32Width = video_width;
 	vi_chn_attr.stSize.u32Height = video_height;
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
-	vi_chn_attr.u32Depth = 0;
+	if (!strcmp(tmp_output_data_type, "NV12"))
+		vi_chn_attr.u32Depth = 1;
 	if (rk_param_get_int("video.source:enable_compress", 0))
 		vi_chn_attr.enVideoFormat = VIDEO_FORMAT_TILE_4x4;
 	else
@@ -471,6 +473,8 @@ int rkipc_vi_gdc_vpss_init() {
 		LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
 		return ret;
 	}
+	if (!strcmp(tmp_output_data_type, "NV12"))
+		pthread_create(&get_vi_thread_id, NULL, test_get_vi, NULL);
 
 	// GDC
 	GDC_CHN_ATTR_S stAttr = {0};
@@ -704,6 +708,7 @@ int rkipc_vi_gdc_vpss_deinit() {
 int rkipc_vi_ext_init() {
 	int ret = 0;
 	VI_CHN_ATTR_S vi_chn_attr;
+	tmp_output_data_type = rk_param_get_string("video.0:output_data_type", NULL);
 	if (enable_venc_0) {
 		int video_width = rk_param_get_int("video.0:width", -1);
 		int video_height = rk_param_get_int("video.0:height", -1);
@@ -719,7 +724,8 @@ int rkipc_vi_ext_init() {
 		vi_chn_attr.stIspOpt.stMaxSize.u32Height = rk_param_get_int("video.0:max_height", 1440);
 		vi_chn_attr.stSize.u32Width = rk_param_get_int("video.0:width", 2560);
 		vi_chn_attr.stSize.u32Height = rk_param_get_int("video.0:height", 1440);
-		vi_chn_attr.u32Depth = 0;
+		if (!strcmp(tmp_output_data_type, "NV12"))
+			vi_chn_attr.u32Depth = 1;
 		vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 		if (rk_param_get_int("video.source:enable_compress", 0))
 			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
@@ -751,6 +757,8 @@ int rkipc_vi_ext_init() {
 			LOG_ERROR("ERROR: create VI error! ret=%d\n", ret);
 			return ret;
 		}
+		if (!strcmp(tmp_output_data_type, "NV12"))
+			pthread_create(&get_vi_thread_id, NULL, test_get_vi, NULL);
 	}
 
 	if (enable_venc_1) {
@@ -1087,23 +1095,24 @@ int rkipc_pipe_0_init() {
 	memset(&stRecvParam, 0, sizeof(VENC_RECV_PIC_PARAM_S));
 	stRecvParam.s32RecvPicNum = -1;
 	RK_MPI_VENC_StartRecvFrame(VIDEO_PIPE_0, &stRecvParam);
-	pthread_create(&venc_thread_0, NULL, rkipc_get_venc_0, NULL);
-	// bind
-	vi_chn.enModId = RK_ID_VI;
-	vi_chn.s32DevId = 0;
-	vi_chn.s32ChnId = g_vi_for_venc_0_id;
-	venc_chn.enModId = RK_ID_VENC;
-	venc_chn.s32DevId = 0;
-	venc_chn.s32ChnId = VIDEO_PIPE_0;
-
-	if (!enable_fec) {
-		ret = RK_MPI_SYS_Bind(&vi_chn, &venc_chn);
-		if (ret)
-			LOG_ERROR("Bind VI and VENC error! ret=%#x\n", ret);
-	} else {
-		ret = RK_MPI_SYS_Bind(&vpss_out_chn[0], &venc_chn);
-		if (ret)
-			LOG_ERROR("Bind VPSS and VENC error! ret=%#x\n", ret);
+	if (strcmp(tmp_output_data_type, "NV12")) {
+		pthread_create(&venc_thread_0, NULL, rkipc_get_venc_0, NULL);
+		// bind
+		vi_chn.enModId = RK_ID_VI;
+		vi_chn.s32DevId = 0;
+		vi_chn.s32ChnId = g_vi_for_venc_0_id;
+		venc_chn.enModId = RK_ID_VENC;
+		venc_chn.s32DevId = 0;
+		venc_chn.s32ChnId = VIDEO_PIPE_0;
+		if (!enable_fec) {
+			ret = RK_MPI_SYS_Bind(&vi_chn, &venc_chn);
+			if (ret)
+				LOG_ERROR("Bind VI and VENC error! ret=%#x\n", ret);
+		} else {
+			ret = RK_MPI_SYS_Bind(&vpss_out_chn[0], &venc_chn);
+			if (ret)
+				LOG_ERROR("Bind VPSS and VENC error! ret=%#x\n", ret);
+		}
 	}
 
 	return 0;
