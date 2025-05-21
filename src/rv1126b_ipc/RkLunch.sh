@@ -78,24 +78,14 @@ post_chk()
 	default_rkipc_ini=/tmp/rkipc-factory-config.ini
 
 	if [ ! -f "/oem/usr/share/rkipc.ini" ]; then
-		lsmod | grep sc450ai
-		if [ $? -eq 0 ] ;then
+		resolution=$(grep -o "Size:[0-9]*x[0-9]*" /proc/rkisp-vir0 | cut -d':' -f2)
+		if [ "$resolution" = "2688x1520" ] ;then
 			ln -s -f /oem/usr/share/rkipc-2688x1520.ini $default_rkipc_ini
 		fi
-		lsmod | grep imx415
-		if [ $? -eq 0 ] ;then
-			ln -s -f /oem/usr/share/rkipc-3840x2160.ini $default_rkipc_ini
-		fi
-		lsmod | grep gc8613
-		if [ $? -eq 0 ] ;then
-			ln -s -f /oem/usr/share/rkipc-3840x2160.ini $default_rkipc_ini
-		fi
-		lsmod | grep sc635hai
-		if [ $? -eq 0 ] ;then
+		if [ "$resolution" = "3200x1800" ] ;then
 			ln -s -f /oem/usr/share/rkipc-3200x1800.ini $default_rkipc_ini
 		fi
-		lsmod | grep sc850sl
-		if [ $? -eq 0 ] ;then
+		if [ "$resolution" = "3840x2160" ] ;then
 			ln -s -f /oem/usr/share/rkipc-3840x2160.ini $default_rkipc_ini
 		fi
 	fi
