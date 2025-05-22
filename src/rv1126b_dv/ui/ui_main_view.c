@@ -140,6 +140,8 @@ static void timer_xcb(lv_timer_t *timer) {
 		lv_img_set_src(main_view_ctrl.rec_obj, icon_record_stat_idle);
 	}
 	lv_label_set_text(main_view_ctrl.bat_status_obj, LV_SYMBOL_BATTERY_FULL);
+	if (!rk_param_get_int("video.source:enable_display", 1))
+		RK_MPI_VO_SetLayerFlush(rk_param_get_int("display:layer_id", 0));
 }
 
 static void capture_xcb(lv_timer_t *timer) {
@@ -404,7 +406,10 @@ static void main_view_delete_indev(void) {
 	}
 }
 
-static void main_view_page_enter(lv_obj_t *page_obj) { main_view_add_indev(); }
+static void main_view_page_enter(lv_obj_t *page_obj) {
+	RK_MPI_VO_SetLayerFlush(rk_param_get_int("display:layer_id", 0));
+	main_view_add_indev();
+}
 
 static void main_view_page_exit(lv_obj_t *page_obj) {
 	main_view_delete_indev();

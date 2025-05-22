@@ -77,6 +77,7 @@ target_link_libraries(${PROJECT_NAME}
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 install(FILES rkipc.ini DESTINATION share)
 install(FILES rkipc-gc8613.ini DESTINATION share)
+install(FILES rkipc-imx586.ini DESTINATION share)
 install(PROGRAMS RkLunch.sh DESTINATION bin)
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/PuHuiTi.ttf DESTINATION share)

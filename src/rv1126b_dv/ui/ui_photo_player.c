@@ -30,7 +30,7 @@
 #include "filelist.h"
 #include "player.h"
 #include "storage.h"
-#include <rk_comm_video.h>
+#include "video.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -317,6 +317,7 @@ static void photo_player_delete_indev(void) {
 }
 
 static void photo_player_page_create(lv_obj_t *page_obj) {
+	RK_MPI_VO_SetLayerFlush(rk_param_get_int("display:layer_id", 0));
 	photo_player_param_init(page_obj);
 	photo_player_create_ctrl(page_obj);
 	photo_player_layout_ctrl(page_obj);
@@ -332,6 +333,7 @@ static void photo_player_page_exit(lv_obj_t *page_obj) { photo_player_delete_ind
 static void photo_player_page_destroy(lv_obj_t *page_obj) {
 	photo_player_destroy_ctrl();
 	photo_player_param_deinit();
+	RK_MPI_VO_SetLayerFlush(rk_param_get_int("display:layer_id", 0));
 }
 
 static UI_PAGE_HANDLER_T photo_player_page = {.name = "photo_player",

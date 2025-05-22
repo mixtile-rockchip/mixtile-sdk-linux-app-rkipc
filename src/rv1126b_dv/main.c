@@ -163,6 +163,7 @@ int main(int argc, char **argv) {
 	rk_init_mode();
 	rk_storage_init();
 	rk_isp_init(0, "/etc/iqfiles");
+	rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));
 	ui_init();
 	rk_video_init();
 	if (rk_param_get_int("audio.0:enable", 0)) {

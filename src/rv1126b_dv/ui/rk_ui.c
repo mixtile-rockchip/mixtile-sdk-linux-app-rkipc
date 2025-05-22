@@ -97,7 +97,7 @@ static int32_t rk_disp_setup(void) {
 		LOG_ERROR("RK_MPI_VO_Enable failed %#X\n", ret);
 	RK_MPI_VO_GetLayerDispBufLen(display_layer, &disp_buf_len);
 	LOG_INFO("Get display_layer %d disp buf len is %d.\n", display_layer, disp_buf_len);
-	disp_buf_len = 3;
+	disp_buf_len = 2;
 	ret = RK_MPI_VO_SetLayerDispBufLen(display_layer, disp_buf_len);
 	LOG_INFO("Agin Get display_layer %d disp buf len is %d.\n", display_layer, disp_buf_len);
 

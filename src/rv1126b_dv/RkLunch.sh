@@ -102,6 +102,10 @@ post_chk()
 	if [ $? -eq 0 ] ;then
 		ln -s -f /oem/usr/share/rkipc-gc8613.ini $default_rkipc_ini
 	fi
+	media-ctl -pd /dev/media0 | grep imx586
+	if [ $? -eq 0 ] ;then
+		ln -s -f /oem/usr/share/rkipc-imx586.ini $default_rkipc_ini
+	fi
 	tmp_md5=/tmp/.rkipc-ini.md5sum
 	data_md5=/userdata/.rkipc-default.md5sum
 	md5sum $default_rkipc_ini > $tmp_md5
