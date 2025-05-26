@@ -63,6 +63,10 @@ typedef struct {
 	lv_obj_t *format_img_obj;
 	lv_obj_t *format_label_obj;
 
+	lv_obj_t *test_imgbtn_obj;
+	lv_obj_t *test_img_obj;
+	lv_obj_t *test_label_obj;
+
 	lv_obj_t *select_dialog;
 	lv_group_t *select_group;
 
@@ -167,6 +171,13 @@ static void set_event_handler(lv_event_t *e) {
 		ui_page_push_page("advanced_setup", NULL);
 }
 
+static void test_event_handler(lv_event_t *e) {
+	lv_event_code_t code = lv_event_get_code(e);
+	lv_obj_t *obj = lv_event_get_target(e);
+	if (code == LV_EVENT_CLICKED)
+		ui_page_push_page("auto_test", NULL);
+}
+
 static void store_event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
@@ -248,6 +259,9 @@ static void setting_layout(void) {
 	                     LV_GRID_ALIGN_CENTER, 1, 1);
 
 	lv_obj_set_grid_cell(settings_ctrl.format_imgbtn_obj, LV_GRID_ALIGN_CENTER, 1, 1,
+	                     LV_GRID_ALIGN_CENTER, 1, 1);
+
+	lv_obj_set_grid_cell(settings_ctrl.test_imgbtn_obj, LV_GRID_ALIGN_CENTER, 2, 1,
 	                     LV_GRID_ALIGN_CENTER, 1, 1);
 }
 
@@ -334,6 +348,16 @@ static void setting_create_ctrl(lv_obj_t *page_obj) {
 	settings_ctrl.format_label_obj = label_obj = lv_label_create(imgbtn_obj);
 	lv_obj_set_width(label_obj, lv_pct(100));
 	lv_obj_align_to(label_obj, img_obj, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
+
+	settings_ctrl.test_imgbtn_obj = imgbtn_obj = lv_imgbtn_create(cont_obj);
+	lv_obj_add_event_cb(imgbtn_obj, test_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_set_size(imgbtn_obj, lv_pct(20), lv_pct(20));
+	settings_ctrl.test_img_obj = img_obj = lv_img_create(imgbtn_obj);
+	lv_img_set_src(img_obj, icon_advanced_setup);
+	lv_obj_align(img_obj, LV_ALIGN_CENTER, 0, 0);
+	settings_ctrl.test_label_obj = label_obj = lv_label_create(imgbtn_obj);
+	lv_obj_set_width(label_obj, lv_pct(100));
+	lv_obj_align_to(label_obj, img_obj, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
 }
 
 static void setting_set_text() {
@@ -414,6 +438,8 @@ static void setting_set_text() {
 	lv_obj_add_style(settings_ctrl.store_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 	lv_obj_add_style(settings_ctrl.format_imgbtn_obj, &btn_style, 0);
 	lv_obj_add_style(settings_ctrl.format_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUSED);
+	lv_obj_add_style(settings_ctrl.test_imgbtn_obj, &btn_style, 0);
+	lv_obj_add_style(settings_ctrl.test_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 
 	// add style for text
 	if (rk_get_mode() == RK_VIDEO_MODE)
@@ -441,6 +467,9 @@ static void setting_set_text() {
 
 	lv_label_set_text(settings_ctrl.format_label_obj, "格式化");
 	lv_obj_add_style(settings_ctrl.format_label_obj, &style, 0);
+
+	lv_label_set_text(settings_ctrl.test_label_obj, "应用自测");
+	lv_obj_add_style(settings_ctrl.test_label_obj, &style, 0);
 }
 
 static void setting_destroy_ctrl(void) {
@@ -474,6 +503,11 @@ static void setting_destroy_ctrl(void) {
 		lv_obj_del(settings_ctrl.format_imgbtn_obj);
 		settings_ctrl.format_imgbtn_obj = NULL;
 	}
+	if (NULL != settings_ctrl.test_imgbtn_obj) {
+		ui_common_remove_stype_all(settings_ctrl.test_imgbtn_obj);
+		lv_obj_del(settings_ctrl.test_imgbtn_obj);
+		settings_ctrl.test_imgbtn_obj = NULL;
+	}
 	if (NULL != settings_ctrl.exit_obj) {
 		ui_common_remove_stype_all(settings_ctrl.exit_obj);
 		lv_obj_del(settings_ctrl.exit_obj);
@@ -505,6 +539,7 @@ static void settings_add_indev(void) {
 	lv_group_add_obj(group, settings_ctrl.set_imgbtn_obj);
 	lv_group_add_obj(group, settings_ctrl.store_imgbtn_obj);
 	lv_group_add_obj(group, settings_ctrl.format_imgbtn_obj);
+	lv_group_add_obj(group, settings_ctrl.test_imgbtn_obj);
 
 	settings_ctrl.group = group;
 }
