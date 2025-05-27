@@ -1280,6 +1280,13 @@ int rk_isp_set_fec_level(int cam_id, int value) {
 	GDC_UPDATE_ATTR_S attr;
 
 	RK_ISP_CHECK_CAMERA_ID(cam_id);
+	const char *correction_mode;
+	rk_isp_get_distortion_correction(cam_id, &correction_mode);
+	if (strcmp(correction_mode, "FEC")) {
+		LOG_INFO("correction_mode is %s, can't set fec level\n", correction_mode);
+		return 0;
+	}
+
 	RK_MPI_GDC_GetUpdateAttr(0, &attr);
 	attr.stFecAttr.stOnlineCfg.s32CorrectLevel = (int)(value * 2.55); // [0-100] -> [0->255]
 	ret = RK_MPI_GDC_Update(0, &attr);
