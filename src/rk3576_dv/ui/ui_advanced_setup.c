@@ -415,32 +415,32 @@ static void advanced_setup_set_text() {
 
 static void advanced_setup_destroy_ctrl(void) {
 	if (NULL != advanced_setup_ctrl.eis_obj) {
-		ui_common_remove_stype_all(advanced_setup_ctrl.eis_obj);
+		ui_common_remove_style_all(advanced_setup_ctrl.eis_obj);
 		lv_obj_del(advanced_setup_ctrl.eis_obj);
 		advanced_setup_ctrl.eis_obj = NULL;
 	}
 	if (NULL != advanced_setup_ctrl.hdr_obj) {
-		ui_common_remove_stype_all(advanced_setup_ctrl.hdr_obj);
+		ui_common_remove_style_all(advanced_setup_ctrl.hdr_obj);
 		lv_obj_del(advanced_setup_ctrl.hdr_obj);
 		advanced_setup_ctrl.hdr_obj = NULL;
 	}
 	if (NULL != advanced_setup_ctrl.debug_obj) {
-		ui_common_remove_stype_all(advanced_setup_ctrl.debug_obj);
+		ui_common_remove_style_all(advanced_setup_ctrl.debug_obj);
 		lv_obj_del(advanced_setup_ctrl.debug_obj);
 		advanced_setup_ctrl.debug_obj = NULL;
 	}
 	if (NULL != advanced_setup_ctrl.audio_obj) {
-		ui_common_remove_stype_all(advanced_setup_ctrl.audio_obj);
+		ui_common_remove_style_all(advanced_setup_ctrl.audio_obj);
 		lv_obj_del(advanced_setup_ctrl.audio_obj);
 		advanced_setup_ctrl.audio_obj = NULL;
 	}
 	if (NULL != advanced_setup_ctrl.exit_obj) {
-		ui_common_remove_stype_all(advanced_setup_ctrl.exit_obj);
+		ui_common_remove_style_all(advanced_setup_ctrl.exit_obj);
 		lv_obj_del(advanced_setup_ctrl.exit_obj);
 		advanced_setup_ctrl.exit_obj = NULL;
 	}
 	if (NULL != advanced_setup_ctrl.container_obj) {
-		ui_common_remove_stype_all(advanced_setup_ctrl.container_obj);
+		ui_common_remove_style_all(advanced_setup_ctrl.container_obj);
 		lv_obj_del(advanced_setup_ctrl.container_obj);
 		advanced_setup_ctrl.container_obj = NULL;
 	}

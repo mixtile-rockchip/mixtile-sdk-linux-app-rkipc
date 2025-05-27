@@ -171,7 +171,7 @@ static void scroll_event_cb(lv_event_t *e) {
 
 		while ((actual_step_size--) > 0) {
 			child = lv_obj_get_child(obj, 0);
-			ui_common_remove_stype_all(child);
+			ui_common_remove_style_all(child);
 			lv_obj_del(child);
 		}
 
@@ -194,7 +194,7 @@ static void scroll_event_cb(lv_event_t *e) {
 
 		while ((actual_step_size++) < 0) {
 			child = lv_obj_get_child(obj, -1);
-			ui_common_remove_stype_all(child);
+			ui_common_remove_style_all(child);
 			lv_obj_del(child);
 		}
 
@@ -327,19 +327,24 @@ static void playlist_delete_indev(void) {
 }
 
 static void playlist_destroy_ctrl(lv_obj_t *page_obj) {
+	if (NULL != playlist_ctx.exit_obj) {
+		ui_common_remove_style_all(playlist_ctx.exit_obj);
+		lv_obj_del(playlist_ctx.exit_obj);
+		playlist_ctx.exit_obj = NULL;
+	}
 	if (NULL != playlist_ctx.menu_obj) {
-		ui_common_remove_stype_all(playlist_ctx.menu_obj);
+		ui_common_remove_style_all(playlist_ctx.menu_obj);
 		lv_obj_del(playlist_ctx.menu_obj);
 		playlist_ctx.menu_obj = NULL;
 	}
 
 	if (NULL != playlist_ctx.list_obj) {
-		ui_common_remove_stype_all(playlist_ctx.list_obj);
+		ui_common_remove_style_all(playlist_ctx.list_obj);
 		lv_obj_del(playlist_ctx.list_obj);
 		playlist_ctx.list_obj = NULL;
 	}
 
-	ui_common_remove_stype_all(page_obj);
+	ui_common_remove_style_all(page_obj);
 }
 
 static int32_t playlist_param_init(lv_obj_t *page_obj) {

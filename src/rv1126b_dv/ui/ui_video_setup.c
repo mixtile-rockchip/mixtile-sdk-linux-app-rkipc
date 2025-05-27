@@ -331,37 +331,37 @@ static void video_setup_set_text() {
 
 static void video_setup_destroy_ctrl(void) {
 	if (NULL != video_setup_ctrl.eis_obj) {
-		ui_common_remove_stype_all(video_setup_ctrl.eis_obj);
+		ui_common_remove_style_all(video_setup_ctrl.eis_obj);
 		lv_obj_del(video_setup_ctrl.eis_obj);
 		video_setup_ctrl.eis_obj = NULL;
 	}
 	if (NULL != video_setup_ctrl.hdr_obj) {
-		ui_common_remove_stype_all(video_setup_ctrl.hdr_obj);
+		ui_common_remove_style_all(video_setup_ctrl.hdr_obj);
 		lv_obj_del(video_setup_ctrl.hdr_obj);
 		video_setup_ctrl.hdr_obj = NULL;
 	}
 	if (NULL != video_setup_ctrl.debug_obj) {
-		ui_common_remove_stype_all(video_setup_ctrl.debug_obj);
+		ui_common_remove_style_all(video_setup_ctrl.debug_obj);
 		lv_obj_del(video_setup_ctrl.debug_obj);
 		video_setup_ctrl.debug_obj = NULL;
 	}
 	if (NULL != video_setup_ctrl.smart_ae_obj) {
-		ui_common_remove_stype_all(video_setup_ctrl.smart_ae_obj);
+		ui_common_remove_style_all(video_setup_ctrl.smart_ae_obj);
 		lv_obj_del(video_setup_ctrl.smart_ae_obj);
 		video_setup_ctrl.smart_ae_obj = NULL;
 	}
 	if (NULL != video_setup_ctrl.photo_obj) {
-		ui_common_remove_stype_all(video_setup_ctrl.photo_obj);
+		ui_common_remove_style_all(video_setup_ctrl.photo_obj);
 		lv_obj_del(video_setup_ctrl.photo_obj);
 		video_setup_ctrl.photo_obj = NULL;
 	}
 	if (NULL != video_setup_ctrl.exit_obj) {
-		ui_common_remove_stype_all(video_setup_ctrl.exit_obj);
+		ui_common_remove_style_all(video_setup_ctrl.exit_obj);
 		lv_obj_del(video_setup_ctrl.exit_obj);
 		video_setup_ctrl.exit_obj = NULL;
 	}
 	if (NULL != video_setup_ctrl.container_obj) {
-		ui_common_remove_stype_all(video_setup_ctrl.container_obj);
+		ui_common_remove_style_all(video_setup_ctrl.container_obj);
 		lv_obj_del(video_setup_ctrl.container_obj);
 		video_setup_ctrl.container_obj = NULL;
 	}

@@ -51,7 +51,7 @@ void ui_dialog_destroy(void) {
 		dialog_group = NULL;
 	}
 	if (NULL != dialog_obj) {
-		ui_common_remove_stype_all(dialog_obj);
+		ui_common_remove_style_all(dialog_obj);
 		lv_obj_del(dialog_obj);
 		dialog_obj = NULL;
 	}

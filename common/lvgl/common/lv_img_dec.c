@@ -109,6 +109,7 @@ static int read_png_file(png_img_t *p, const char *file_name) {
 }
 
 static void png_release(png_img_t *p) {
+	png_destroy_read_struct(&p->png_ptr, &p->info_ptr, NULL);
 	for (int y = 0; y < p->height; y++)
 		free(p->row_pointers[y]);
 

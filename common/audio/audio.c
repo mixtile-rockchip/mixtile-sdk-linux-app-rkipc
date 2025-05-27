@@ -428,10 +428,8 @@ static bool check_rk730_sound_card(void) {
 	return found;
 }
 
-int rkipc_ao_init(void) {
+int rkipc_ao_init_ex(int sample_rate, int channels, int frame_size) {
 	int ret = 0;
-	int sample_rate = rk_param_get_int("audio.0:sample_rate", 16000);
-	int channels = rk_param_get_int("audio.0:channels", 2);
 	const char *card_name = rk_param_get_string("audio.0:card_name", "default");
 	AUDIO_DEV aoDevId = 0;
 	AO_CHN aoChn = 0;
@@ -465,8 +463,7 @@ int rkipc_ao_init(void) {
 		LOG_ERROR("unsupport = %d\n", channels);
 		return RK_FAILURE;
 	}
-
-	aoAttr.u32PtNumPerFrm = rk_param_get_int("audio.0:ao_frame_size", 1024);
+	aoAttr.u32PtNumPerFrm = frame_size;
 	aoAttr.u32FrmNum = 4;
 	aoAttr.u32EXFlag = 0;
 	aoAttr.u32ChnCnt = 2;
@@ -531,7 +528,7 @@ int rkipc_ao_init(void) {
 		return RK_FAILURE;
 	}
 
-	ret = RK_MPI_AO_SetVolume(aoDevId, rk_param_get_int("audio.0:volume", 100));
+	ret = RK_MPI_AO_SetVolume(aoDevId, rk_param_get_int("audio.0:ao_volume", 100));
 	if (ret != 0) {
 		LOG_ERROR("RK_MPI_AO_SetVolume failed %#X\n", ret);
 		return RK_FAILURE;
@@ -539,6 +536,14 @@ int rkipc_ao_init(void) {
 	LOG_INFO("create ao success\n");
 
 	return RK_SUCCESS;
+}
+
+int rkipc_ao_init(void) {
+	int ret = 0;
+	int sample_rate = rk_param_get_int("audio.0:sample_rate", 16000);
+	int channels = rk_param_get_int("audio.0:channels", 2);
+	int frame_size = rk_param_get_int("audio.0:ao_frame_size", 1024);
+	return rkipc_ao_init_ex(sample_rate, channels, frame_size);
 }
 
 int rkipc_ao_deinit(void) {
@@ -582,7 +587,7 @@ int rkipc_adec_init(int sample_rate, int channels, const char *encode_type) {
 	pstChnAttr.stCodecAttr.u32Channels = channels; // default 1
 	pstChnAttr.stCodecAttr.u32SampleRate = sample_rate;
 
-	pstChnAttr.u32BufCount = 64;
+	pstChnAttr.u32BufCount = 4;
 	pstChnAttr.u32BufSize = 50 * 1024;
 	ret = RK_MPI_ADEC_CreateChn(ADEC_CHN_ID, &pstChnAttr);
 	if (ret) {
@@ -600,9 +605,13 @@ int rkipc_adec_deinit(void) {
 }
 
 int rkipc_audio_player_init(int sample_rate, int channels, const char *encode_type) {
-	int ret = 0;
+	int ret = 0, frame_size = 0;
 	MPP_CHN_S src_chn = {}, dst_chn = {};
-	ret = rkipc_ao_init();
+	if (sample_rate == 32000 || sample_rate == 44100 || sample_rate == 48000)
+		frame_size = 1152 * channels * 2;
+	else
+		frame_size = 576 * channels * 2;
+	ret = rkipc_ao_init_ex(sample_rate, channels, frame_size);
 	if (ret != RK_SUCCESS)
 		return ret;
 	ret = rkipc_adec_init(sample_rate, channels, encode_type);

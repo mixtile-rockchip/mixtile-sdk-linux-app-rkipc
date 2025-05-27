@@ -67,7 +67,7 @@ void ui_storage_status_dialog_destroy(void) {
 		storage_group = NULL;
 	}
 	if (storage_status_dialog_obj) {
-		ui_common_remove_stype_all(storage_status_dialog_obj);
+		ui_common_remove_style_all(storage_status_dialog_obj);
 		lv_obj_del(storage_status_dialog_obj);
 		storage_status_dialog_obj = NULL;
 	}

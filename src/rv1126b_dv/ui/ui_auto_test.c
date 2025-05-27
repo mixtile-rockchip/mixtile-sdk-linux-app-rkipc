@@ -25,6 +25,7 @@
 #include "common.h"
 #include "evdev.h"
 #include "lvgl/porting/lv_port_indev.h"
+#include "player.h"
 #include "storage.h"
 #include "ui_common.h"
 #include "ui_dialog.h"
@@ -52,6 +53,8 @@ typedef struct {
 	lv_obj_t *video_test_label_obj;
 	lv_obj_t *photo_test_obj;
 	lv_obj_t *photo_test_label_obj;
+	lv_obj_t *player_test_obj;
+	lv_obj_t *player_test_label_obj;
 	lv_obj_t *all_test_obj;
 	lv_obj_t *all_test_label_obj;
 	lv_group_t *group;
@@ -63,6 +66,7 @@ typedef enum {
 	TEST_TYPE_MODE_SWITCH,
 	TEST_TYPE_VIDEO,
 	TEST_TYPE_PHOTO,
+	TEST_TYPE_PLAYER,
 	TEST_TYPE_ALL,
 } UI_TEST_TYPE;
 
@@ -215,7 +219,7 @@ static int format_storage() {
 
 static void video_test_routine(int fd) {
 	int ret = 0, len = 0;
-	int count = rk_param_get_int("video.source:video_test_loop_count", 30);
+	int count = rk_param_get_int("auto_test:video_test_loop_count", 30);
 	int success_count = 0, fail_count = 0;
 	char msg[256] = {'\0'};
 	rk_set_mode(RK_VIDEO_MODE);
@@ -272,7 +276,7 @@ static void video_test_routine(int fd) {
 }
 
 static void photo_test_routine(int fd) {
-	int count = rk_param_get_int("video.source:photo_test_loop_count", 30);
+	int count = rk_param_get_int("auto_test:photo_test_loop_count", 30);
 	int ret = 0, len = 0, success_count = 0, fail_count = 0;
 	char file_name[256] = {'\0'};
 	char msg[256] = {'\0'};
@@ -333,7 +337,7 @@ static void photo_test_routine(int fd) {
 }
 
 static void restart_test_routine(int fd) {
-	int count = rk_param_get_int("video.source:restart_test_loop_count", 30);
+	int count = rk_param_get_int("auto_test:restart_test_loop_count", 30);
 	int ret = 0, len = 0, success_count = 0, fail_count = 0;
 	char msg[256] = {'\0'};
 	for (int i = 0; i < count; i++) {
@@ -361,7 +365,7 @@ static void restart_test_routine(int fd) {
 }
 
 static void mode_switch_test_routine(int fd) {
-	int count = rk_param_get_int("video.source:mode_test_loop_count", 30);
+	int count = rk_param_get_int("auto_test:mode_test_loop_count", 30);
 	int ret = 0, mode = RK_PHOTO_MODE, len = 0, success_count = 0, fail_count = 0;
 	char msg[256] = {'\0'};
 	for (int i = 0; i < count; i++) {
@@ -389,37 +393,123 @@ static void mode_switch_test_routine(int fd) {
 	fsync(fd);
 }
 
+static void player_test_routine(int fd) {
+	int count = rk_param_get_int("auto_test:player_test_loop_count", 30);
+	int ret = 0, len = 0, success_count = 0, fail_count = 0;
+	const char *file_path = rk_param_get_string("auto_test:player_test_file_path", NULL);
+	char msg[256] = {'\0'};
+	if (!file_path) {
+		LOG_ERROR("[PLAYER TEST] file path is NULL, please set auto_test:player_test_file_path\n");
+		return ;
+	}
+	for (int i = 0; i < count; i++) {
+		RK_PLAYER_CONFIG_S config = {};
+		uint32_t duration = 0, seek_time = 0;
+		ret = rk_player_create(&config);
+		if (ret != 0) {
+			++test_total_fail_count;
+			++fail_count;
+			memset(msg, 0, sizeof(msg));
+			len = snprintf(msg, sizeof(msg), "[PLAYER TEST] loop %d failed, rk_player_create failed %#X\n"
+					, i, ret);
+			write(fd, msg, len);
+			fsync(fd);
+			LOG_ERROR("[PLAYER TEST] loop %d test failed %#X\n", i, ret);
+			continue;
+		}
+		ret = rk_player_set_file(&config, file_path);
+		if (ret != 0) {
+			++test_total_fail_count;
+			++fail_count;
+			memset(msg, 0, sizeof(msg));
+			len = snprintf(msg, sizeof(msg), "[PLAYER TEST] loop %d failed, rk_player_set_file failed %#X\n"
+					, i, ret);
+			write(fd, msg, len);
+			fsync(fd);
+			LOG_ERROR("[PLAYER TEST] loop %d test failed %#X\n", i, ret);
+			rk_player_destroy(&config);
+			continue;
+		}
+		rk_player_get_video_duration(&config, &duration);
+		ret = rk_player_play(&config);
+		if (ret != 0) {
+			++test_total_fail_count;
+			++fail_count;
+			memset(msg, 0, sizeof(msg));
+			len = snprintf(msg, sizeof(msg), "[PLAYER TEST] loop %d failed, rk_player_play failed %#X\n"
+					, i, ret);
+			write(fd, msg, len);
+			fsync(fd);
+			LOG_ERROR("[PLAYER TEST] loop %d test failed %#X\n", i, ret);
+			rk_player_destroy(&config);
+			continue;
+		}
+		for (int j = 0; j < 5; ++j) {
+			seek_time = random() % duration;
+			ret = rk_player_audio_seek(&config, seek_time);
+			ret |= rk_player_video_seek(&config, seek_time);
+			if (ret != 0) {
+				++test_total_fail_count;
+				++fail_count;
+				memset(msg, 0, sizeof(msg));
+				len = snprintf(msg, sizeof(msg), "[PLAYER TEST] loop %d failed, player seek failed %#X\n"
+						, i, ret);
+				write(fd, msg, len);
+				fsync(fd);
+				LOG_ERROR("[PLAYER TEST] loop %d test failed %#X\n", i, ret);
+				rk_player_destroy(&config);
+				continue;
+			}
+			sleep(4);
+		}
+		rk_player_destroy(&config);
+		++test_total_success_count;
+		++success_count;
+		LOG_ERROR("[PLAYER TEST] loop %d test success\n", i);
+	}
+	memset(msg, 0, sizeof(msg));
+	len = snprintf(msg, sizeof(msg), "[PLAYER TEST] success count %d, failed count %d\n"
+		, success_count, fail_count);
+	write(fd, msg, len);
+	fsync(fd);
+}
+
 static void* test_func(void *arg) {
 	int ret = 0, fd = -1;
 	char file_name[256] = {'\0'};
 	time_t t = time(NULL);
 	struct tm tm = *localtime(&t);
 	if (test_type == TEST_TYPE_RESTART) {
-		test_total_count = rk_param_get_int("video.source:restart_test_loop_count", 30);
+		test_total_count = rk_param_get_int("auto_test:restart_test_loop_count", 30);
 		snprintf(file_name, sizeof(file_name)
 			, "/userdata/test_result_restart_%d%02d%02d%02d%02d%02d.txt"
 			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	} else if (test_type == TEST_TYPE_MODE_SWITCH) {
-		test_total_count = rk_param_get_int("video.source:mode_test_loop_count", 30);
+		test_total_count = rk_param_get_int("auto_test:mode_test_loop_count", 30);
 		snprintf(file_name, sizeof(file_name)
 			, "/userdata/test_result_mode_%d%02d%02d%02d%02d%02d.txt"
 			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	} else if (test_type == TEST_TYPE_VIDEO) {
-		test_total_count = rk_param_get_int("video.source:video_test_loop_count", 30);
+		test_total_count = rk_param_get_int("auto_test:video_test_loop_count", 30);
 		snprintf(file_name, sizeof(file_name)
 			, "/userdata/test_result_video_%d%02d%02d%02d%02d%02d.txt"
 			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	} else if (test_type == TEST_TYPE_PHOTO) {
-		test_total_count = rk_param_get_int("video.source:photo_test_loop_count", 30);
+		test_total_count = rk_param_get_int("auto_test:photo_test_loop_count", 30);
 		snprintf(file_name, sizeof(file_name)
 			, "/userdata/test_result_photo_%d%02d%02d%02d%02d%02d.txt"
 			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	} else if (test_type == TEST_TYPE_PLAYER) {
+		test_total_count = rk_param_get_int("auto_test:player_test_loop_count", 30);
+		snprintf(file_name, sizeof(file_name)
+			, "/userdata/test_result_player_%d%02d%02d%02d%02d%02d.txt"
+			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	} else if (test_type == TEST_TYPE_ALL) {
 		test_total_count = 0;
-		test_total_count += rk_param_get_int("video.source:restart_test_loop_count", 30);
-		test_total_count += rk_param_get_int("video.source:mode_test_loop_count", 30);
-		test_total_count += rk_param_get_int("video.source:video_test_loop_count", 30);
-		test_total_count += rk_param_get_int("video.source:photo_test_loop_count", 30);
+		test_total_count += rk_param_get_int("auto_test:restart_test_loop_count", 30);
+		test_total_count += rk_param_get_int("auto_test:mode_test_loop_count", 30);
+		test_total_count += rk_param_get_int("auto_test:video_test_loop_count", 30);
+		test_total_count += rk_param_get_int("auto_test:photo_test_loop_count", 30);
 		snprintf(file_name, sizeof(file_name)
 			, "/userdata/test_result_all_%d%02d%02d%02d%02d%02d.txt"
 			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
@@ -437,6 +527,8 @@ static void* test_func(void *arg) {
 		video_test_routine(fd);
 	} else if (test_type == TEST_TYPE_PHOTO) {
 		photo_test_routine(fd);
+	} else if (test_type == TEST_TYPE_PLAYER) {
+		player_test_routine(fd);
 	} else if (test_type == TEST_TYPE_ALL) {
 		restart_test_routine(fd);
 		mode_switch_test_routine(fd);
@@ -455,6 +547,9 @@ static void* test_func(void *arg) {
 		         test_total_success_count, test_total_fail_count);
 	} else if (test_type == TEST_TYPE_PHOTO) {
 		snprintf(test_result_msg, sizeof(test_result_msg), "拍照测试完成, SUCCESS: %d, FAIL: %d",
+		         test_total_success_count, test_total_fail_count);
+	} else if (test_type == TEST_TYPE_PLAYER) {
+		snprintf(test_result_msg, sizeof(test_result_msg), "播放测试完成, SUCCESS: %d, FAIL: %d",
 		         test_total_success_count, test_total_fail_count);
 	} else if (test_type == TEST_TYPE_ALL) {
 		snprintf(test_result_msg, sizeof(test_result_msg), "全流程测试完成, SUCCESS: %d, FAIL: %d",
@@ -487,6 +582,11 @@ static void event_handler(lv_event_t *e) {
 			create_test_dialog("拍照测试");
 			test_timer = lv_timer_create(test_timer_func, 500, NULL);
 			test_type = TEST_TYPE_PHOTO;
+			pthread_create(&test_task_id, NULL, test_func, NULL);
+		} else if (obj == auto_test_ctrl.player_test_obj) {
+			create_test_dialog("播放测试");
+			test_timer = lv_timer_create(test_timer_func, 500, NULL);
+			test_type = TEST_TYPE_PLAYER;
 			pthread_create(&test_task_id, NULL, test_func, NULL);
 		} else if (obj == auto_test_ctrl.all_test_obj) {
 			create_test_dialog("全流程测试");
@@ -546,6 +646,11 @@ static void auto_test_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
 	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
 	auto_test_ctrl.photo_test_label_obj = lv_label_create(obj);
+
+	auto_test_ctrl.player_test_obj = obj = lv_obj_create(cont_obj);
+	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
+	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
+	auto_test_ctrl.player_test_label_obj = lv_label_create(obj);
 
 	auto_test_ctrl.all_test_obj = obj = lv_obj_create(cont_obj);
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
@@ -635,6 +740,11 @@ static void auto_test_set_text() {
 	                 LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_label_set_text(auto_test_ctrl.photo_test_label_obj, "拍照测试");
 
+	lv_obj_add_style(auto_test_ctrl.player_test_obj, &option_style, 0);
+	lv_obj_add_style(auto_test_ctrl.player_test_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_label_set_text(auto_test_ctrl.player_test_label_obj, "播放测试");
+
 	lv_obj_add_style(auto_test_ctrl.all_test_obj, &option_style, 0);
 	lv_obj_add_style(auto_test_ctrl.all_test_obj, &option_focus_style,
 	                 LV_PART_MAIN | LV_STATE_FOCUSED);
@@ -643,37 +753,42 @@ static void auto_test_set_text() {
 
 static void auto_test_destroy_ctrl(void) {
 	if (NULL != auto_test_ctrl.all_test_obj) {
-		ui_common_remove_stype_all(auto_test_ctrl.all_test_obj);
+		ui_common_remove_style_all(auto_test_ctrl.all_test_obj);
 		lv_obj_del(auto_test_ctrl.all_test_obj);
 		auto_test_ctrl.all_test_obj = NULL;
 	}
+	if (NULL != auto_test_ctrl.player_test_obj) {
+		ui_common_remove_style_all(auto_test_ctrl.player_test_obj);
+		lv_obj_del(auto_test_ctrl.player_test_obj);
+		auto_test_ctrl.player_test_obj = NULL;
+	}
 	if (NULL != auto_test_ctrl.photo_test_obj) {
-		ui_common_remove_stype_all(auto_test_ctrl.photo_test_obj);
+		ui_common_remove_style_all(auto_test_ctrl.photo_test_obj);
 		lv_obj_del(auto_test_ctrl.photo_test_obj);
 		auto_test_ctrl.photo_test_obj = NULL;
 	}
 	if (NULL != auto_test_ctrl.video_test_obj) {
-		ui_common_remove_stype_all(auto_test_ctrl.video_test_obj);
+		ui_common_remove_style_all(auto_test_ctrl.video_test_obj);
 		lv_obj_del(auto_test_ctrl.video_test_obj);
 		auto_test_ctrl.video_test_obj = NULL;
 	}
 	if (NULL != auto_test_ctrl.restart_test_obj) {
-		ui_common_remove_stype_all(auto_test_ctrl.restart_test_obj);
+		ui_common_remove_style_all(auto_test_ctrl.restart_test_obj);
 		lv_obj_del(auto_test_ctrl.restart_test_obj);
 		auto_test_ctrl.restart_test_obj = NULL;
 	}
 	if (NULL != auto_test_ctrl.mode_test_obj) {
-		ui_common_remove_stype_all(auto_test_ctrl.mode_test_obj);
+		ui_common_remove_style_all(auto_test_ctrl.mode_test_obj);
 		lv_obj_del(auto_test_ctrl.mode_test_obj);
 		auto_test_ctrl.mode_test_obj = NULL;
 	}
 	if (NULL != auto_test_ctrl.exit_obj) {
-		ui_common_remove_stype_all(auto_test_ctrl.exit_obj);
+		ui_common_remove_style_all(auto_test_ctrl.exit_obj);
 		lv_obj_del(auto_test_ctrl.exit_obj);
 		auto_test_ctrl.exit_obj = NULL;
 	}
 	if (NULL != auto_test_ctrl.container_obj) {
-		ui_common_remove_stype_all(auto_test_ctrl.container_obj);
+		ui_common_remove_style_all(auto_test_ctrl.container_obj);
 		lv_obj_del(auto_test_ctrl.container_obj);
 		auto_test_ctrl.container_obj = NULL;
 	}
@@ -695,6 +810,7 @@ static void auto_test_add_indev(void) {
 	lv_group_add_obj(group, auto_test_ctrl.mode_test_obj);
 	lv_group_add_obj(group, auto_test_ctrl.video_test_obj);
 	lv_group_add_obj(group, auto_test_ctrl.photo_test_obj);
+	lv_group_add_obj(group, auto_test_ctrl.player_test_obj);
 	lv_group_add_obj(group, auto_test_ctrl.all_test_obj);
 	auto_test_ctrl.group = group;
 }

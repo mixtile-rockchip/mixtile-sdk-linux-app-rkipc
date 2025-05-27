@@ -697,42 +697,42 @@ static void setting_set_text() {
 
 static void setting_destroy_ctrl(void) {
 	if (NULL != settings_ctrl.mode_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.mode_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.mode_imgbtn_obj);
 		lv_obj_del(settings_ctrl.mode_imgbtn_obj);
 		settings_ctrl.mode_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.fps_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.fps_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.fps_imgbtn_obj);
 		lv_obj_del(settings_ctrl.fps_imgbtn_obj);
 		settings_ctrl.fps_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.cap_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.cap_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.cap_imgbtn_obj);
 		lv_obj_del(settings_ctrl.cap_imgbtn_obj);
 		settings_ctrl.cap_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.set_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.set_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.set_imgbtn_obj);
 		lv_obj_del(settings_ctrl.set_imgbtn_obj);
 		settings_ctrl.set_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.store_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.store_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.store_imgbtn_obj);
 		lv_obj_del(settings_ctrl.store_imgbtn_obj);
 		settings_ctrl.exit_obj = NULL;
 	}
 	if (NULL != settings_ctrl.format_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.format_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.format_imgbtn_obj);
 		lv_obj_del(settings_ctrl.format_imgbtn_obj);
 		settings_ctrl.format_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.exit_obj) {
-		ui_common_remove_stype_all(settings_ctrl.exit_obj);
+		ui_common_remove_style_all(settings_ctrl.exit_obj);
 		lv_obj_del(settings_ctrl.exit_obj);
 		settings_ctrl.exit_obj = NULL;
 	}
 	if (NULL != settings_ctrl.container_obj) {
-		ui_common_remove_stype_all(settings_ctrl.container_obj);
+		ui_common_remove_style_all(settings_ctrl.container_obj);
 		lv_obj_del(settings_ctrl.container_obj);
 		settings_ctrl.container_obj = NULL;
 	}

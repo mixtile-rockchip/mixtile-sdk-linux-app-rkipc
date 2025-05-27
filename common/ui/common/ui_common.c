@@ -42,7 +42,7 @@
  *   GLOBAL FUNCTIONS
  **********************/
 
-void ui_common_remove_stype_all(lv_obj_t *obj) {
+void ui_common_remove_style_all(lv_obj_t *obj) {
 	if (obj == NULL)
 		return;
 	lv_obj_t *child = NULL;
@@ -51,7 +51,7 @@ void ui_common_remove_stype_all(lv_obj_t *obj) {
 		child = lv_obj_get_child(obj, i);
 		if (NULL == child)
 			break;
-		ui_common_remove_stype_all(child);
+		ui_common_remove_style_all(child);
 	}
 	lv_obj_remove_style_all(obj);
 }

@@ -259,32 +259,32 @@ static void audio_setup_set_text() {
 
 static void audio_setup_destroy_ctrl(void) {
 	if (NULL != audio_setup_ctrl.play_volume_obj) {
-		ui_common_remove_stype_all(audio_setup_ctrl.play_volume_obj);
+		ui_common_remove_style_all(audio_setup_ctrl.play_volume_obj);
 		lv_obj_del(audio_setup_ctrl.play_volume_obj);
 		audio_setup_ctrl.play_volume_obj = NULL;
 	}
 	if (NULL != audio_setup_ctrl.record_volume_obj) {
-		ui_common_remove_stype_all(audio_setup_ctrl.record_volume_obj);
+		ui_common_remove_style_all(audio_setup_ctrl.record_volume_obj);
 		lv_obj_del(audio_setup_ctrl.record_volume_obj);
 		audio_setup_ctrl.record_volume_obj = NULL;
 	}
 	if (NULL != audio_setup_ctrl.audio_enable_obj) {
-		ui_common_remove_stype_all(audio_setup_ctrl.audio_enable_obj);
+		ui_common_remove_style_all(audio_setup_ctrl.audio_enable_obj);
 		lv_obj_del(audio_setup_ctrl.audio_enable_obj);
 		audio_setup_ctrl.audio_enable_obj = NULL;
 	}
 	if (NULL != audio_setup_ctrl.audio_anr_obj) {
-		ui_common_remove_stype_all(audio_setup_ctrl.audio_anr_obj);
+		ui_common_remove_style_all(audio_setup_ctrl.audio_anr_obj);
 		lv_obj_del(audio_setup_ctrl.audio_anr_obj);
 		audio_setup_ctrl.audio_anr_obj = NULL;
 	}
 	if (NULL != audio_setup_ctrl.exit_obj) {
-		ui_common_remove_stype_all(audio_setup_ctrl.exit_obj);
+		ui_common_remove_style_all(audio_setup_ctrl.exit_obj);
 		lv_obj_del(audio_setup_ctrl.exit_obj);
 		audio_setup_ctrl.exit_obj = NULL;
 	}
 	if (NULL != audio_setup_ctrl.container_obj) {
-		ui_common_remove_stype_all(audio_setup_ctrl.container_obj);
+		ui_common_remove_style_all(audio_setup_ctrl.container_obj);
 		lv_obj_del(audio_setup_ctrl.container_obj);
 		audio_setup_ctrl.container_obj = NULL;
 	}

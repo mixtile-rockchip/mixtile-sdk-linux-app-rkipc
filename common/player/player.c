@@ -25,8 +25,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define SLOW_MOTION_RATE 4
-
 #define VDEC_CHN_ID 0
 #define ADEC_CHN_ID 0
 
@@ -46,6 +44,7 @@ typedef struct _rkPlayerCtx {
 	bool enable_audio;
 	bool enable_video;
 	bool media_is_init;
+	bool thread_running;
 	void *demuxer_handle;
 	rk_player_event_cb event_cb;
 	pthread_mutex_t mutex; // protect rkdemuxer
@@ -638,7 +637,6 @@ static void read_video_packet_cb(void *handle) {
 		if (ret)
 			LOG_ERROR("RK_MPI_VDEC_SendStream failed[%x]\n", ret);
 		RK_MPI_MB_ReleaseMB(video_stream.pMbBlk);
-		ctx->video_current_pts = video_packet->s64Pts;
 	} else {
 		if (video_packet->s8PacketData) {
 			free(video_packet->s8PacketData);
@@ -657,7 +655,7 @@ static void read_audio_packet_cb(void *handle) {
 	RKIPC_CHECK_POINTER(handle, );
 	LOG_DEBUG("packet size %d, data %p, eof %d, pts %lld\n", audio_packet->s32PacketSize,
 	          audio_packet->s8PacketData, audio_packet->s8EofFlag, audio_packet->s64Pts);
-	if (audio_packet->s8EofFlag) {
+	if (audio_packet->s8EofFlag && audio_packet->s32PacketSize == 0) {
 		ret = rkipc_audio_player_send(NULL, 0, 0);
 	} else {
 		if (audio_packet->s8PacketData == NULL || audio_packet->s32PacketSize == 0) {
@@ -667,9 +665,7 @@ static void read_audio_packet_cb(void *handle) {
 		ret = rkipc_audio_player_send(audio_packet->s8PacketData, audio_packet->s32PacketSize, audio_packet->s64Pts);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("RK_MPI_ADEC_SendStream failed[%x]\n", ret);
-		} else {
-			ctx->audio_current_pts = audio_packet->s64Pts;
-		}
+		} 
 	}
 
 	return;
@@ -678,7 +674,6 @@ static void read_audio_packet_cb(void *handle) {
 static void *video_player_loop(void *p) {
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)p;
 	int ret = 0;
-	bool quit = false;
 	uint32_t fps = ctx->demuxer_param.s32VideoAvgFrameRate;
 	uint64_t frame_interval_time = 0, cost_time = 0, delay_time = 0;
 	DemuxerPacket packet;
@@ -693,12 +688,11 @@ static void *video_player_loop(void *p) {
 	}
 	frame_interval_time = (1000.0 / fps) * 1000;
 
-	while (!quit) {
+	while (ctx->thread_running) {
 		switch (ctx->video_status) {
 		case UNINITIALIZED:
-			LOG_INFO("exit thread\n");
-			quit = true;
-			break;
+			LOG_ERROR("video player uninitialized, exit thread\n");
+			return NULL;
 		case PAUSE:
 			usleep(300 * 1000);
 			break;
@@ -718,6 +712,8 @@ static void *video_player_loop(void *p) {
 					rkdemuxer_seek_video_pts(ctx->demuxer_handle, 0);
 					ctx->video_current_pts = 0;
 					ctx->video_status = PAUSE;
+				} else {
+					ctx->video_current_pts = packet.s64Pts;
 				}
 			}
 			pthread_mutex_unlock(&ctx->mutex);
@@ -741,24 +737,23 @@ static void *video_player_loop(void *p) {
 			}
 		}
 	}
+	LOG_INFO("exit thread\n");
 	return NULL;
 }
 
 static void *audio_player_loop(void *p) {
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)p;
 	int ret = 0;
-	bool quit = false;
 	DemuxerPacket packet;
 	struct timespec start_time, end_time;
 
 	prctl(PR_SET_NAME, "audio_player_loop", 0, 0, 0);
 	LOG_INFO("enter thread\n");
 
-	while (!quit) {
+	while (ctx->thread_running) {
 		switch (ctx->audio_status) {
 		case UNINITIALIZED:
-			LOG_INFO("exit thread\n");
-			quit = true;
+			LOG_ERROR("audio player uninitialized, exit thread\n");
 			return NULL;
 		case PAUSE:
 			usleep(300 * 1000);
@@ -771,11 +766,13 @@ static void *audio_player_loop(void *p) {
 				LOG_ERROR("rkdemuxer_read_one_audio_packet failed\n");
 				ctx->audio_status = PAUSE;
 			} else {
-				if (packet.s8EofFlag) {
+				if (packet.s8EofFlag && packet.s32PacketSize == 0) {
 					LOG_INFO("reach EOS, stop play and reset file position\n");
 					rkdemuxer_seek_audio_pts(ctx->demuxer_handle, 0);
 					ctx->audio_current_pts = 0;
 					ctx->audio_status = PAUSE;
+				} else {
+					ctx->audio_current_pts = packet.s64Pts;
 				}
 			}
 			pthread_mutex_unlock(&ctx->mutex);
@@ -787,8 +784,21 @@ static void *audio_player_loop(void *p) {
 				// INFO: avoid multiple processing
 				else if (packet.s8EofFlag && !ctx->enable_video)
 					ctx->event_cb(RK_PLAYER_EOF);
+			if (ctx->enable_video && (ctx->audio_current_pts > ctx->video_current_pts)) {
+				// INFO:
+				// Not do sync between audio and video in rkipc, if you need sync video and audio frame
+				//, you can refer to RKADK.
+				int64_t diff_time = ctx->audio_current_pts - ctx->video_current_pts;
+				int64_t frame_time = 33 * 1000; // 30 fps
+				int64_t sleep_time = (diff_time > frame_time * 4) ? frame_time * 4 : diff_time;
+				if (diff_time > frame_time) {
+					LOG_DEBUG("diff time %lld us, sleep time\n", diff_time, sleep_time);
+					usleep(sleep_time);
+				}
+			}
 		}
 	}
+	LOG_INFO("exit thread\n");
 	return NULL;
 }
 
@@ -862,8 +872,8 @@ static int read_duration_unlocked(PLAYER_CTX_S *ctx, const char *input_file_path
 	memset(&stDemuxerInput, 0, sizeof(DemuxerInput));
 	stDemuxerInput.ptr = (void *)ctx;
 	stDemuxerInput.s8ReadModeFlag = true;
-	stDemuxerInput.s8VideoEnableFlag = ctx->enable_video;
-	stDemuxerInput.s8AudioEnableFlag = ctx->enable_audio;
+	stDemuxerInput.s8VideoEnableFlag = true;
+	stDemuxerInput.s8AudioEnableFlag = true;
 	ret = rkdemuxer_init(&tmp_handle, &stDemuxerInput);
 	if (ret) {
 		LOG_ERROR("rkdemuxer init failed\n");
@@ -882,12 +892,12 @@ static int read_duration_unlocked(PLAYER_CTX_S *ctx, const char *input_file_path
 	if (tmp_param.pVideoCodec) {
 		rkdemuxer_read_video_duration(tmp_handle, &duration);
 		ctx->video_total_duraion = duration;
-		LOG_INFO("get video duration %lld\n", duration);
+		LOG_DEBUG("get video duration %lld\n", duration);
 	}
 	if (tmp_param.pAudioCodec) {
 		rkdemuxer_read_audio_duration(tmp_handle, &duration);
 		ctx->audio_total_duraion = duration;
-		LOG_INFO("get audio duration %lld\n", duration);
+		LOG_DEBUG("get audio duration %lld\n", duration);
 	}
 	rkdemuxer_deinit(&tmp_handle);
 	return 0;
@@ -909,8 +919,8 @@ static int set_record_file_unlocked(PLAYER_CTX_S *ctx, const char *input_file_pa
 	memset(&stDemuxerInput, 0, sizeof(DemuxerInput));
 	stDemuxerInput.ptr = (void *)ctx;
 	stDemuxerInput.s8ReadModeFlag = true;
-	stDemuxerInput.s8VideoEnableFlag = ctx->enable_video;
-	stDemuxerInput.s8AudioEnableFlag = ctx->enable_audio;
+	stDemuxerInput.s8VideoEnableFlag = true;
+	stDemuxerInput.s8AudioEnableFlag = true;
 	ret = rkdemuxer_init(&ctx->demuxer_handle, &stDemuxerInput);
 	if (ret) {
 		LOG_ERROR("rkdemuxer init failed\n");
@@ -938,48 +948,34 @@ static int set_record_file_unlocked(PLAYER_CTX_S *ctx, const char *input_file_pa
 	         ctx->demuxer_param.s32AudioSampleRate, ctx->demuxer_param.s64AudioFirstPTS,
 	         ctx->demuxer_param.s32AudioTimeBaseNum, ctx->demuxer_param.s32AudioTimeBaseDen);
 
-	if (ctx->enable_video && ctx->demuxer_param.pVideoCodec) {
-		ctx->video_status = PAUSE;
-		pthread_create(&ctx->video_player_thread_id, NULL, video_player_loop, (void *)ctx);
-	}
-	if (ctx->enable_audio && ctx->demuxer_param.pAudioCodec) {
-		ctx->audio_status = PAUSE;
-		pthread_create(&ctx->audio_player_thread_id, NULL, audio_player_loop, (void *)ctx);
-	}
+	ctx->enable_audio = (ctx->demuxer_param.pAudioCodec != NULL) ? true : false;
+	ctx->enable_video = (ctx->demuxer_param.pVideoCodec != NULL) ? true : false;
 	return 0;
 }
 
 static int remove_record_file_unlocked(PLAYER_CTX_S *ctx) {
 	if (ctx->video_status == UNINITIALIZED && ctx->audio_status == UNINITIALIZED)
 		return 0;
-	ctx->video_status = UNINITIALIZED;
-	ctx->audio_status = UNINITIALIZED;
+	LOG_DEBUG("remove record file %s\n", ctx->input_file_path);
 	ctx->video_total_duraion = 0;
 	ctx->audio_total_duraion = 0;
-	if (ctx->enable_video)
-		pthread_join(ctx->video_player_thread_id, NULL);
-	if (ctx->enable_audio)
-		pthread_join(ctx->audio_player_thread_id, NULL);
 	rkdemuxer_deinit(&ctx->demuxer_handle);
+	ctx->video_status = UNINITIALIZED;
+	ctx->audio_status = UNINITIALIZED;
+	ctx->enable_audio = false;
+	ctx->enable_video = false;
 	return 0;
 }
 
 int rk_player_create(RK_PLAYER_CONFIG_S *config) {
 	LOG_INFO("enter\n");
 	RKIPC_CHECK_POINTER(config, -1);
-	if (!config->enable_audio && !config->enable_video) {
-		LOG_ERROR("bad config parameter!\n");
-		return -1;
-	}
-
 	PLAYER_CTX_S *ctx = malloc(sizeof(PLAYER_CTX_S));
 	if (!ctx) {
 		LOG_ERROR("malloc failed\n");
 		return -1;
 	}
 	memset(ctx, 0, sizeof(PLAYER_CTX_S));
-	ctx->enable_video = config->enable_video;
-	ctx->enable_audio = config->enable_audio;
 	ctx->event_cb = config->event_cb;
 	config->ctx = ctx;
 	pthread_mutex_init(&ctx->mutex, NULL);
@@ -988,7 +984,7 @@ int rk_player_create(RK_PLAYER_CONFIG_S *config) {
 
 int rk_player_set_file(RK_PLAYER_CONFIG_S *config, const char *input_file_path) {
 	int ret = 0;
-	LOG_INFO("enter\n");
+	LOG_INFO("set file %s\n", input_file_path);
 	RKIPC_CHECK_POINTER(config, -1);
 	RKIPC_CHECK_POINTER(input_file_path, -1);
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
@@ -997,6 +993,11 @@ int rk_player_set_file(RK_PLAYER_CONFIG_S *config, const char *input_file_path) 
 		LOG_ERROR("can't access file %s\n", input_file_path);
 		return -1;
 	}
+	ctx->thread_running = false;
+	if (ctx->enable_video)
+		pthread_join(ctx->video_player_thread_id, NULL);
+	if (ctx->enable_audio)
+		pthread_join(ctx->audio_player_thread_id, NULL);
 	pthread_mutex_lock(&ctx->mutex);
 	destroy_media_pipe_unlocked(ctx);
 	remove_record_file_unlocked(ctx);
@@ -1010,6 +1011,16 @@ int rk_player_set_file(RK_PLAYER_CONFIG_S *config, const char *input_file_path) 
 	if (ret != 0) {
 		LOG_ERROR("initialize failed\n");
 		goto __unlock;
+	}
+	if (ctx->enable_video) {
+		ctx->video_status = PAUSE;
+		ctx->thread_running = true;
+		pthread_create(&ctx->video_player_thread_id, NULL, video_player_loop, (void *)ctx);
+	}
+	if (ctx->enable_audio) {
+		ctx->audio_status = PAUSE;
+		ctx->thread_running = true;
+		pthread_create(&ctx->audio_player_thread_id, NULL, audio_player_loop, (void *)ctx);
 	}
 __unlock:
 	pthread_mutex_unlock(&ctx->mutex);
@@ -1112,9 +1123,14 @@ int rk_player_destroy(RK_PLAYER_CONFIG_S *config) {
 	RKIPC_CHECK_POINTER(config, -1);
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
 	RKIPC_CHECK_POINTER(ctx, -1);
+	ctx->thread_running = false;
+	if (ctx->enable_video)
+		pthread_join(ctx->video_player_thread_id, NULL);
+	if (ctx->enable_audio)
+		pthread_join(ctx->audio_player_thread_id, NULL);
 	pthread_mutex_lock(&ctx->mutex);
-	remove_record_file_unlocked(ctx);
 	destroy_media_pipe_unlocked(ctx);
+	remove_record_file_unlocked(ctx);
 	pthread_mutex_unlock(&ctx->mutex);
 	pthread_mutex_destroy(&ctx->mutex);
 	free(ctx);
@@ -1124,60 +1140,49 @@ int rk_player_destroy(RK_PLAYER_CONFIG_S *config) {
 
 int rk_player_video_seek(RK_PLAYER_CONFIG_S *config, uint64_t time_ms) {
 	int ret = 0;
-	LOG_INFO("enter\n");
 	RKIPC_CHECK_POINTER(config, -1);
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
 	RKIPC_CHECK_POINTER(ctx, -1);
+	if (time_ms < 0 || time_ms > ctx->video_total_duraion / 1000) {
+		LOG_ERROR("invalid time_ms %llu\n", time_ms);
+		return -1;
+	}
 	pthread_mutex_lock(&ctx->mutex);
 	if (ctx->enable_video) {
 		if (ctx->video_status == UNINITIALIZED) {
 			ret = -1;
 			LOG_ERROR("change video_status in a uninitialized player!\n");
-		} else if (ctx->video_status == RUNNING) {
-			// TODO: need modified postion in runtime
-			ret = -1;
-			LOG_ERROR("need to pause player before seek!\n");
 		} else {
-			ctx->video_status = PAUSE;
 			ret = rkdemuxer_seek_video_pts(ctx->demuxer_handle, time_ms * 1000);
-			if (ret) {
-				LOG_ERROR("seek video pts 0 failed\n");
-				ctx->video_status = PAUSE;
-			} else {
-				ctx->video_current_pts = time_ms * 1000;
-			}
+			ctx->video_status = RUNNING;
 		}
 	}
 	pthread_mutex_unlock(&ctx->mutex);
+	LOG_DEBUG("seek video to %llu ms\n", time_ms);
 	return ret;
 }
 
 int rk_player_audio_seek(RK_PLAYER_CONFIG_S *config, uint64_t time_ms) {
 	int ret = 0;
-	LOG_INFO("enter\n");
 	RKIPC_CHECK_POINTER(config, -1);
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
 	RKIPC_CHECK_POINTER(ctx, -1);
+	if (time_ms < 0 || time_ms > ctx->video_total_duraion / 1000) {
+		LOG_ERROR("invalid time_ms %llu\n", time_ms);
+		return -1;
+	}
 	pthread_mutex_lock(&ctx->mutex);
 	if (ctx->enable_audio) {
 		if (ctx->audio_status == UNINITIALIZED) {
 			ret = -1;
 			LOG_ERROR("change audio_status in a uninitialized player!\n");
-		} else if (ctx->audio_status == RUNNING) {
-			ret = -1;
-			LOG_ERROR("need to pause player before seek!\n");
 		} else {
-			ctx->audio_status = PAUSE;
 			ret = rkdemuxer_seek_audio_pts(ctx->demuxer_handle, time_ms * 1000);
-			if (ret) {
-				LOG_ERROR("seek audio pts 0 failed\n");
-				ctx->audio_status = PAUSE;
-			} else {
-				ctx->audio_current_pts = time_ms * 1000;
-			}
+			ctx->audio_status = RUNNING;
 		}
 	}
 	pthread_mutex_unlock(&ctx->mutex);
+	LOG_DEBUG("seek audio to %llu ms\n", time_ms);
 	return ret;
 }
 
@@ -1191,12 +1196,12 @@ int rk_player_get_video_duration(RK_PLAYER_CONFIG_S *config, uint32_t *duration)
 	pthread_mutex_lock(&ctx->mutex);
 	*duration = (uint32_t)ctx->video_total_duraion / 1000;
 	pthread_mutex_unlock(&ctx->mutex);
+	LOG_DEBUG("get video duration %u ms\n", *duration);
 	return 0;
 }
 
 int rk_player_get_audio_duration(RK_PLAYER_CONFIG_S *config, uint32_t *duration) {
 	int ret = 0;
-	LOG_INFO("enter\n");
 	RKIPC_CHECK_POINTER(config, -1);
 	RKIPC_CHECK_POINTER(duration, -1);
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
@@ -1204,12 +1209,12 @@ int rk_player_get_audio_duration(RK_PLAYER_CONFIG_S *config, uint32_t *duration)
 	pthread_mutex_lock(&ctx->mutex);
 	*duration = (uint32_t)ctx->audio_total_duraion / 1000;
 	pthread_mutex_unlock(&ctx->mutex);
+	LOG_DEBUG("get audio duration %u ms\n", *duration);
 	return 0;
 }
 
 int rk_player_get_video_position(RK_PLAYER_CONFIG_S *config, uint32_t *position) {
 	int ret = 0;
-	LOG_INFO("enter\n");
 	RKIPC_CHECK_POINTER(config, -1);
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
 	RKIPC_CHECK_POINTER(ctx, -1);
@@ -1217,12 +1222,12 @@ int rk_player_get_video_position(RK_PLAYER_CONFIG_S *config, uint32_t *position)
 	if (ctx->enable_video)
 		*position = (ctx->video_current_pts / 1000);
 	pthread_mutex_unlock(&ctx->mutex);
+	LOG_DEBUG("get video position %u ms\n", *position);
 	return 0;
 }
 
 int rk_player_get_audio_position(RK_PLAYER_CONFIG_S *config, uint32_t *position) {
 	int ret = 0;
-	LOG_INFO("enter\n");
 	RKIPC_CHECK_POINTER(config, -1);
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
 	RKIPC_CHECK_POINTER(ctx, -1);
@@ -1230,6 +1235,7 @@ int rk_player_get_audio_position(RK_PLAYER_CONFIG_S *config, uint32_t *position)
 	if (ctx->enable_audio)
 		*position = (ctx->audio_current_pts / 1000);
 	pthread_mutex_unlock(&ctx->mutex);
+	LOG_DEBUG("get audio position %u ms\n", *position);
 	return 0;
 }
 

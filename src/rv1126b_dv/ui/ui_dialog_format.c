@@ -243,7 +243,7 @@ void ui_format_dialog_destory() {
 		format_group = NULL;
 	}
 	if (format_obj) {
-		ui_common_remove_stype_all(format_obj);
+		ui_common_remove_style_all(format_obj);
 		lv_obj_del(format_obj);
 		format_obj = NULL;
 	}

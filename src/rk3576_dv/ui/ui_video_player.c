@@ -374,31 +374,31 @@ static void video_player_destroy_ctrl(void) {
 	}
 
 	if (player_ctx.top_bar_obj) {
-		ui_common_remove_stype_all(player_ctx.top_bar_obj);
+		ui_common_remove_style_all(player_ctx.top_bar_obj);
 		lv_obj_del(player_ctx.top_bar_obj);
 		player_ctx.top_bar_obj = NULL;
 	}
 
 	if (player_ctx.slider_obj) {
-		ui_common_remove_stype_all(player_ctx.slider_obj);
+		ui_common_remove_style_all(player_ctx.slider_obj);
 		lv_obj_del(player_ctx.slider_obj);
 		player_ctx.slider_obj = NULL;
 	}
 
 	if (player_ctx.cur_time_obj) {
-		ui_common_remove_stype_all(player_ctx.cur_time_obj);
+		ui_common_remove_style_all(player_ctx.cur_time_obj);
 		lv_obj_del(player_ctx.cur_time_obj);
 		player_ctx.cur_time_obj = NULL;
 	}
 
 	if (player_ctx.total_time_obj) {
-		ui_common_remove_stype_all(player_ctx.total_time_obj);
+		ui_common_remove_style_all(player_ctx.total_time_obj);
 		lv_obj_del(player_ctx.total_time_obj);
 		player_ctx.total_time_obj = NULL;
 	}
 
 	if (player_ctx.play_obj) {
-		ui_common_remove_stype_all(player_ctx.play_obj);
+		ui_common_remove_style_all(player_ctx.play_obj);
 		lv_obj_del(player_ctx.play_obj);
 		player_ctx.play_obj = NULL;
 	}

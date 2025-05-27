@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-void ui_common_remove_stype_all(lv_obj_t *obj);
+void ui_common_remove_style_all(lv_obj_t *obj);
 int32_t ui_common_set_screen_brightness(uint32_t brightness);
 
 #ifdef __cplusplus

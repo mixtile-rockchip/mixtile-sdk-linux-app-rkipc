@@ -253,27 +253,27 @@ static void photo_player_create_ctrl(lv_obj_t *page_obj) {
 
 static void photo_player_destroy_ctrl(void) {
 	if (photo_player_ctx.esc_obj) {
-		ui_common_remove_stype_all(photo_player_ctx.esc_obj);
+		ui_common_remove_style_all(photo_player_ctx.esc_obj);
 		lv_obj_del(photo_player_ctx.esc_obj);
 		photo_player_ctx.esc_obj = NULL;
 	}
 	if (photo_player_ctx.prev_obj) {
-		ui_common_remove_stype_all(photo_player_ctx.prev_obj);
+		ui_common_remove_style_all(photo_player_ctx.prev_obj);
 		lv_obj_del(photo_player_ctx.prev_obj);
 		photo_player_ctx.prev_obj = NULL;
 	}
 	if (photo_player_ctx.next_obj) {
-		ui_common_remove_stype_all(photo_player_ctx.next_obj);
+		ui_common_remove_style_all(photo_player_ctx.next_obj);
 		lv_obj_del(photo_player_ctx.next_obj);
 		photo_player_ctx.next_obj = NULL;
 	}
 	if (photo_player_ctx.name_obj) {
-		ui_common_remove_stype_all(photo_player_ctx.name_obj);
+		ui_common_remove_style_all(photo_player_ctx.name_obj);
 		lv_obj_del(photo_player_ctx.name_obj);
 		photo_player_ctx.name_obj = NULL;
 	}
 	if (photo_player_ctx.img_obj) {
-		ui_common_remove_stype_all(photo_player_ctx.img_obj);
+		ui_common_remove_style_all(photo_player_ctx.img_obj);
 		lv_obj_del(photo_player_ctx.img_obj);
 		photo_player_ctx.img_obj = NULL;
 	}

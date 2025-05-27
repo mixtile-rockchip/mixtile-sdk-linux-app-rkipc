@@ -205,19 +205,19 @@ static void main_view_destroy_ctrl(void) {
 		main_view_ctrl.timer = NULL;
 	}
 	if (main_view_ctrl.bg_obj) {
-		ui_common_remove_stype_all(main_view_ctrl.bg_obj);
+		ui_common_remove_style_all(main_view_ctrl.bg_obj);
 		lv_obj_del(main_view_ctrl.bg_obj);
 		main_view_ctrl.bg_obj = NULL;
 	}
 
 	if (main_view_ctrl.status_bar) {
-		ui_common_remove_stype_all(main_view_ctrl.status_bar);
+		ui_common_remove_style_all(main_view_ctrl.status_bar);
 		lv_obj_del(main_view_ctrl.status_bar);
 		main_view_ctrl.status_bar = NULL;
 	}
 
 	if (main_view_ctrl.menu_bar) {
-		ui_common_remove_stype_all(main_view_ctrl.menu_bar);
+		ui_common_remove_style_all(main_view_ctrl.menu_bar);
 		lv_obj_del(main_view_ctrl.menu_bar);
 		main_view_ctrl.menu_bar = NULL;
 	}

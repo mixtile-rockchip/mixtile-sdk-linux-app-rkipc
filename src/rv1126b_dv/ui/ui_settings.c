@@ -474,47 +474,47 @@ static void setting_set_text() {
 
 static void setting_destroy_ctrl(void) {
 	if (NULL != settings_ctrl.mode_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.mode_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.mode_imgbtn_obj);
 		lv_obj_del(settings_ctrl.mode_imgbtn_obj);
 		settings_ctrl.mode_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.video_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.video_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.video_imgbtn_obj);
 		lv_obj_del(settings_ctrl.video_imgbtn_obj);
 		settings_ctrl.video_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.audio_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.audio_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.audio_imgbtn_obj);
 		lv_obj_del(settings_ctrl.audio_imgbtn_obj);
 		settings_ctrl.audio_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.set_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.set_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.set_imgbtn_obj);
 		lv_obj_del(settings_ctrl.set_imgbtn_obj);
 		settings_ctrl.set_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.store_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.store_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.store_imgbtn_obj);
 		lv_obj_del(settings_ctrl.store_imgbtn_obj);
 		settings_ctrl.exit_obj = NULL;
 	}
 	if (NULL != settings_ctrl.format_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.format_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.format_imgbtn_obj);
 		lv_obj_del(settings_ctrl.format_imgbtn_obj);
 		settings_ctrl.format_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.test_imgbtn_obj) {
-		ui_common_remove_stype_all(settings_ctrl.test_imgbtn_obj);
+		ui_common_remove_style_all(settings_ctrl.test_imgbtn_obj);
 		lv_obj_del(settings_ctrl.test_imgbtn_obj);
 		settings_ctrl.test_imgbtn_obj = NULL;
 	}
 	if (NULL != settings_ctrl.exit_obj) {
-		ui_common_remove_stype_all(settings_ctrl.exit_obj);
+		ui_common_remove_style_all(settings_ctrl.exit_obj);
 		lv_obj_del(settings_ctrl.exit_obj);
 		settings_ctrl.exit_obj = NULL;
 	}
 	if (NULL != settings_ctrl.container_obj) {
-		ui_common_remove_stype_all(settings_ctrl.container_obj);
+		ui_common_remove_style_all(settings_ctrl.container_obj);
 		lv_obj_del(settings_ctrl.container_obj);
 		settings_ctrl.container_obj = NULL;
 	}
