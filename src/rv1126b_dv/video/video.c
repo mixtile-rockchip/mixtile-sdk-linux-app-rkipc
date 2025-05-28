@@ -20,6 +20,8 @@
 
 #define ENABLE_HW_VPSS 1
 
+#define IIO_IMU_DEVICE_NO 1
+
 #define VI_DEV 0
 #ifdef ENABLE_HW_VPSS
 #define VI_MAIN_CHN 2
@@ -743,6 +745,7 @@ static int gdc_display_init(void) {
 	gdc_attr.s32DstHeight = display_height;
 	gdc_attr.enDstPixelFormat = RK_FMT_YUV420SP;
 	gdc_attr.enDstCompMode = COMPRESS_MODE_NONE;
+	gdc_attr.stEisAttr.s32DevNo = IIO_IMU_DEVICE_NO;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
 	if (rk_mode_param.eis_mode == RK_HORIZON_STEADY) {
 		LOG_ERROR("ERROR: horizon steady is not support now!\n");
@@ -803,6 +806,7 @@ static int gdc_record_init(void) {
 		gdc_attr.enDstCompMode = COMPRESS_MODE_NONE;
 	}
 	gdc_attr.enDstPixelFormat = RK_FMT_YUV420SP;
+	gdc_attr.stEisAttr.s32DevNo = IIO_IMU_DEVICE_NO;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
 	if (rk_mode_param.eis_mode == RK_HORIZON_STEADY) {
 		LOG_ERROR("ERROR: horizon steady is not support now!\n");
@@ -869,6 +873,7 @@ static int gdc_dummy_init(void) {
 	gdc_attr.s32DstHeight = height;
 	gdc_attr.enDstPixelFormat = RK_FMT_YUV420SP;
 	gdc_attr.enDstCompMode = COMPRESS_MODE_NONE;
+	gdc_attr.stEisAttr.s32DevNo = IIO_IMU_DEVICE_NO;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
 	GDC_INFO_CB_S gdc_info_cb = {};
 	gdc_info_cb.pfnSensorCB = gdc_aiq_imu_callback;
