@@ -256,6 +256,7 @@ static void *normal_video_loop(void *arg) {
 		free(video_stream.pstPack);
 	if (fp)
 		fclose(fp);
+	sync();
 	LOG_INFO("exit\n");
 
 	return 0;
@@ -309,6 +310,7 @@ static void *slow_motion_loop(void *arg) {
 		free(video_stream.pstPack);
 	if (fp)
 		fclose(fp);
+	sync();
 	LOG_INFO("exit\n");
 	return 0;
 }
@@ -372,6 +374,7 @@ static void *time_lapse_loop(void *arg) {
 		free(video_stream.pstPack);
 	if (fp)
 		fclose(fp);
+	sync();
 	cost_time = rkipc_get_curren_time_ms() - before_time;
 	LOG_INFO("total record time %lld ms\n", cost_time);
 	LOG_INFO("exit\n");
@@ -449,6 +452,7 @@ static void *take_photo_loop(void *arg) {
 	}
 	if (video_stream.pstPack)
 		free(video_stream.pstPack);
+	sync();
 	LOG_INFO("exit\n");
 
 	return 0;
@@ -562,6 +566,11 @@ static int vi_chn_init(void) {
 	vi_chn_attr.u32Depth = rk_param_get_int("video.0:depth", 0);
 	if (rk_mode_param.eis_mode != RK_EIS_OFF)
 		vi_chn_attr.stIspOpt.bAttchFrmInfo = true;
+	if (rk_mode_param.mode == RK_PHOTO_MODE) {
+		int snapshot_interval_ms = rk_param_get_int("video.jpeg:snapshot_interval_ms", 100);
+		vi_chn_attr.stFrameRate.s32SrcFrameRate = rk_param_get_int("isp.0.adjustment:fps", 30);
+		vi_chn_attr.stFrameRate.s32DstFrameRate = 1000 / snapshot_interval_ms;
+	}
 	ret = RK_MPI_VI_SetChnAttr(VI_DEV, VI_MAIN_CHN, &vi_chn_attr);
 	ret |= RK_MPI_VI_EnableChn(VI_DEV, VI_MAIN_CHN);
 	if (ret) {
