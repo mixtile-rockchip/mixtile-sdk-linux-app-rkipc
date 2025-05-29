@@ -45,6 +45,8 @@ network_init()
 		echo $ethaddr1 > /data/ethaddr.txt
 	fi
 	ifconfig eth0 up && udhcpc -i eth0
+	ifconfig lo up
+	ifconfig lo 127.0.0.1
 }
 
 post_chk()
@@ -118,18 +120,17 @@ post_chk()
 		cp -fa /oem/usr/share/image.bmp /userdata/
 	fi
 
-	# swap sdi0 and sdi1
-	rk_mpi_amix_test --control "SAI2 Receive PATH0 Source Select" --value "From SDI1"
-	rk_mpi_amix_test --control "SAI2 Receive PATH1 Source Select" --value "From SDI0"
-
-	if [ -f "/oem/usr/share/speaker_test.wav" ];then
-		rk_mpi_ao_test -i /oem/usr/share/speaker_test.wav --sound_card_name=default --device_ch=2 --device_rate=8000 --input_rate=8000 --input_ch=2 --set_volume 50
-	fi
-
 	if [ -d "/oem/usr/share/iqfiles" ];then
 		rkipc -a /oem/usr/share/iqfiles &
 	else
 		rkipc &
+	fi
+
+	# swap sdi0 and sdi1
+	rk_mpi_amix_test --control "SAI2 Receive PATH0 Source Select" --value "From SDI1"
+	rk_mpi_amix_test --control "SAI2 Receive PATH1 Source Select" --value "From SDI0"
+	if [ -f "/oem/usr/share/speaker_test.wav" ];then
+		rk_mpi_ao_test -i /oem/usr/share/speaker_test.wav --sound_card_name=default --device_ch=2 --device_rate=8000 --input_rate=8000 --input_ch=2 --set_volume 50
 	fi
 }
 

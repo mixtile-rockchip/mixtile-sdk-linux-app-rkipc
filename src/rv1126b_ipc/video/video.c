@@ -3156,15 +3156,13 @@ int rk_video_init() {
 	LOG_INFO("g_vi_chn_id is %d, g_enable_vo is %d, g_vo_dev_id is %d, g_vo_layer_id is %d\n",
 	         g_vi_chn_id, g_enable_vo, g_vo_dev_id, g_vo_layer_id);
 	g_video_run_ = 1;
-	if (enable_rtsp)
-		ret |= rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
-	if (enable_rtmp)
-		ret |= rkipc_rtmp_init();
 	ret |= rkipc_vi_dev_init();
 	if (enable_fec)
 		ret |= rkipc_vi_gdc_vpss_init();
 	else
 		ret |= rkipc_vi_ext_init();
+	if (g_enable_vo)
+		ret |= rkipc_pipe_vi_vo_init();
 	if (enable_venc_0)
 		ret |= rkipc_pipe_0_init();
 	if (enable_venc_1)
@@ -3174,14 +3172,18 @@ int rk_video_init() {
 	if (enable_npu || enable_ivs) {
 		ret |= rkipc_pipe_npu_ivs_init();
 	}
-	if (g_enable_vo)
-		ret |= rkipc_pipe_vi_vo_init();
 	if (enable_osd)
 		ret |= rkipc_osd_init();
 	rk_roi_set_callback_register(rk_roi_set);
 	rk_roi_set_all();
 	rk_region_clip_set_callback_register(rk_region_clip_set);
 	rk_region_clip_set_all();
+	if (enable_rtsp)
+		ret |= rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
+	if (enable_rtmp) {
+		sleep(3); // wait for fcgi and nginx
+		ret |= rkipc_rtmp_init();
+	}
 	LOG_INFO("over\n");
 
 	return ret;

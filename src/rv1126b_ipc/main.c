@@ -26,7 +26,7 @@
 enum { LOG_ERROR, LOG_WARN, LOG_INFO, LOG_DEBUG };
 
 int enable_minilog = 0;
-int rkipc_log_level = LOG_DEBUG;
+int rkipc_log_level = LOG_INFO;
 int rkipc_camera_id_ = 0;
 
 static int g_main_run_ = 1;
@@ -175,10 +175,6 @@ int main(int argc, char **argv) {
 
 	// init
 	rk_param_init(rkipc_ini_path_);
-	rk_network_init(NULL);
-	rk_system_init();
-	if (rk_param_get_int("video.source:enable_npu", 0))
-		rkipc_rockiva_init();
 	rkipc_camera_id_ = rk_param_get_int("video.source:camera_id", 0); // need rk_param_init
 	rk_isp_init(rkipc_camera_id_, rkipc_iq_file_path_);
 	RK_MPI_SYS_Init();
@@ -188,6 +184,11 @@ int main(int argc, char **argv) {
 	rkipc_server_init();
 	rk_storage_init();
 	pthread_create(&key_chk, NULL, wait_key_event, NULL);
+
+	rk_network_init(NULL);
+	rk_system_init();
+	if (rk_param_get_int("video.source:enable_npu", 0))
+		rkipc_rockiva_init();
 
 	char usb_config_cmd[128];
 	const char *output_data_type = rk_param_get_string("video.0:output_data_type", "H.264");
