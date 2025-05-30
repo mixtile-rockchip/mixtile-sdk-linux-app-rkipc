@@ -17,6 +17,7 @@
 #include <rk_debug.h>
 #include <rk_mpi_avs.h>
 #include <rk_mpi_cal.h>
+#include <rk_mpi_gdc.h>
 #include <rk_mpi_ivs.h>
 #include <rk_mpi_mb.h>
 #include <rk_mpi_mmz.h>
