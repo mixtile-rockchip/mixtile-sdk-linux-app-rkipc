@@ -209,15 +209,34 @@ static void test_timer_func(lv_timer_t *timer) {
 	}
 }
 
-static int format_storage() {
-	int ret = 0;
-	ret |= rk_storage_deinit();
-	ret |= rk_storage_format();
-	ret |= rk_storage_init();
-	if (ret != 0) {
-		LOG_ERROR("format storage failed, ret %#X\n", ret);
+static int clean_directory(const char* dir_name, bool need_del_self) {
+	DIR *dir = opendir(dir_name);
+	if (dir == NULL) {
+		LOG_ERROR("open directory %s failed\n", dir_name);
+		return -1;
 	}
-	return ret;
+
+	struct dirent *entry;
+	while ((entry = readdir(dir)) != NULL) {
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+			continue;
+
+		char file_path[512];
+		snprintf(file_path, sizeof(file_path), "%s/%s", dir_name, entry->d_name);
+
+		if (entry->d_type == DT_DIR) {
+			clean_directory(file_path, true);
+		} else {
+			unlink(file_path);
+		}
+	}
+
+	closedir(dir);
+
+	if (need_del_self) {
+		rmdir(dir_name);
+	}
+	return 0;
 }
 
 static void video_test_routine(int fd) {
@@ -253,18 +272,7 @@ static void video_test_routine(int fd) {
 			continue;
 		}
 		if (i > 0 && (i % 100) == 0) {
-			ret = format_storage();
-			if (ret != 0) {
-				++test_total_fail_count;
-				++fail_count;
-				memset(msg, 0, sizeof(msg));
-				len = snprintf(msg, sizeof(msg), "[VIDEO TEST] loop %d failed, format storage failed %#X\n"
-						, i, ret);
-				write(fd, msg, len);
-				fsync(fd);
-				continue;
-			}
-			LOG_ERROR("[VIDEO TEST] loop %d test failed, format storage failed %#X\n", i, ret);
+			clean_directory("/mnt/sdcard/video0", false);
 		}
 		++test_total_success_count;
 		++success_count;
@@ -275,7 +283,7 @@ static void video_test_routine(int fd) {
 		, success_count, fail_count);
 	write(fd, msg, len);
 	fsync(fd);
-	format_storage();
+	clean_directory("/mnt/sdcard/video0", false);
 }
 
 static void photo_test_routine(int fd) {
@@ -314,18 +322,7 @@ static void photo_test_routine(int fd) {
 			continue;
 		}
 		if (i > 0 && (i % 500) == 0) {
-			ret = format_storage();
-			if (ret != 0) {
-				++test_total_fail_count;
-				++fail_count;
-				memset(msg, 0, sizeof(msg));
-				len = snprintf(msg, sizeof(msg), "[PHOTO TEST] loop %d failed, format storage failed %#X\n"
-						, i, ret);
-				write(fd, msg, len);
-				fsync(fd);
-				continue;
-				LOG_ERROR("[PHOTO TEST] loop %d test failed, format storage failed %#X\n", i, ret);
-			}
+			clean_directory("/mnt/sdcard/photo", false);
 		}
 		++test_total_success_count;
 		++success_count;
@@ -336,7 +333,7 @@ static void photo_test_routine(int fd) {
 		, success_count, fail_count);
 	write(fd, msg, len);
 	fsync(fd);
-	format_storage();
+	clean_directory("/mnt/sdcard/photo", false);
 }
 
 static void restart_test_routine(int fd) {
@@ -399,12 +396,15 @@ static void mode_switch_test_routine(int fd) {
 static void player_test_routine(int fd) {
 	int count = rk_param_get_int("auto_test:player_test_loop_count", 30);
 	int ret = 0, len = 0, success_count = 0, fail_count = 0;
+	int origin_show_priority = rk_param_get_int("display:play_chn_priority", 2);
 	const char *file_path = rk_param_get_string("auto_test:player_test_file_path", NULL);
 	char msg[256] = {'\0'};
 	if (!file_path) {
 		LOG_ERROR("[PLAYER TEST] file path is NULL, please set auto_test:player_test_file_path\n");
 		return ;
 	}
+	// INFO: Just for test, make sure the player channel has the highest priority
+	rk_param_set_int("display:play_chn_priority", 5);
 	for (int i = 0; i < count; i++) {
 		RK_PLAYER_CONFIG_S config = {};
 		uint32_t duration = 0, seek_time = 0;
@@ -475,6 +475,7 @@ static void player_test_routine(int fd) {
 		, success_count, fail_count);
 	write(fd, msg, len);
 	fsync(fd);
+	rk_param_set_int("display:play_chn_priority", origin_show_priority);
 }
 
 static void sleep_test_routine(int fd) {

@@ -434,7 +434,6 @@ static void video_player_delete_indev(void) {
 
 static void video_player_page_create(lv_obj_t *page_obj) {
 	LOG_INFO("enter\n");
-	RK_MPI_VO_SetLayerFlush(rk_param_get_int("display:layer_id", 0));
 	video_player_param_init(page_obj);
 	video_player_create_ctrl(page_obj);
 	video_player_layout_ctrl(page_obj);
@@ -456,7 +455,6 @@ static void video_player_page_exit(lv_obj_t *page_obj) {
 static void video_player_page_destroy(lv_obj_t *page_obj) {
 	LOG_INFO("enter\n");
 	video_player_destroy_ctrl();
-	RK_MPI_VO_SetLayerFlush(rk_param_get_int("display:layer_id", 0));
 }
 
 static UI_PAGE_HANDLER_T video_player_page = {.name = "video_player",

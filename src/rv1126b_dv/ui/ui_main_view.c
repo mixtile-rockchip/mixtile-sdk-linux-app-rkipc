@@ -407,7 +407,6 @@ static void main_view_delete_indev(void) {
 }
 
 static void main_view_page_enter(lv_obj_t *page_obj) {
-	RK_MPI_VO_SetLayerFlush(rk_param_get_int("display:layer_id", 0));
 	main_view_add_indev();
 }
 

@@ -475,6 +475,18 @@ void rk_disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *c
 	disp_dev.free_buf = disp_dev.active_buf;
 	disp_dev.active_buf = tmp;
 	lv_disp_flush_ready(disp_drv);
+	// INFO: Flush layer to make sure the display is updated.
+	if (rotation == ROTATION_0 || rotation == ROTATION_180) {
+		if (disp_dev.width == area_width &&
+		    disp_dev.height == area_height) {
+			RK_MPI_VO_SetLayerFlush(display_layer);
+		}
+	} else {
+		if (disp_dev.height == area_width &&
+		    disp_dev.width == area_height) {
+			RK_MPI_VO_SetLayerFlush(display_layer);
+		}
+	}
 }
 #endif // DRAW_USE_CPU
 
