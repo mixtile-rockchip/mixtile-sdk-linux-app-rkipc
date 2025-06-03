@@ -318,6 +318,7 @@ pre_run_adb()
 
 #init usb config
 ifconfig lo up   # for adb ok
+ifconfig lo 127.0.0.1
 umount /sys/kernel/config
 mkdir /dev/usb-ffs -m 0770
 mount -t configfs none /sys/kernel/config
