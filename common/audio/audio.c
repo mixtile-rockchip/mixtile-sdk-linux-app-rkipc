@@ -670,7 +670,11 @@ int rkipc_audio_player_send(uint8_t *data, uint32_t len, uint64_t pts) {
 		mb_ext_config.pOpaque = (void *)data;
 		mb_ext_config.pu8VirAddr = (RK_U8 *)data;
 		mb_ext_config.u64Size = len;
-		RK_MPI_SYS_CreateMB(&(audio_stream.pMbBlk), &mb_ext_config);
+		ret = RK_MPI_SYS_CreateMB(&(audio_stream.pMbBlk), &mb_ext_config);
+		if (ret != RK_SUCCESS) {
+			LOG_ERROR("create mb failed!\n");
+			return ret;
+		}
 
 		ret = RK_MPI_ADEC_SendStream(ADEC_CHN_ID, &audio_stream, RK_TRUE);
 		if (ret != RK_SUCCESS)

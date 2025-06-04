@@ -87,31 +87,31 @@ static int rkaudio_mp3_encoder_close(RK_VOID *pEncoder) {
 static int rkaudio_mp3_encoder_open(RK_VOID *pEncoderAttr, RK_VOID **ppEncoder) {
 	int bitrate = 0;
 	if (pEncoderAttr == NULL) {
-		LOG_ERROR("pEncoderAttr is NULL");
+		LOG_ERROR("pEncoderAttr is NULL\n");
 		return RK_FAILURE;
 	}
 
 	AENC_ATTR_CODEC_S *attr = (AENC_ATTR_CODEC_S *)pEncoderAttr;
 	if (attr->enType != RK_AUDIO_ID_MP3) {
-		LOG_ERROR("Invalid enType[%d]", attr->enType);
+		LOG_ERROR("Invalid enType[%d]\n", attr->enType);
 		return RK_FAILURE;
 	}
 
 	RK_AENC_MP3_CTX_S *ctx = (RK_AENC_MP3_CTX_S *)malloc(sizeof(RK_AENC_MP3_CTX_S));
 	if (!ctx) {
-		LOG_ERROR("malloc aenc mp3 ctx failed");
+		LOG_ERROR("malloc aenc mp3 ctx failed\n");
 		return RK_FAILURE;
 	}
 
 	memset(ctx, 0, sizeof(RK_AENC_MP3_CTX_S));
 	if (attr->u32Resv[0] > 1152) {
-		LOG_ERROR("error: MP3 FrameLength is too large, FrameLength = %d", attr->u32Resv[0]);
+		LOG_ERROR("error: MP3 FrameLength is too large, FrameLength = %d\n", attr->u32Resv[0]);
 		goto __FAILED;
 	}
 
 	ctx->frameLength = attr->u32Resv[0];
 	bitrate = attr->u32Resv[1] / 1000;
-	LOG_DEBUG("MP3Encode: sample_rate = %d, channel = %d, bitrate = %d.", attr->u32SampleRate,
+	LOG_DEBUG("MP3Encode: sample_rate = %d, channel = %d, bitrate = %d.\n", attr->u32SampleRate,
 	          attr->u32Channels, bitrate);
 	ctx->pMp3Enc = Mp3EncodeVariableInit(attr->u32SampleRate, attr->u32Channels, bitrate);
 	if (ctx->pMp3Enc->frame_size <= 0) {
@@ -119,7 +119,7 @@ static int rkaudio_mp3_encoder_open(RK_VOID *pEncoderAttr, RK_VOID **ppEncoder) 
 		goto __FAILED;
 	}
 
-	LOG_DEBUG("MP3Encode FrameSize = %d", ctx->pMp3Enc->frame_size);
+	LOG_DEBUG("MP3Encode FrameSize = %d\n", ctx->pMp3Enc->frame_size);
 	*ppEncoder = (RK_VOID *)ctx;
 
 	return 0;
@@ -135,7 +135,7 @@ static int rkaudio_mp3_encoder_encode(RK_VOID *pEncoder, RK_VOID *pEncParam) {
 	AUDIO_ADENC_PARAM_S *pParam = (AUDIO_ADENC_PARAM_S *)pEncParam;
 
 	if (ctx == NULL || pParam == NULL) {
-		LOG_ERROR("Invalid ctx or pParam");
+		LOG_ERROR("Invalid ctx or pParam\n");
 		return AENC_ENCODER_ERROR;
 	}
 
@@ -178,10 +178,10 @@ int register_aenc_mp3(void) {
 	aencCtx.pfnEncodeFrm = rkaudio_mp3_encoder_encode;
 	aencCtx.pfnCloseEncoder = rkaudio_mp3_encoder_close;
 
-	LOG_DEBUG("register external aenc(%s)", aencCtx.aszName);
+	LOG_DEBUG("register external aenc(%s)\n", aencCtx.aszName);
 	ret = RK_MPI_AENC_RegisterEncoder(&extCodecHandle, &aencCtx);
 	if (ret != 0) {
-		LOG_ERROR("aenc %s register decoder fail %x", aencCtx.aszName, ret);
+		LOG_ERROR("aenc %s register decoder fail %x\n", aencCtx.aszName, ret);
 		return RK_FAILURE;
 	}
 
@@ -193,10 +193,10 @@ int unregister_aenc_mp3(void) {
 		return 0;
 	}
 
-	LOG_DEBUG("unregister external aenc");
+	LOG_DEBUG("unregister external aenc\n");
 	int ret = RK_MPI_AENC_UnRegisterEncoder(extCodecHandle);
 	if (ret != 0) {
-		LOG_ERROR("aenc unregister decoder fail %x", ret);
+		LOG_ERROR("aenc unregister decoder fail %x\n", ret);
 		return RK_FAILURE;
 	}
 	extCodecHandle = -1;
@@ -206,20 +206,20 @@ int unregister_aenc_mp3(void) {
 
 static int mp3_decoder_open(void *pDecoderAttr, void **ppDecoder) {
 	if (pDecoderAttr == NULL) {
-		LOG_ERROR("pDecoderAttr is NULL");
+		LOG_ERROR("pDecoderAttr is NULL\n");
 		return RK_FAILURE;
 	}
 
 	RK_ADEC_MP3_CTX_S *ctx = (RK_ADEC_MP3_CTX_S *)malloc(sizeof(RK_ADEC_MP3_CTX_S));
 	if (!ctx) {
-		LOG_ERROR("malloc adec mp3 ctx failed");
+		LOG_ERROR("malloc adec mp3 ctx failed\n");
 		return RK_FAILURE;
 	}
 
 	memset(ctx, 0, sizeof(RK_ADEC_MP3_CTX_S));
 	ctx->pMp3Dec = MP3InitDecoder();
 	if (!ctx->pMp3Dec) {
-		LOG_ERROR("malloc adec pMp3Dec failed");
+		LOG_ERROR("malloc adec pMp3Dec failed\n");
 		free(ctx);
 		ctx = NULL;
 		return RK_FAILURE;
@@ -288,14 +288,14 @@ static int mp3_decoder_decode(void *pDecoder, void *pDecParam) {
 
 		pParam->u32InLen = inLength;
 		if (ret == ERR_MP3_INDATA_UNDERFLOW) {
-			LOG_WARN("mp3 decode input data underflow");
+			LOG_WARN("mp3 decode input data underflow\n");
 			return ADEC_DECODER_ERROR;
 		}
 
 		if (ret == -2) {
 			LOG_WARN("mp3 encoded data does not start from the first frame\n");
 		} else {
-			LOG_ERROR("mp3 decode error, ret = %d", ret);
+			LOG_ERROR("mp3 decode error, ret = %d\n", ret);
 			return ADEC_DECODER_ERROR;
 		}
 	}
@@ -331,7 +331,7 @@ static int mp3_decoder_get_frame_info(void *pDecoder, void *pInfo) {
 	MP3GetLastFrameInfo(ctx->pMp3Dec, &ctx->frameInfo);
 
 	if (!ctx->frameInfo.bitsPerSample) {
-		LOG_ERROR("mp3 decode get info failed");
+		LOG_ERROR("mp3 decode get info failed\n");
 		return RK_FAILURE;
 	}
 
@@ -360,7 +360,7 @@ int register_adec_mp3() {
 		LOG_DEBUG("register ext audio decoder\n");
 		RK_S32 ret = RK_MPI_ADEC_RegisterDecoder(&extDecoderHandle, &adecCtx);
 		if (ret != RK_SUCCESS) {
-			LOG_ERROR("adec register decoder fail, ret = 0x%x", ret);
+			LOG_ERROR("adec register decoder fail, ret = 0x%x\n", ret);
 			return RK_FAILURE;
 		}
 	}
@@ -379,7 +379,7 @@ int unregister_adec_mp3() {
 		LOG_DEBUG("unregister ext audio decoder\n");
 		int ret = RK_MPI_ADEC_UnRegisterDecoder(extDecoderHandle);
 		if (ret != RK_SUCCESS) {
-			LOG_ERROR("adec unregister decoder fail, ret = 0x%x", ret);
+			LOG_ERROR("adec unregister decoder fail, ret = 0x%x\n", ret);
 			return RK_FAILURE;
 		}
 
