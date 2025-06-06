@@ -25,8 +25,8 @@
 
 #define VI_DEV 0
 #ifdef ENABLE_HW_VPSS
-#define VI_MAIN_CHN 2
-#define VI_DISPLAY_CHN 3
+#define VI_MAIN_CHN 3
+#define VI_DISPLAY_CHN 2
 #else
 #define VI_MAIN_CHN 0
 #define VI_DISPLAY_CHN 1
