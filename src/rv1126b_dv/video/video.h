@@ -9,6 +9,7 @@
 
 #include <inttypes.h> // PRId64
 #include <rk_debug.h>
+#include <rk_mpi_gdc.h>
 #include <rk_mpi_mb.h>
 #include <rk_mpi_mmz.h>
 #include <rk_mpi_rgn.h>

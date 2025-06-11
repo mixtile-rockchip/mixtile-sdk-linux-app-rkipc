@@ -9,7 +9,6 @@
 #define LOG_TAG "video.c"
 
 #include "rk_sysfs.h"
-#include <rk_mpi_gdc.h>
 #include <linux/media.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/v4l2-subdev.h>
