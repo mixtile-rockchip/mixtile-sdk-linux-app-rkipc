@@ -126,6 +126,8 @@ post_chk()
 		rkipc &
 	fi
 
+	sleep 1 # avoid rockti dumpsys connect fail
+
 	# swap sdi0 and sdi1
 	rk_mpi_amix_test --control "SAI2 Receive PATH0 Source Select" --value "From SDI1"
 	rk_mpi_amix_test --control "SAI2 Receive PATH1 Source Select" --value "From SDI0"
@@ -134,9 +136,11 @@ post_chk()
 	fi
 }
 
-rcS
-
 ulimit -c unlimited
 echo "/data/core-%p-%e" > /proc/sys/kernel/core_pattern
 
-post_chk &
+post_chk
+
+sleep 2
+
+rcS # fcgi and nginx
