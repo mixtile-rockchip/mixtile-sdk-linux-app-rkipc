@@ -139,8 +139,8 @@ post_chk()
 ulimit -c unlimited
 echo "/data/core-%p-%e" > /proc/sys/kernel/core_pattern
 
-post_chk
+post_chk &
 
-sleep 2
+sleep 5
 
 rcS # fcgi and nginx

@@ -3181,7 +3181,7 @@ int rk_video_init() {
 	if (enable_rtsp)
 		ret |= rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
 	if (enable_rtmp) {
-		sleep(3); // wait for fcgi and nginx
+		sleep(6); // wait for fcgi and nginx
 		ret |= rkipc_rtmp_init();
 	}
 	LOG_INFO("over\n");
