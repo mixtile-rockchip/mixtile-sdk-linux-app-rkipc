@@ -660,7 +660,7 @@ int rkipc_vpss_0_init() {
 	if (ret != RK_SUCCESS)
 		LOG_ERROR("RK_MPI_VPSS_EnableChn error! ret is %#x\n", ret);
 
-	ret = RK_MPI_VPSS_SetVProcDev(VpssGrp, VIDEO_PROC_DEV_VPSS);
+	ret = RK_MPI_VPSS_SetVProcDev(VpssGrp, VIDEO_PROC_DEV_RGA);
 	ret = RK_MPI_VPSS_StartGrp(VpssGrp);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("RK_MPI_VPSS_StartGrp error! ret is %#x\n", ret);
@@ -722,7 +722,7 @@ int rkipc_vpss_1_init() {
 	if (ret != RK_SUCCESS)
 		LOG_ERROR("RK_MPI_VPSS_EnableChn error! ret is %#x\n", ret);
 
-	ret = RK_MPI_VPSS_SetVProcDev(VpssGrp, VIDEO_PROC_DEV_VPSS);
+	ret = RK_MPI_VPSS_SetVProcDev(VpssGrp, VIDEO_PROC_DEV_RGA);
 	ret = RK_MPI_VPSS_StartGrp(VpssGrp);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("RK_MPI_VPSS_StartGrp error! ret is %#x\n", ret);
@@ -784,7 +784,7 @@ int rkipc_vpss_2_init() {
 	if (ret != RK_SUCCESS)
 		LOG_ERROR("RK_MPI_VPSS_EnableChn error! ret is %#x\n", ret);
 
-	ret = RK_MPI_VPSS_SetVProcDev(VpssGrp, VIDEO_PROC_DEV_VPSS);
+	ret = RK_MPI_VPSS_SetVProcDev(VpssGrp, VIDEO_PROC_DEV_RGA);
 	ret = RK_MPI_VPSS_StartGrp(VpssGrp);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("RK_MPI_VPSS_StartGrp error! ret is %#x\n", ret);
@@ -843,7 +843,7 @@ int rkipc_vpss_4_init() {
 	if (ret != RK_SUCCESS)
 		LOG_ERROR("RK_MPI_VPSS_EnableChn error! ret is %#x\n", ret);
 
-	ret = RK_MPI_VPSS_SetVProcDev(VpssGrp, VIDEO_PROC_DEV_VPSS);
+	ret = RK_MPI_VPSS_SetVProcDev(VpssGrp, VIDEO_PROC_DEV_RGA);
 	ret = RK_MPI_VPSS_StartGrp(VpssGrp);
 	if (ret != RK_SUCCESS) {
 		LOG_ERROR("RK_MPI_VPSS_StartGrp error! ret is %#x\n", ret);
