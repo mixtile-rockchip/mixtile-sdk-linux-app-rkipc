@@ -132,6 +132,12 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 	rk_aiq_user_api2_aibnr_GetAttrib(aiq_ctx, &aibnr_attr);
 	aibnr_attr.en = rk_param_get_int("video.source:enable_aiisp", 0);
 	rk_aiq_user_api2_aibnr_SetAttrib(aiq_ctx, &aibnr_attr);
+
+	btnr_api_attrib_t btnr_attr;
+	rk_aiq_user_api2_btnr_GetAttrib(aiq_ctx, &btnr_attr);
+	btnr_attr.stAuto.sta.swMemc.sw_btnr_swMemc_en = rk_param_get_int("video.source:enable_memc", 0);
+	btnr_attr.stMan.sta.swMemc.sw_btnr_swMemc_en = rk_param_get_int("video.source:enable_memc", 0);
+	rk_aiq_user_api2_btnr_SetAttrib(aiq_ctx, &btnr_attr);
 	g_aiq_ctx[cam_id] = aiq_ctx;
 
 	return 0;

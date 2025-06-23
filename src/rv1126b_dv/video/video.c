@@ -58,6 +58,7 @@ static struct {
 	RK_MODE_E mode;
 	RK_EIS_MODE_E eis_mode;
 	RK_HDR_MODE_E hdr_mode;
+	bool enable_memc;
 	bool enable_eis_debug;
 	bool enable_smart_ae;
 	bool enable_display;
@@ -142,9 +143,14 @@ static int gdc_aiq_imu_callback(RK_VOID *pUsr, GDC_SENSOR_INFO_S *pInfo) {
 		LOG_ERROR("========== bad aiq ctx! ===========\n");
 		return GDC_INFO_CB_SUCCESS;
 	}
-	int ret = rk_aiq_user_api2_amtd_setImuData(aiq_ctx, &imu_data);
-	if (ret != 0 && ret != 0x1) // ret == 1, bypass
-		LOG_ERROR("rk_aiq_user_api2_amtd_setImuData failed %#X\n", ret);
+	if (rk_mode_param.enable_smart_ae) {
+		int ret = rk_aiq_user_api2_amtd_setImuData(aiq_ctx, &imu_data);
+		if (ret != 0 && ret != 0x1) // ret == 1, bypass
+			LOG_ERROR("rk_aiq_user_api2_amtd_setImuData failed %#X\n", ret);
+	}
+	if (rk_mode_param.enable_memc) {
+		rk_aiq_uapi2_setImuData(aiq_ctx, &imu_data);
+	}
 	return GDC_INFO_CB_SUCCESS;
 }
 
@@ -1023,7 +1029,7 @@ static int gdc_dummy_init(void) {
 	int width = 720; // unused
 	int height = 480; // unused
 	GDC_CHN_ATTR_S gdc_attr = {0};
-	if (!rk_mode_param.enable_smart_ae) {
+	if (!rk_mode_param.enable_smart_ae && !rk_mode_param.enable_memc) {
 		LOG_DEBUG("smart ae is off, no need to init dummy GDC\n");
 		return ret;
 	}
@@ -1050,7 +1056,7 @@ static int gdc_dummy_init(void) {
 
 static int gdc_dummy_deinit(void) {
 	int ret = 0;
-	if (!rk_mode_param.enable_smart_ae) {
+	if (!rk_mode_param.enable_smart_ae && !rk_mode_param.enable_memc) {
 		LOG_DEBUG("smart ae is off, no need to deinit dummy GDC\n");
 		return ret;
 	}
@@ -1645,6 +1651,11 @@ int rk_video_init(void) {
 	}
 	if (rk_mode_param.enable_rtsp)
 		rkipc_rtsp_init(RTSP_URL_0, RTSP_URL_1, RTSP_URL_2);
+	if (rk_param_get_int("video.source:enable_auto_record", 0)) {
+		ret = rk_video_start_record();
+		if (ret)
+			LOG_ERROR("ERROR: rk_video_start_record failed! ret=%d\n", ret);
+    }
 	LOG_INFO("exit\n");
 	return ret;
 }
@@ -1814,6 +1825,7 @@ int rk_init_mode(void) {
 	rk_mode_param.max_photo_num = 5;
 	rk_mode_param.hdr_mode = RK_LINEAR_MODE;
 	rk_mode_param.enable_compress = rk_param_get_int("video.source:enable_compress", 1);
+	rk_mode_param.enable_memc = rk_param_get_int("video.source:enable_memc", 0);
 	set_camera_format_by_mode();
 	return 0;
 }
@@ -1974,6 +1986,40 @@ RK_HDR_MODE_E rk_get_hdr(void) {
 	return rk_mode_param.hdr_mode;
 }
 
+int rk_set_memc_mode(bool enable) {
+	int ret = 0;
+	long long start_time = rkipc_get_curren_time_ms();
+	if (enable == rk_mode_param.enable_memc) {
+		LOG_DEBUG("memc mode is already %d, no need to set memc mode again\n", enable);
+		return 0;
+	}
+	if (rk_mode_param.mode != RK_VIDEO_MODE) {
+		LOG_DEBUG("only video mode can set memc mode\n");
+		return -1;
+	}
+	rk_video_deinit();
+	rk_isp_deinit(0);
+	rk_mode_param.enable_memc = enable;
+	rk_param_set_int("video.source:enable_memc", enable);
+	ret = rk_isp_init(0, rkipc_iq_file_path_);
+	if (ret) {
+		LOG_ERROR("ERROR: rk_isp_init failed! ret=%d\n", ret);
+		return ret;
+	}
+	rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));
+	ret = rk_video_init();
+	if (ret) {
+		LOG_ERROR("ERROR: rk_video_init failed! ret=%d\n", ret);
+		return ret;
+	}
+	LOG_INFO("set memc mode %d, cost time %lld ms\n", enable, rkipc_get_curren_time_ms() - start_time);
+	return 0;
+}
+
+int rk_get_memc_mode(void) {
+	return rk_mode_param.enable_memc;
+}
+
 int rk_set_smart_ae(bool enable) {
 	int ret = 0;
 	if (enable == rk_mode_param.enable_smart_ae) {
@@ -2074,7 +2120,8 @@ int rk_video_start_record(void) {
 		RK_MPI_VENC_StopRecvFrame(VENC_MAIN_CHN);
 		return ret;
 	}
-	rk_storage_record_start(0);
+	if (!rk_param_get_int("video.source:enable_auto_record", 0))
+		rk_storage_record_start(0);
 	rk_mode_param.start_record = true;
 	if (rk_mode_param.mode == RK_VIDEO_MODE)
 		pthread_create(&rk_mode_param.record_thread, NULL, normal_video_loop, NULL);
@@ -2109,7 +2156,8 @@ int rk_video_stop_record(void) {
 	ret = RK_MPI_VENC_StopRecvFrame(VENC_MAIN_CHN);
 	if (ret)
 		LOG_ERROR("ERROR: stop recv frame error! ret=%d\n", ret);
-	rk_storage_record_stop(0);
+	if (!rk_param_get_int("video.source:enable_auto_record", 0))
+		rk_storage_record_stop(0);
 	return ret;
 }
 

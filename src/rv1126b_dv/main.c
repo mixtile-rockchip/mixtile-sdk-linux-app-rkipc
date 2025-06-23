@@ -158,14 +158,19 @@ int main(int argc, char **argv) {
 	// init
 	rk_param_init(rkipc_ini_path_);
 	rkipc_camera_id_ = rk_param_get_int("video.source:camera_id", 0); // need rk_param_init
+
+	// FIXME: Avoid rockit force set isp online mode
+	setenv("rt_vi_rawstream_en", "0", 1);
 	RK_MPI_SYS_Init();
 
 	rk_init_mode();
 	rk_storage_init();
 	rk_isp_init(0, "/etc/iqfiles");
 	rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));
-	rk_display_init();
-	ui_init();
+	if (rk_param_get_int("video.source:enable_display", 1)) {
+		rk_display_init();
+		ui_init();
+	}
 	rk_video_init();
 	if (rk_param_get_int("audio.0:enable", 0)) {
 		rkipc_audio_init();
@@ -173,14 +178,19 @@ int main(int argc, char **argv) {
 
 	pthread_create(&key_chk, NULL, wait_key_event, NULL);
 	while (g_main_run_) {
-		ui_loop();
+		if (rk_param_get_int("video.source:enable_display", 1))
+			ui_loop();
+		else
+			usleep(100000); // 100ms
 	}
 	pthread_join(key_chk, NULL);
 	if (rk_param_get_int("audio.0:enable", 0))
 		rkipc_audio_deinit();
 	rk_video_deinit();
-	ui_deinit();
-	rk_display_deinit();
+	if (rk_param_get_int("video.source:enable_display", 1)) {
+		ui_deinit();
+		rk_display_deinit();
+	}
 	rk_isp_deinit(0);
 	rk_storage_deinit();
 	rk_param_deinit();

@@ -106,6 +106,10 @@ post_chk()
 	if [ $? -eq 0 ] ;then
 		ln -s -f /oem/usr/share/rkipc-imx586.ini $default_rkipc_ini
 	fi
+	media-ctl -pd /dev/media0 | grep imx577
+	if [ $? -eq 0 ] ;then
+		ln -s -f /oem/usr/share/rkipc-imx586.ini $default_rkipc_ini
+	fi
 	tmp_md5=/tmp/.rkipc-ini.md5sum
 	data_md5=/userdata/.rkipc-default.md5sum
 	md5sum $default_rkipc_ini > $tmp_md5
@@ -152,7 +156,23 @@ post_chk()
 	rk_mpi_amix_test --control "SAI2 Receive PATH0 Source Select" --value "From SDI1"
 	rk_mpi_amix_test --control "SAI2 Receive PATH1 Source Select" --value "From SDI0"
 
+	export rt_vi_rawstream_en=0
 	export test_vendor_rkeis_loglevel=0 # when 60fps, frames will lost if rkeis printf log
+	echo userspace > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor
+	echo 1608000 > /sys/devices/system/cpu/cpufreq/policy0/scaling_setspeed
+	# safe value for rv1126b venc
+	echo 550000000 > /proc/mpp_service/rkvenc0/clk_core
+	# export file_cache_env=1
+	# Warning: Modified Qos just for test
+	# io -4 0x20310008 0x404 #cpu
+	# io -4 0x20330408 0x0 #sdmmc0
+
+	# sdcard write performance tuning
+	echo none > /sys/block/mmcblk1/queue/scheduler
+	echo 30 > /proc/sys/vm/dirty_ratio
+	echo 20 > /proc/sys/vm/dirty_background_ratio
+	# FIXME: disable dummy buffer to avoid memory leak
+	echo 0 > /sys/devices/platform/rkcif-mipi-lvds/is_use_dummybuf
 	rkipc &
 }
 

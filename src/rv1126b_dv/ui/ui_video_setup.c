@@ -50,6 +50,7 @@ typedef struct {
 	lv_obj_t *debug_obj;
 	lv_obj_t *smart_ae_obj;
 	lv_obj_t *enable_osd_obj;
+	lv_obj_t *memc_obj;
 
 	lv_group_t *group;
 
@@ -95,6 +96,17 @@ static void eis_event_handler(lv_event_t *e) {
 	if (code == LV_EVENT_CLICKED) {
 		create_select_box("EIS配置", eis_options, sizeof(eis_options) / sizeof(eis_options[0])
 			, rk_get_eis_mode());
+	}
+}
+
+static void memc_event_handler(lv_event_t *e) {
+	lv_event_code_t code = lv_event_get_code(e);
+	lv_obj_t *obj = lv_event_get_target(e);
+	if (code == LV_EVENT_CLICKED) {
+		if (lv_obj_has_state(obj, LV_STATE_CHECKED))
+			rk_set_memc_mode(true);
+		else
+			rk_set_memc_mode(false);
 	}
 }
 
@@ -250,6 +262,11 @@ static void video_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_size(video_setup_ctrl.photo_obj, lv_pct(100), lv_pct(10));
 	lv_obj_add_event_cb(video_setup_ctrl.photo_obj, photo_event_handler, LV_EVENT_CLICKED, NULL);
 	video_setup_ctrl.photo_label_obj = lv_label_create(video_setup_ctrl.photo_obj);
+
+	video_setup_ctrl.memc_obj = lv_checkbox_create(cont_obj);
+	lv_obj_add_flag(video_setup_ctrl.memc_obj, LV_OBJ_FLAG_CHECKABLE);
+	lv_obj_set_size(video_setup_ctrl.memc_obj, lv_pct(100), lv_pct(10));
+	lv_obj_add_event_cb(video_setup_ctrl.memc_obj, memc_event_handler, LV_EVENT_CLICKED, NULL);
 }
 
 static void video_setup_set_text() {
@@ -352,6 +369,16 @@ static void video_setup_set_text() {
 	lv_obj_add_style(video_setup_ctrl.photo_obj, &option_focus_style,
 	                 LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_label_set_text(video_setup_ctrl.photo_label_obj, "连拍设置");
+
+	lv_checkbox_set_text(video_setup_ctrl.memc_obj, "MEMC");
+	lv_obj_add_style(video_setup_ctrl.memc_obj, &option_style, 0);
+	lv_obj_add_style(video_setup_ctrl.memc_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_obj_set_style_radius(video_setup_ctrl.memc_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
+	if (rk_get_memc_mode())
+		lv_obj_add_state(video_setup_ctrl.memc_obj, LV_STATE_CHECKED);
+	else
+		lv_obj_clear_state(video_setup_ctrl.memc_obj, LV_STATE_CHECKED);
 }
 
 static void video_setup_destroy_ctrl(void) {
@@ -390,6 +417,11 @@ static void video_setup_destroy_ctrl(void) {
 		lv_obj_del(video_setup_ctrl.exit_obj);
 		video_setup_ctrl.exit_obj = NULL;
 	}
+	if (NULL != video_setup_ctrl.memc_obj) {
+		ui_common_remove_style_all(video_setup_ctrl.memc_obj);
+		lv_obj_del(video_setup_ctrl.memc_obj);
+		video_setup_ctrl.memc_obj = NULL;
+	}
 	if (NULL != video_setup_ctrl.container_obj) {
 		ui_common_remove_style_all(video_setup_ctrl.container_obj);
 		lv_obj_del(video_setup_ctrl.container_obj);
@@ -416,6 +448,7 @@ static void video_setup_add_indev(void) {
 	lv_group_add_obj(group, video_setup_ctrl.smart_ae_obj);
 	lv_group_add_obj(group, video_setup_ctrl.enable_osd_obj);
 	lv_group_add_obj(group, video_setup_ctrl.photo_obj);
+	lv_group_add_obj(group, video_setup_ctrl.memc_obj);
 
 	video_setup_ctrl.group = group;
 }
