@@ -427,10 +427,15 @@ ret = RK_MPI_VI_SetModParam(&stModParam);
 
 ```mermaid
 graph LR
-       VI_PIPE_0-->VI_0_0-->VENC_0-->RTSP_0
-       VI_PIPE_0-->VI_0_1-->VO
-       VI_PIPE_1-->VI_1_0-->VENC_1-->RTSP_1
-       VI_PIPE_1-->VI_1_1-->VO
+       VI_0_0--TILE-->AVS
+       VI_1_0--TILE-->AVS
+       AVS--RFBC-->VPSS_GRP
+       VPSS_GRP-->VPSS_CHN_0--RFBC-->VENC_0_draw_nn_result-->RTSP_0
+       VENC_0_draw_nn_result--combo-->JPEG
+       VPSS_GRP-->VPSS_CHN_1-->VENC_1-->RTSP_1
+       VPSS_GRP-->VPSS_CHN_2-->NPU
+	   VPSS_CHN_2-->IVS_for_OD_MD
+	   VPSS_GRP-->VPSS_CHN_3-->VO
 ```
 
 ### RV1126B DV

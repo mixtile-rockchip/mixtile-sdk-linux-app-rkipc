@@ -82,7 +82,7 @@ target_link_libraries(${PROJECT_NAME}
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 
-install(FILES rkipc-dual-800w.ini DESTINATION share)
+install(FILES rkipc-dual-600w.ini DESTINATION share)
 install(FILES ../../common/speaker_test.wav DESTINATION share)
 install(PROGRAMS RkLunch.sh DESTINATION bin)
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)

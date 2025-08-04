@@ -193,7 +193,7 @@ int rkipc_set_advanced_venc_params(int venc_chn_id) {
 
 	if (!strcmp(tmp_output_data_type, "H.265")) {
 		VENC_H265_CU_DQP_S cu_dqp_s;
-		RK_MPI_VENC_SetH265CuDqp(venc_chn_id, &cu_dqp_s);
+		RK_MPI_VENC_GetH265CuDqp(venc_chn_id, &cu_dqp_s);
 		snprintf(entry, 127, "video.%d:cu_dqp", venc_chn_id);
 		cu_dqp_s.u32CuDqp = rk_param_get_int(entry, 1);
 		RK_MPI_VENC_SetH265CuDqp(venc_chn_id, &cu_dqp_s);

@@ -1318,6 +1318,12 @@ int rk_isp_set_ldch_level(int cam_id, int value) {
 	RK_ISP_CHECK_CAMERA_ID(cam_id);
 	int ret = 0;
 	int sw_ldchT_correct_strg;
+
+	if (rk_param_get_int("avs:enable_avs", 0)) {
+		LOG_INFO("ldch open for avs, not set ldch level\n");
+		return 0;
+	}
+
 	value = value < 0 ? 0 : value;
 	sw_ldchT_correct_strg = (int)(value * 2.53 + 2); // [0, 100] -> [2 , 255]
 	rk_aiq_uapi2_setLdchCorrectLevel(rkipc_aiq_get_ctx(cam_id), sw_ldchT_correct_strg);
