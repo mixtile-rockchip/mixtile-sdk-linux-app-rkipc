@@ -1284,9 +1284,14 @@ int rk_isp_get_fec_level(int cam_id, int *value) {
 int rk_isp_set_fec_level(int cam_id, int value) {
 	int ret;
 	GDC_UPDATE_ATTR_S attr;
-
-	RK_ISP_CHECK_CAMERA_ID(cam_id);
 	const char *correction_mode;
+	RK_ISP_CHECK_CAMERA_ID(cam_id);
+
+	if (rk_param_get_int("avs:enable_avs", 0)) {
+		LOG_INFO("avs not set fec level\n");
+		return 0;
+	}
+
 	rk_isp_get_distortion_correction(cam_id, &correction_mode);
 	if (strcmp(correction_mode, "FEC")) {
 		LOG_INFO("correction_mode is %s, can't set fec level\n", correction_mode);
@@ -1320,7 +1325,7 @@ int rk_isp_set_ldch_level(int cam_id, int value) {
 	int sw_ldchT_correct_strg;
 
 	if (rk_param_get_int("avs:enable_avs", 0)) {
-		LOG_INFO("ldch open for avs, not set ldch level\n");
+		LOG_INFO("avs not set ldch level\n");
 		return 0;
 	}
 
