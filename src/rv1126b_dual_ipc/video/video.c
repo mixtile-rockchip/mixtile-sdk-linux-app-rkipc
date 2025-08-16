@@ -687,31 +687,47 @@ int rkipc_bind_deinit() {
 
 	// unbind
 	if (enable_venc_0) {
-		ret = RK_MPI_SYS_UnBind(&avs_out_chn[0], &venc_chn[0]);
+		ret = RK_MPI_SYS_UnBind(&vpss_out_chn[0], &venc_chn[0]);
 		if (ret != RK_SUCCESS) {
-			LOG_ERROR("unbind error %#x: avs_out_chn[0] [%d, %d] -> venc_chn[0] [%d, %d]", ret,
-			          avs_out_chn[0].s32DevId, avs_out_chn[0].s32ChnId, venc_chn[0].s32DevId,
+			LOG_ERROR("unbind error %#x: vpss_out_chn[0] [%d, %d] -> venc_chn[0] [%d, %d]", ret,
+			          vpss_out_chn[0].s32DevId, vpss_out_chn[0].s32ChnId, venc_chn[0].s32DevId,
 			          venc_chn[0].s32ChnId);
 			return ret;
 		}
 	}
 	if (enable_venc_1) {
-		ret = RK_MPI_SYS_UnBind(&avs_out_chn[1], &venc_chn[1]);
+		ret = RK_MPI_SYS_UnBind(&vpss_out_chn[1], &venc_chn[1]);
 		if (ret != RK_SUCCESS) {
-			LOG_ERROR("unbind error %#x: avs_out_chn[1] [%d, %d] -> venc_chn[1] [%d, %d]", ret,
-			          avs_out_chn[1].s32DevId, avs_out_chn[1].s32ChnId, venc_chn[1].s32DevId,
+			LOG_ERROR("unbind error %#x: vpss_out_chn[1] [%d, %d] -> venc_chn[1] [%d, %d]", ret,
+			          vpss_out_chn[1].s32DevId, vpss_out_chn[1].s32ChnId, venc_chn[1].s32DevId,
 			          venc_chn[1].s32ChnId);
 			return ret;
 		}
 	}
 	if (enable_ivs) {
-		ret = RK_MPI_SYS_UnBind(&avs_out_chn[1], &ivs_chn);
+		ret = RK_MPI_SYS_UnBind(&vpss_out_chn[2], &ivs_chn);
 		if (ret != RK_SUCCESS) {
-			LOG_ERROR("unbind error %#x: avs_out_chn[1] [%d, %d] -> ivs_chn [%d, %d]", ret,
-			          avs_out_chn[1].s32DevId, avs_out_chn[1].s32ChnId, ivs_chn.s32DevId,
+			LOG_ERROR("unbind error %#x: vpss_out_chn[2] [%d, %d] -> ivs_chn [%d, %d]", ret,
+			          vpss_out_chn[2].s32DevId, vpss_out_chn[2].s32ChnId, ivs_chn.s32DevId,
 			          ivs_chn.s32ChnId);
 			return ret;
 		}
+	}
+	if (g_enable_vo) {
+		ret = RK_MPI_SYS_UnBind(&vpss_out_chn[3], &vo_chn[0]);
+		if (ret != RK_SUCCESS) {
+			LOG_ERROR("unbind error %#x: vpss_out_chn[3] [%d, %d] -> vo_chn[0] [%d, %d]", ret,
+			          vpss_out_chn[3].s32DevId, vpss_out_chn[3].s32ChnId, vo_chn[0].s32DevId,
+			          vo_chn[0].s32ChnId);
+			return ret;
+		}
+	}
+	ret = RK_MPI_SYS_UnBind(&avs_out_chn[0], &vpss_in_chn);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("unbind error %#x: avs_out_chn[0] [%d, %d] -> vpss_in_chn [%d, %d]", ret,
+		          avs_out_chn[0].s32DevId, avs_out_chn[0].s32ChnId, vpss_in_chn.s32DevId,
+		          vpss_in_chn.s32ChnId);
+		return ret;
 	}
 
 	for (int i = 0; i < g_sensor_num; i++) {
