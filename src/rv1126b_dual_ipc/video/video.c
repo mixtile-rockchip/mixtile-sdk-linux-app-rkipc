@@ -268,7 +268,7 @@ int rkipc_vi_dev_deinit() {
 int rkipc_multi_vi_init() {
 	int video_width = rk_param_get_int("avs:source_width", 1920);
 	int video_height = rk_param_get_int("avs:source_height", 1080);
-	int buf_cnt = 2; // 比较极限，可能会帧率不足
+	int buf_cnt = 3;
 	int ret = 0;
 	VI_CHN_ATTR_S vi_chn_attr;
 
@@ -395,7 +395,7 @@ int rkipc_avs_init() {
 	stAvsChnAttr[0].u32Width = rk_param_get_int("video.0:width", -1);
 	stAvsChnAttr[0].u32Height = rk_param_get_int("video.0:height", -1);
 	stAvsChnAttr[0].enDynamicRange = DYNAMIC_RANGE_SDR8;
-	stAvsChnAttr[0].u32FrameBufCnt = 2;
+	stAvsChnAttr[0].u32FrameBufCnt = 3;
 	LOG_INFO("avs channel 0\n");
 	ret = RK_MPI_AVS_SetChnAttr(s32GrpId, 0, &stAvsChnAttr[0]);
 	if (RK_SUCCESS != ret) {
@@ -493,7 +493,7 @@ int rkipc_vpss_init() {
 			stVpssChnAttr[0].enCompressMode = COMPRESS_RFBC_64x4;
 		else
 			stVpssChnAttr[0].enCompressMode = COMPRESS_MODE_NONE;
-		stVpssChnAttr[0].u32FrameBufCnt = 2;
+		stVpssChnAttr[0].u32FrameBufCnt = 3;
 		ret = RK_MPI_VPSS_SetChnAttr(VpssGrp, VpssChn[0], &stVpssChnAttr[0]);
 		if (ret != RK_SUCCESS)
 			LOG_ERROR("0: RK_MPI_VPSS_SetChnAttr error! ret is %#x\n", ret);
@@ -510,7 +510,7 @@ int rkipc_vpss_init() {
 		stVpssChnAttr[1].u32Width = rk_param_get_int("video.1:width", 0);
 		stVpssChnAttr[1].u32Height = rk_param_get_int("video.1:height", 0);
 		stVpssChnAttr[1].enCompressMode = COMPRESS_MODE_NONE;
-		stVpssChnAttr[1].u32FrameBufCnt = 2;
+		stVpssChnAttr[1].u32FrameBufCnt = 3;
 		ret = RK_MPI_VPSS_SetChnAttr(VpssGrp, VpssChn[1], &stVpssChnAttr[1]);
 		if (ret != RK_SUCCESS)
 			LOG_ERROR("1: RK_MPI_VPSS_SetChnAttr error! ret is %#x\n", ret);
@@ -527,10 +527,10 @@ int rkipc_vpss_init() {
 		stVpssChnAttr[2].u32Width = rk_param_get_int("video.2:width", 576);
 		stVpssChnAttr[2].u32Height = rk_param_get_int("video.2:height", 324);
 		stVpssChnAttr[2].enCompressMode = COMPRESS_MODE_NONE;
-		stVpssChnAttr[2].u32FrameBufCnt = 2;
+		stVpssChnAttr[2].u32FrameBufCnt = 3;
 		if (enable_npu) {
 			stVpssChnAttr[2].u32Depth = 1;
-			stVpssChnAttr[2].u32FrameBufCnt = 3;
+			stVpssChnAttr[2].u32FrameBufCnt = 4;
 		}
 		ret = RK_MPI_VPSS_SetChnAttr(VpssGrp, VpssChn[2], &stVpssChnAttr[2]);
 		if (ret != RK_SUCCESS)
