@@ -159,7 +159,7 @@ static void *wait_key_event(void *arg) {
 		// wait for the key event to occur
 		if (FD_ISSET(key_fd, &rfds)) {
 			read(key_fd, &key_event, sizeof(key_event));
-			LOG_INFO("[timeval:sec:%d,usec:%d,type:%d,code:%d,value:%d]\n",
+			LOG_INFO("[timeval:sec:%ld,usec:%ld,type:%d,code:%d,value:%d]\n",
 			         key_event.input_event_sec, key_event.input_event_usec, key_event.type,
 			         key_event.code, key_event.value);
 			if ((key_event.code == KEY_LEFT) && key_event.value) {

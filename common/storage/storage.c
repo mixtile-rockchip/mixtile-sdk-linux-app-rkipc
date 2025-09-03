@@ -720,7 +720,7 @@ static void *rkipc_storage_file_scan_thread(void *arg) {
 		}
 		LOG_INFO("pHandle->dev_sta.free_size is %d, min is %d, max is %d\n",
 		         pHandle->dev_sta.free_size, devAttr.free_size_del_min, devAttr.free_size_del_max);
-		LOG_INFO("total_space is %ld\n", total_space);
+		LOG_INFO("total_space is %lld\n", total_space);
 		for (i = 0; i < devAttr.folder_num; i++) {
 			if (devAttr.folder_attr[i].num_limit == true)
 				continue;

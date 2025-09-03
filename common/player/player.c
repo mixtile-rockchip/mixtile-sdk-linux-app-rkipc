@@ -748,7 +748,7 @@ static void *video_player_loop(void *p) {
 					else if (packet.s8EofFlag)
 						ctx->event_cb(RK_PLAYER_EOF);
 			} else {
-				LOG_ERROR("decode one frame cost too much time %u ms\n", cost_time / 1000);
+				LOG_ERROR("decode one frame cost too much time %llu ms\n", cost_time / 1000);
 			}
 		}
 	}
@@ -807,7 +807,7 @@ static void *audio_player_loop(void *p) {
 				int64_t frame_time = 33 * 1000; // 30 fps
 				int64_t sleep_time = (diff_time > frame_time * 4) ? frame_time * 4 : diff_time;
 				if (diff_time > frame_time) {
-					LOG_DEBUG("diff time %lld us, sleep time\n", diff_time, sleep_time);
+					LOG_DEBUG("diff time %lld us, sleep time %lld\n", diff_time, sleep_time);
 					usleep(sleep_time);
 				}
 			}
@@ -951,7 +951,7 @@ static int set_record_file_unlocked(PLAYER_CTX_S *ctx, const char *input_file_pa
 	}
 
 	LOG_INFO("demuxer file %s\n", ctx->input_file_path);
-	LOG_INFO("total time %d ms, width %d, height %d, format %d\n", ctx->video_total_duraion / 1000,
+	LOG_INFO("total time %lld ms, width %d, height %d, format %d\n", ctx->video_total_duraion / 1000,
 	         ctx->demuxer_param.s32VideoWidth, ctx->demuxer_param.s32VideoHeigh,
 	         ctx->demuxer_param.s8VideoFormat);
 	LOG_INFO("video codec %s, avg fps %d, first pts %lld, timebase %d/%d\n",

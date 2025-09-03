@@ -1463,7 +1463,7 @@ RK_S32 draw_rect_2bpp(RK_U8 *buffer, RK_U32 width, RK_U32 height, int rgn_x, int
 		value = 0xaa;
 
 	if (line_pixel > 4) {
-		printf("line_pixel > 4, not support\n", line_pixel);
+		printf("line_pixel %d > 4, not support\n", line_pixel);
 		return -1;
 	}
 

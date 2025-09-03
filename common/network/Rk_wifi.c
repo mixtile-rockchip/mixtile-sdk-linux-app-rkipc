@@ -239,7 +239,7 @@ static int RK_wifi_search_with_ssid(const char *ssid) {
 	for (int i = 0; i < wsi.count; i++) {
 		if ((strlen(wsi.save_info[i].ssid) > 64) || (strlen(ssid) > 64))
 			pr_err("RK_wifi_search_with_ssid ssid error!!!\n");
-		pr_err("RK_wifi_search_with_ssid save_info[%d].ssid: %s:%ld, ssid: %s:%ld \n", i,
+		pr_err("RK_wifi_search_with_ssid save_info[%d].ssid: %s:%d, ssid: %s:%d \n", i,
 		       wsi.save_info[i].ssid, strlen(wsi.save_info[i].ssid), ssid, strlen(ssid));
 		if (strlen(wsi.save_info[i].ssid) > strlen(ssid))
 			len = strlen(wsi.save_info[i].ssid);
@@ -1221,7 +1221,7 @@ int RK_wifi_connect1(const char *ssid, const char *psk, const RK_WIFI_CONNECTION
 
 	memset(ori, 0, sizeof(ori));
 	if ((psk == NULL) || is_non_psk(ssid)) {
-		pr_info("%s: is none psk, ssid:\"%s\" ssid_len:%lu\n", __func__, ssid, strlen(ssid));
+		pr_info("%s: is none psk, ssid:\"%s\" ssid_len:%u\n", __func__, ssid, strlen(ssid));
 		get_encode_gbk_ori(m_nonpsk_head, ssid, ori);
 
 		ret = set_network(id, ori, "", NONE);
@@ -1230,7 +1230,7 @@ int RK_wifi_connect1(const char *ssid, const char *psk, const RK_WIFI_CONNECTION
 			goto fail;
 		}
 	} else {
-		pr_info("%s: ssid:\"%s\" ssid_len:%lu; psk:\"%s\", encryp: %d.\n", __func__, ssid,
+		pr_info("%s: ssid:\"%s\" ssid_len:%u; psk:\"%s\", encryp: %d.\n", __func__, ssid,
 		        strlen(ssid), psk, encryp);
 		get_encode_gbk_ori(m_gbk_head, ssid, ori);
 
@@ -1240,7 +1240,7 @@ int RK_wifi_connect1(const char *ssid, const char *psk, const RK_WIFI_CONNECTION
 			goto fail;
 		}
 	}
-	pr_info("%s: ori:\"%s\" ori_len:%lu\n", __func__, ori, strlen(ori));
+	pr_info("%s: ori:\"%s\" ori_len:%u\n", __func__, ori, strlen(ori));
 
 	set_network_highest_priority(id);
 

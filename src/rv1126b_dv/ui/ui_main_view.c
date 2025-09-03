@@ -148,7 +148,7 @@ static void capture_xcb(lv_timer_t *timer) {
 	int done_num = rk_photo_get_done_num();
 	int total_num = rk_photo_get_max_num();
 	if (done_num == total_num) {
-		lv_label_set_text_fmt(main_view_ctrl.cap_obj, "");
+		lv_label_set_text_fmt(main_view_ctrl.cap_obj, " ");
 		// safe ops, just set the flag.
 		lv_timer_pause(main_view_ctrl.capture_timer);
 		rk_photo_stop();
@@ -370,7 +370,7 @@ static void main_view_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_width(main_view_ctrl.cap_obj, lv_pct(20), 0);
 	lv_obj_align(main_view_ctrl.cap_obj, LV_ALIGN_CENTER, 0, 0);
 	lv_obj_set_style_bg_opa(main_view_ctrl.cap_obj, LV_OPA_TRANSP, 0);
-	lv_label_set_text_fmt(main_view_ctrl.cap_obj, "");
+	lv_label_set_text_fmt(main_view_ctrl.cap_obj, " ");
 
 	main_view_ctrl.timer = lv_timer_create(timer_xcb, 500, NULL);
 	lv_timer_ready(main_view_ctrl.timer);

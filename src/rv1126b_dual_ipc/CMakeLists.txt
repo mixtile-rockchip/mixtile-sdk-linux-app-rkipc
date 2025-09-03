@@ -60,6 +60,8 @@ message(STATUS "RK_APP_CHIP is ${RK_APP_CHIP}")
 
 add_definitions(-DRKIPC_RV1126B)
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-result -Wno-unused-but-set-variable -Wno-unused-variabl -Werror=format")
+
 message(STATUS "RK_APP_ARCH_TYPE is ${RK_APP_ARCH_TYPE}")
 if(RK_APP_ARCH_TYPE STREQUAL "arm")
 	link_directories(${PROJECT_SOURCE_DIR}/lib/arm-rockchip1240-linux-gnueabihf)

@@ -79,7 +79,7 @@ add_definitions(-g -ggdb)
 
 add_executable(${PROJECT_NAME} ${SRCS})
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-result -Wno-unused-but-set-variable -Wno-unused-variable")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-result -Wno-unused-but-set-variable -Wno-unused-variable -Werror=format")
 
 target_link_libraries(${PROJECT_NAME}
 						pthread rockit rkaiq rtsp freetype wpa_client rkmuxer m rockiva rga rkaudio)

@@ -66,7 +66,7 @@ void ui_storage_status_dialog_destroy(void) {
 }
 
 void ui_storage_status_dialog_create(void) {
-	char info[32];
+	char info[64];
 	int32_t sto_free = 0;
 	int32_t sto_total = 0;
 	int32_t sto_use = 0;
@@ -161,7 +161,7 @@ void ui_storage_status_dialog_create(void) {
 		progress = sto_use * 100 / sto_total;
 	if (progress > 100)
 		progress = 100;
-	sprintf(info, "%s %dGB/%s %dGB", "已使用", sto_use, "总共", sto_total);
+	snprintf(info, sizeof(info), "%s %dGB/%s %dGB", "已使用", sto_use, "总共", sto_total);
 	if (storage_string_obj)
 		lv_label_set_text(storage_string_obj, info);
 	if (storage_progress_bar_obj)
