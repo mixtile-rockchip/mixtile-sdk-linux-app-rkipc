@@ -22,6 +22,7 @@ extern int rkipc_log_level;
 #define LOG_LEVEL_WARN 1
 #define LOG_LEVEL_INFO 2
 #define LOG_LEVEL_DEBUG 3
+#define LOG_LEVEL_VERBOSE 4
 
 #ifndef LOG_TAG
 #define LOG_TAG "rkipc_server"
@@ -60,6 +61,16 @@ extern int rkipc_log_level;
 #define LOG_DEBUG(format, ...)                                                                     \
 	do {                                                                                           \
 		if (rkipc_log_level < LOG_LEVEL_DEBUG)                                                     \
+			break;                                                                                 \
+		if (enable_minilog)                                                                        \
+			minilog_debug("[%s][%s]:" format, LOG_TAG, __FUNCTION__, ##__VA_ARGS__);               \
+		else                                                                                       \
+			fprintf(stderr, "[%s][%s]:" format, LOG_TAG, __FUNCTION__, ##__VA_ARGS__);             \
+	} while (0)
+
+#define LOG_VERBOSE(format, ...)                                                                   \
+	do {                                                                                           \
+		if (rkipc_log_level < LOG_LEVEL_VERBOSE)                                                   \
 			break;                                                                                 \
 		if (enable_minilog)                                                                        \
 			minilog_debug("[%s][%s]:" format, LOG_TAG, __FUNCTION__, ##__VA_ARGS__);               \
