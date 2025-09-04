@@ -112,7 +112,9 @@ int rk_param_init(char *ini_path) {
 	g_ini_d_ = iniparser_load(g_ini_path_);
 	if (g_ini_d_ == NULL) {
 		LOG_ERROR("iniparser_load %s error! use /tmp/rkipc-factory-config.ini\n", g_ini_path_);
-		snprintf(cmd, 127, "cp /tmp/rkipc-factory-config.ini %s", g_ini_path_);
+		int ret = snprintf(cmd, 127, "cp /tmp/rkipc-factory-config.ini %s", g_ini_path_);
+		if (ret >= 127)
+			LOG_ERROR("cmd has been truncated!\n");
 		LOG_INFO("cmd is %s\n", cmd);
 		system(cmd);
 		g_ini_d_ = iniparser_load(g_ini_path_);

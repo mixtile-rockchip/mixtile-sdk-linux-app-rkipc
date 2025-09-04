@@ -137,6 +137,7 @@ int generate_date_time(const char *fmt, wchar_t *result) {
 	char time_string[MAX_WCH_BYTE] = {0};
 	int wid = -1;
 	int wchar_cnt = 0;
+	int ret = 0;
 
 	time_t curtime;
 	curtime = time(0);
@@ -182,7 +183,9 @@ int generate_date_time(const char *fmt, wchar_t *result) {
 		}
 	} else if (strstr(fmt, OSD_FMT_WEEK1)) {
 		strftime(week, sizeof(week), "%A", localtime(&curtime));
-		sprintf(week_string, " %s", week);
+		ret = snprintf(week_string, sizeof(week) - 1, " %s", week);
+		if (ret >= sizeof(week) - 1)
+			LOG_ERROR("%s: truncated buffer!", __func__);
 	}
 
 	wchar_cnt = sizeof(ymd_string) / sizeof(wchar_t);
