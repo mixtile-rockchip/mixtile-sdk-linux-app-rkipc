@@ -43,7 +43,6 @@ typedef struct {
 
 	lv_obj_t *exit_obj;
 	lv_obj_t *exit_label_obj;
-	lv_obj_t *comp_enable_obj;
 	lv_obj_t *rtsp_enable_obj;
 	lv_group_t *group;
 
@@ -62,30 +61,11 @@ static void return_event_handler(lv_event_t *e) {
 	}
 }
 
-static int comp_set_result = 0;
-static void set_compress_func(void *btn) {
-	bool comp_state = rk_get_compress();
-	if (comp_state)
-		comp_set_result = rk_set_compress(false);
-	else
-		comp_set_result = rk_set_compress(true);
-	return ;
-}
-
-static void set_done_func(void *arg) {
-	if (comp_set_result != 0)
-		ui_dialog_create("WARNING", "切换压缩模式失败!");
-	else
-		ui_dialog_create("INFO", "切换压缩模式成功!");
-}
-
 static void event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
 	if (code == LV_EVENT_CLICKED) {
-		if (obj == advanced_setup_ctrl.comp_enable_obj) {
-			ui_start_async_task(set_compress_func, NULL, set_done_func, NULL);
-		} else if (obj == advanced_setup_ctrl.rtsp_enable_obj) {
+		if (obj == advanced_setup_ctrl.rtsp_enable_obj) {
 			if (lv_obj_has_state(obj, LV_STATE_CHECKED)) {
 				rk_set_rtsp(true);
 			} else {
@@ -125,11 +105,6 @@ static void advanced_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_border_opa(cont_obj, LV_OPA_TRANSP, 0);
 	lv_obj_set_style_radius(cont_obj, 0, 0);
 
-	advanced_setup_ctrl.comp_enable_obj = obj = lv_checkbox_create(cont_obj);
-	lv_obj_add_flag(obj, LV_OBJ_FLAG_CHECKABLE);
-	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
-	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
-
 	advanced_setup_ctrl.rtsp_enable_obj = obj = lv_checkbox_create(cont_obj);
 	lv_obj_add_flag(obj, LV_OBJ_FLAG_CHECKABLE);
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
@@ -140,9 +115,9 @@ static void advanced_setup_create_ctrl(lv_obj_t *page_obj) {
 static void advanced_setup_set_text() {
 	static lv_style_t symbol_style, symbol_focus_style, option_style, option_focus_style;
 	// INFO: make sure to get the right heigh of obj
-	lv_obj_update_layout(advanced_setup_ctrl.comp_enable_obj);
+	lv_obj_update_layout(advanced_setup_ctrl.rtsp_enable_obj);
 	int font_height = lv_font_get_line_height(ttf_info_32.font);
-	int option_height = lv_obj_get_height(advanced_setup_ctrl.comp_enable_obj);
+	int option_height = lv_obj_get_height(advanced_setup_ctrl.rtsp_enable_obj);
 	// INFO: adjust the padding of text, because set alignment function is not work
 	int pad = (option_height - font_height) / 2;
 	lv_style_reset(&option_style);
@@ -199,13 +174,6 @@ static void advanced_setup_set_text() {
 	lv_obj_align_to(advanced_setup_ctrl.container_obj
 		, advanced_setup_ctrl.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
 
-	lv_checkbox_set_text(advanced_setup_ctrl.comp_enable_obj, "开启录像数据流压缩功能");
-	lv_obj_add_style(advanced_setup_ctrl.comp_enable_obj, &option_style, 0);
-	lv_obj_add_style(advanced_setup_ctrl.comp_enable_obj, &option_focus_style, LV_PART_MAIN | LV_STATE_FOCUSED);
-	lv_obj_set_style_radius(advanced_setup_ctrl.comp_enable_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
-	if (rk_get_compress())
-		lv_obj_add_state(advanced_setup_ctrl.comp_enable_obj, LV_STATE_CHECKED);
-
 	lv_checkbox_set_text(advanced_setup_ctrl.rtsp_enable_obj, "开启RTSP");
 	lv_obj_add_style(advanced_setup_ctrl.rtsp_enable_obj, &option_style, 0);
 	lv_obj_add_style(advanced_setup_ctrl.rtsp_enable_obj, &option_focus_style, LV_PART_MAIN | LV_STATE_FOCUSED);
@@ -215,11 +183,6 @@ static void advanced_setup_set_text() {
 }
 
 static void advanced_setup_destroy_ctrl(void) {
-	if (NULL != advanced_setup_ctrl.comp_enable_obj) {
-		ui_common_remove_style_all(advanced_setup_ctrl.comp_enable_obj);
-		lv_obj_del(advanced_setup_ctrl.comp_enable_obj);
-		advanced_setup_ctrl.comp_enable_obj = NULL;
-	}
 	if (NULL != advanced_setup_ctrl.rtsp_enable_obj) {
 		ui_common_remove_style_all(advanced_setup_ctrl.rtsp_enable_obj);
 		lv_obj_del(advanced_setup_ctrl.rtsp_enable_obj);
@@ -249,7 +212,6 @@ static void advanced_setup_add_indev(void) {
 	if (NULL == group)
 		return;
 	lv_group_add_obj(group, advanced_setup_ctrl.exit_obj);
-	lv_group_add_obj(group, advanced_setup_ctrl.comp_enable_obj);
 	lv_group_add_obj(group, advanced_setup_ctrl.rtsp_enable_obj);
 	advanced_setup_ctrl.group = group;
 }

@@ -88,23 +88,6 @@ static void return_event_handler(lv_event_t *e) {
 	}
 }
 
-static int comp_set_result = 0;
-static void set_compress_func(void *btn) {
-	bool comp_state = rk_get_compress();
-	if (comp_state)
-		comp_set_result = rk_set_compress(false);
-	else
-		comp_set_result = rk_set_compress(true);
-	return ;
-}
-
-static void set_done_func(void *arg) {
-	if (comp_set_result != 0)
-		ui_dialog_create("WARNING", "切换压缩模式失败!");
-	else
-		ui_dialog_create("INFO", "切换压缩模式成功!");
-}
-
 static lv_timer_t *test_timer = NULL;
 static lv_obj_t *test_dialog = NULL;
 static lv_obj_t *test_status_obj = NULL;

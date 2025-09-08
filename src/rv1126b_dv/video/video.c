@@ -63,7 +63,6 @@ static struct {
 	bool enable_smart_ae;
 	bool enable_display;
 	bool enable_rtsp;
-	bool enable_compress;
 	bool enable_osd;
 	int max_photo_num;
 	int remain_photo_num;
@@ -120,7 +119,7 @@ static int set_camera_format(uint32_t width, uint32_t height, uint32_t fps, uint
 
 extern void* rk_isp_get_ctx(int cam_id);
 static int gdc_aiq_imu_callback(RK_VOID *pUsr, GDC_SENSOR_INFO_S *pInfo) {
-	LOG_DEBUG("time stamp = %lld, temp is %lf,"
+	LOG_VERBOSE("time stamp = %lld, temp is %lf,"
 			"gyro data is %lf %lf %lf, acc data is %lf %lf %lf\n",
 		pInfo->s64Timestamp, pInfo->dTemp,
 		pInfo->dGyroData[0], pInfo->dGyroData[1], pInfo->dGyroData[2],
@@ -230,19 +229,22 @@ static void *normal_video_loop(void *arg) {
 	int loop_count = 0;
 	int ret = 0;
 	int rk_muxer_id = 0;
+	int cal_fps_step = 90;
+	long long total_time = 0, total_cost_time = 0, total_write_time = 0;
+	long long packet_cnt = 0;
 	FILE *fp = fopen("/tmp/venc.h265", "wb");
 	video_stream.pstPack = malloc(sizeof(VENC_PACK_S));
-	long long before_time = 0;
 
 	LOG_INFO("enter\n");
 	prctl(PR_SET_NAME, __func__, 0, 0, 0);
 	rk_mode_param.start_record_pts = 0;
+
+	total_time = rkipc_get_curren_time_ms();
 	while (rk_mode_param.start_record) {
 		ret = RK_MPI_VENC_GetStream(VENC_MAIN_CHN, &video_stream, 1000);
 		if (ret == RK_SUCCESS) {
 			if (!rk_mode_param.start_record_pts)
 				rk_mode_param.start_record_pts = video_stream.pstPack->u64PTS;
-			before_time = rkipc_get_curren_time_ms();
 			void *data = RK_MPI_MB_Handle2VirAddr(video_stream.pstPack->pMbBlk);
 			if (rk_mode_param.enable_eis_debug) {
 				fwrite(data, 1, video_stream.pstPack->u32Len, fp);
@@ -262,8 +264,16 @@ static void *normal_video_loop(void *arg) {
 				rk_storage_write_video_frame(rk_muxer_id, data, video_stream.pstPack->u32Len,
 				                             video_stream.pstPack->u64PTS, 0);
 			}
-			if (rkipc_get_curren_time_ms() - before_time > 100)
-				LOG_INFO("write cost time is %lldms\n", rkipc_get_curren_time_ms() - before_time);
+			packet_cnt++;
+			if ((packet_cnt % cal_fps_step) == 0) {
+				total_time = rkipc_get_curren_time_ms() - total_time;
+				float real_frame_interval = (float)total_time / (float)packet_cnt;
+				float real_fps = 1000.0f / real_frame_interval;
+				LOG_DEBUG("total_time %lldms, packet_cnt %lld, real fps %.2f\n", total_time,
+				         packet_cnt, real_fps);
+				total_time = rkipc_get_curren_time_ms();
+				packet_cnt = 0;
+			}
 			LOG_DEBUG("Count:%d, Len:%d, PTS is %" PRId64 ", enH264EType is %d, ref type %d\n",
 			          loop_count, video_stream.pstPack->u32Len, video_stream.pstPack->u64PTS,
 			          video_stream.pstPack->DataType.enH265EType,
@@ -563,19 +573,7 @@ static void *osd_update_loop(void *arg) {
 			ae_info_node->pts
 			);
 		free(ae_info_node);
-#if 0
-		memset(&ae_info, 0, sizeof(ae_api_queryInfo_t));
-		ret = rk_aiq_user_api2_ae_queryExpResInfo(aiq_ctx, &ae_info);
-		if (ret != 0) {
-			LOG_ERROR("rk_aiq_user_api2_ae_queryExpResInfo failed %x\n", ret);
-			continue;
-		}
-		swprintf(osd_text_buff, OSD_TEXT_LEN, L"exptime:%.4f again:%.3f dgain:%.3f isp_dgain:%.3f",
-			ae_info.linExpInfo.expParam.integration_time,
-			ae_info.linExpInfo.expParam.analog_gain, ae_info.linExpInfo.expParam.digital_gain,
-			ae_info.linExpInfo.expParam.isp_dgain
-			);
-#endif
+		LOG_DEBUG("osd text: %ls\n", osd_text_buff);
 		draw_argb8888_text(osd_draw_buff, osd_width, osd_height, osd_text_buff);
 		bit_map.u32Width = osd_width;
 		bit_map.u32Height = osd_height;
@@ -696,17 +694,12 @@ static int vi_chn_init(void) {
 	vi_chn_attr.stIspOpt.enMemoryType = VI_V4L2_MEMORY_TYPE_DMABUF;
 	vi_chn_attr.stSize.u32Width = video_width;
 	vi_chn_attr.stSize.u32Height = video_height;
-	if (rk_mode_param.enable_compress) {
-		if (rk_mode_param.eis_mode != RK_EIS_OFF && !rk_mode_param.enable_eis_debug) {
-			vi_chn_attr.enVideoFormat = VIDEO_FORMAT_TILE_4x4;
-			vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
-		} else {
-			vi_chn_attr.enVideoFormat = VIDEO_FORMAT_LINEAR;
-			vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
-		}
+	if (rk_mode_param.eis_mode != RK_EIS_OFF && !rk_mode_param.enable_eis_debug) {
+		vi_chn_attr.enVideoFormat = VIDEO_FORMAT_TILE_4x4;
+		vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
 	} else {
 		vi_chn_attr.enVideoFormat = VIDEO_FORMAT_LINEAR;
-		vi_chn_attr.enCompressMode = COMPRESS_MODE_NONE;
+		vi_chn_attr.enCompressMode = COMPRESS_RFBC_64x4;
 	}
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.u32Depth = rk_param_get_int("video.0:depth", 0);
@@ -964,11 +957,7 @@ static int gdc_record_init(void) {
 	gdc_attr.s32DstWidth = video_width;
 	gdc_attr.s32DstHeight = video_height;
 	gdc_attr.s32Depth = rk_param_get_int("video.0:depth", 0);
-	if (rk_mode_param.enable_compress) {
-		gdc_attr.enDstCompMode = COMPRESS_RFBC_64x4;
-	} else {
-		gdc_attr.enDstCompMode = COMPRESS_MODE_NONE;
-	}
+	gdc_attr.enDstCompMode = COMPRESS_RFBC_64x4;
 	gdc_attr.enDstPixelFormat = RK_FMT_YUV420SP;
 	gdc_attr.stEisAttr.s32DevNo = IIO_IMU_DEVICE_NO;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
@@ -978,13 +967,9 @@ static int gdc_record_init(void) {
 	} else if (rk_mode_param.eis_mode == RK_DISTORTION_CORRECTION) {
 		LOG_ERROR("ERROR: distortion correction is not support now!\n");
 		return -1;
-	} else if (rk_mode_param.enable_compress) {
-		snprintf(gdc_attr.cfgFile, sizeof(gdc_attr.cfgFile),
-		         "/oem/usr/share/rkeis_config_normal_%dx%d_%dx%d_30fps.json",
-		         sensor_width, sensor_height, video_width, video_height);
 	} else {
 		snprintf(gdc_attr.cfgFile, sizeof(gdc_attr.cfgFile),
-		         "/oem/usr/share/rkeis_config_no_comp_%dx%d_%dx%d_30fps.json",
+		         "/oem/usr/share/rkeis_config_normal_%dx%d_%dx%d_30fps.json",
 		         sensor_width, sensor_height, video_width, video_height);
 	}
 	if (rk_mode_param.enable_eis_debug) {
@@ -1307,6 +1292,7 @@ static int rgn_init(void) {
 		LOG_ERROR("create font failed %#X\n", ret);
 		return ret;
 	}
+	set_font_color(0xfff799);
 	// create overlay regions
 	rgn_attr.enType = OVERLAY_RGN;
 	rgn_attr.unAttr.stOverlay.enPixelFmt = RK_FMT_ARGB8888;
@@ -1824,7 +1810,6 @@ int rk_init_mode(void) {
 	rk_mode_param.enable_osd = rk_param_get_int("video.source:enable_osd", 0);
 	rk_mode_param.max_photo_num = 5;
 	rk_mode_param.hdr_mode = RK_LINEAR_MODE;
-	rk_mode_param.enable_compress = rk_param_get_int("video.source:enable_compress", 1);
 	rk_mode_param.enable_memc = rk_param_get_int("video.source:enable_memc", 0);
 	set_camera_format_by_mode();
 	return 0;
@@ -2061,28 +2046,6 @@ int rk_get_rtsp(void) {
 	return rk_mode_param.enable_rtsp;
 }
 
-int rk_set_compress(bool enable) {
-	int ret = 0;
-	long long start_time = rkipc_get_curren_time_ms();
-	if (enable == rk_mode_param.enable_compress) {
-		LOG_DEBUG("comp is already %d, no need to set comp again\n", enable);
-		return 0;
-	}
-	rk_isp_deinit(0);
-	rk_video_deinit();
-	rk_mode_param.enable_compress = enable;
-	rk_param_set_int("video.source:enable_compress", enable);
-	rk_isp_init(0, rkipc_iq_file_path_);
-	rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));
-	rk_video_init();
-	LOG_INFO("set comp %d, cost time %lld ms\n", enable, rkipc_get_curren_time_ms() - start_time);
-	return 0;
-}
-
-int rk_get_compress(void) {
-	return rk_mode_param.enable_compress;
-}
-
 int rk_video_start_record(void) {
 	int ret = 0;
 	VENC_RECV_PIC_PARAM_S recv_param;
@@ -2098,28 +2061,6 @@ int rk_video_start_record(void) {
 	recv_param.s32RecvPicNum = -1;
 	ret = RK_MPI_VENC_StartRecvFrame(VENC_MAIN_CHN,
 	                           &recv_param);
-	if (ret) {
-		LOG_ERROR("ERROR: start recv frame error! ret=%d\n", ret);
-		return ret;
-	}
-	ret = gdc_record_init();
-	if (ret) {
-		LOG_ERROR("ERROR: gdc_record_init failed! ret=%d\n", ret);
-		RK_MPI_VENC_StopRecvFrame(VENC_MAIN_CHN);
-		return ret;
-	}
-	ret = rgn_init();
-	if (ret) {
-		LOG_ERROR("ERROR: rgn_init failed! ret=%d\n", ret);
-		RK_MPI_VENC_StopRecvFrame(VENC_MAIN_CHN);
-		return ret;
-	}
-	ret = bind_media_pipe();
-	if (ret) {
-		LOG_ERROR("ERROR: bind_media_pipe failed! ret=%d\n", ret);
-		RK_MPI_VENC_StopRecvFrame(VENC_MAIN_CHN);
-		return ret;
-	}
 	if (!rk_param_get_int("video.source:enable_auto_record", 0))
 		rk_storage_record_start(0);
 	rk_mode_param.start_record = true;
@@ -2129,6 +2070,35 @@ int rk_video_start_record(void) {
 		pthread_create(&rk_mode_param.record_thread, NULL, slow_motion_loop, NULL);
 	else if (rk_mode_param.mode == RK_TIME_LAPSE_MODE)
 		pthread_create(&rk_mode_param.record_thread, NULL, time_lapse_loop, NULL);
+
+	if (ret) {
+		LOG_ERROR("ERROR: start recv frame error! ret=%d\n", ret);
+		goto __start_record_failed;
+	}
+	ret = gdc_record_init();
+	if (ret) {
+		LOG_ERROR("ERROR: gdc_record_init failed! ret=%d\n", ret);
+		goto __start_record_failed;
+	}
+	ret = rgn_init();
+	if (ret) {
+		LOG_ERROR("ERROR: rgn_init failed! ret=%d\n", ret);
+		goto __start_record_failed;
+	}
+	ret = bind_media_pipe();
+	if (ret) {
+		LOG_ERROR("ERROR: bind_media_pipe failed! ret=%d\n", ret);
+		goto __start_record_failed;
+	}
+	return ret;
+
+__start_record_failed:
+	RK_MPI_VENC_StopRecvFrame(VENC_MAIN_CHN);
+	rk_mode_param.start_record = false;
+	pthread_join(rk_mode_param.record_thread, NULL);
+	unbind_media_pipe();
+	rgn_deinit();
+	gdc_record_deinit();
 	return ret;
 }
 
