@@ -125,21 +125,21 @@ int rkipc_rtsp_write_video_frame(int id, unsigned char *buffer, unsigned int buf
 	if ((id == 0) && g_rtsp_session_0) {
 		if (video_first_pts_0 == 0) {
 			video_first_pts_0 = present_time;
-			LOG_INFO("video_first_pts_0 is %lld\n", video_first_pts_0);
+			LOG_INFO("video_first_pts_0 is %" PRId64 "\n", video_first_pts_0);
 		}
 		rtsp_tx_video(g_rtsp_session_0, buffer, buffer_size, present_time);
 	}
 	if ((id == 1) && g_rtsp_session_1) {
 		if (video_first_pts_1 == 0) {
 			video_first_pts_1 = present_time;
-			LOG_INFO("video_first_pts_1 is %lld\n", video_first_pts_1);
+			LOG_INFO("video_first_pts_1 is %" PRId64 "\n", video_first_pts_1);
 		}
 		rtsp_tx_video(g_rtsp_session_1, buffer, buffer_size, present_time);
 	}
 	if ((id == 2) && g_rtsp_session_2) {
 		if (video_first_pts_2 == 0) {
 			video_first_pts_2 = present_time;
-			LOG_INFO("video_first_pts_2 is %lld\n", video_first_pts_2);
+			LOG_INFO("video_first_pts_2 is %" PRId64 "\n", video_first_pts_2);
 		}
 		rtsp_tx_video(g_rtsp_session_2, buffer, buffer_size, present_time);
 	}
@@ -160,7 +160,7 @@ int rkipc_rtsp_write_audio_frame(int id, unsigned char *buffer, unsigned int buf
 		if ((audio_first_pts_0 == 0) && video_first_pts_0) {
 			audio_first_pts_0 = present_time;
 			video_audio_diff_pts_0 = video_first_pts_0 - audio_first_pts_0;
-			LOG_INFO("audio_first_pts_0 is %lld, video_audio_diff_pts_0 is %lld\n",
+			LOG_INFO("audio_first_pts_0 is %" PRId64 ", video_audio_diff_pts_0 is %" PRId64 "\n",
 					audio_first_pts_0, video_audio_diff_pts_0);
 		}
 		present_time += video_audio_diff_pts_0;
@@ -170,7 +170,7 @@ int rkipc_rtsp_write_audio_frame(int id, unsigned char *buffer, unsigned int buf
 		if ((audio_first_pts_1 == 0) && video_first_pts_1) {
 			audio_first_pts_1 = present_time;
 			video_audio_diff_pts_1 = video_first_pts_1 - audio_first_pts_1;
-			LOG_INFO("audio_first_pts_1 is %lld, video_audio_diff_pts_1 is %lld\n",
+			LOG_INFO("audio_first_pts_1 is %" PRId64 ", video_audio_diff_pts_1 is %" PRId64 "\n",
 					audio_first_pts_1, video_audio_diff_pts_1);
 		}
 		present_time += video_audio_diff_pts_1;
@@ -180,7 +180,7 @@ int rkipc_rtsp_write_audio_frame(int id, unsigned char *buffer, unsigned int buf
 		if ((audio_first_pts_2 == 0) && video_first_pts_2) {
 			audio_first_pts_2 = present_time;
 			video_audio_diff_pts_2 = video_first_pts_2 - audio_first_pts_2;
-			LOG_INFO("audio_first_pts_2 is %lld, video_audio_diff_pts_2 is %lld\n",
+			LOG_INFO("audio_first_pts_2 is %" PRId64 ", video_audio_diff_pts_2 is %" PRId64 "\n",
 					audio_first_pts_2, video_audio_diff_pts_2);
 		}
 		present_time += video_audio_diff_pts_2;

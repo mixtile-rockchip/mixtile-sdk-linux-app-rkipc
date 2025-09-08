@@ -681,7 +681,7 @@ int rkipc_audio_player_send(uint8_t *data, uint32_t len, uint64_t pts) {
 			LOG_ERROR("RK_MPI_ADEC_SendStream failed[%x]\n", ret);
 		RK_MPI_MB_ReleaseMB(audio_stream.pMbBlk);
 	}
-	LOG_DEBUG("send stream pts %lld, len %d, data %p %s\n", pts, len, data,
+	LOG_DEBUG("send stream pts %" PRId64 ", len %d, data %p %s\n", pts, len, data,
 	          ret ? "failed" : "success");
 	return ret;
 }

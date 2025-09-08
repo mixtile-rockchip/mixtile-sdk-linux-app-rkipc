@@ -209,7 +209,7 @@ void uvc_read_camera_buffer(void *cam_buf, int cam_fd, size_t cam_size, void *ex
 		uvc_enc.extra_size = extra_size;
 		uvc_encode_process(&uvc_enc, cam_buf, cam_fd, cam_size);
 	} else if (uvc_enc.width > 0 && uvc_enc.height > 0) {
-		printf("%s: cam_size = %u, uvc_enc.width = %d, uvc_enc.height = %d\n", __func__, cam_size,
+		printf("%s: cam_size = %zu, uvc_enc.width = %d, uvc_enc.height = %d\n", __func__, cam_size,
 		       uvc_enc.width, uvc_enc.height);
 	}
 	pthread_mutex_unlock(&lock);

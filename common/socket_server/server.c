@@ -4320,7 +4320,7 @@ int ser_rk_wifi_get_list(int fd) {
 
 	// get
 	err = rk_wifi_get_list(&wifi_list);
-	LOG_DEBUG("strlen(wifi_list) is %d\n", strlen(wifi_list));
+	LOG_DEBUG("strlen(wifi_list) is %zu\n", strlen(wifi_list));
 	// write
 	len = strlen(wifi_list);
 	if (sock_write(fd, &len, sizeof(len)) == SOCKERR_CLOSED)

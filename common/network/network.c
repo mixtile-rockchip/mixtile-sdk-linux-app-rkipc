@@ -881,7 +881,7 @@ int rk_wifi_scan_wifi() { return RK_wifi_scan(); }
 
 int rk_wifi_get_list(char **wifi_list) {
 	*wifi_list = RK_wifi_scan_r();
-	LOG_INFO("strlen(*wifi_list) is %d\n", strlen(*wifi_list));
+	LOG_INFO("strlen(*wifi_list) is %zu\n", strlen(*wifi_list));
 
 	return 0;
 }
