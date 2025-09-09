@@ -288,7 +288,7 @@ static void photo_player_param_init(lv_obj_t *page_obj) {
 	photo_player_ctx.cur_file_index = (size_t)lv_obj_get_user_data(page_obj);
 
 	if (photo_player_ctx.cur_file_index < photo_player_ctx.list.count) {
-		LOG_INFO("load file index %d\n", photo_player_ctx.cur_file_index);
+		LOG_INFO("load file index %zu\n", photo_player_ctx.cur_file_index);
 		snprintf(photo_player_ctx.file_info.path, sizeof(photo_player_ctx.file_info.path), "%s/%s",
 		         photo_player_ctx.list.path,
 		         photo_player_ctx.list.files[photo_player_ctx.cur_file_index].name);

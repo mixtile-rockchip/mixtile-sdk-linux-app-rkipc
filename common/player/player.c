@@ -630,7 +630,7 @@ static void read_video_packet_cb(void *handle) {
 
 	RKIPC_CHECK_POINTER(video_packet, );
 	RKIPC_CHECK_POINTER(handle, );
-	LOG_DEBUG("packet size %d, data %p, eof %d, pts %lld\n", video_packet->s32PacketSize,
+	LOG_DEBUG("packet size %d, data %p, eof %d, pts %" PRId64 " \n", video_packet->s32PacketSize,
 	          video_packet->s8PacketData, video_packet->s8EofFlag, video_packet->s64Pts);
 	if (!video_packet->s8EofFlag) {
 		memset(&mb_ext_config, 0, sizeof(MB_EXT_CONFIG_S));
@@ -668,7 +668,7 @@ static void read_audio_packet_cb(void *handle) {
 
 	RKIPC_CHECK_POINTER(audio_packet, );
 	RKIPC_CHECK_POINTER(handle, );
-	LOG_DEBUG("packet size %d, data %p, eof %d, pts %lld\n", audio_packet->s32PacketSize,
+	LOG_DEBUG("packet size %d, data %p, eof %d, pts %" PRId64 " \n", audio_packet->s32PacketSize,
 	          audio_packet->s8PacketData, audio_packet->s8EofFlag, audio_packet->s64Pts);
 	if (audio_packet->s8EofFlag && audio_packet->s32PacketSize == 0) {
 		ret = rkipc_audio_player_send(NULL, 0, 0);
@@ -680,7 +680,7 @@ static void read_audio_packet_cb(void *handle) {
 		ret = rkipc_audio_player_send(audio_packet->s8PacketData, audio_packet->s32PacketSize, audio_packet->s64Pts);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("RK_MPI_ADEC_SendStream failed[%x]\n", ret);
-		} 
+		}
 	}
 
 	return;
@@ -740,7 +740,7 @@ static void *video_player_loop(void *p) {
 			if (cost_time < frame_interval_time) {
 				delay_time = frame_interval_time - cost_time;
 				usleep(delay_time);
-				LOG_DEBUG("frame interval %llu ms, decode cost %llu ms, delay %llu ms\n",
+				LOG_DEBUG("frame interval %" PRIu64 " ms, decode cost %" PRIu64 " ms, delay %" PRIu64 " ms\n",
 				          frame_interval_time / 1000, cost_time / 1000, delay_time / 1000);
 				if (ctx->event_cb)
 					if (ret)
@@ -748,7 +748,7 @@ static void *video_player_loop(void *p) {
 					else if (packet.s8EofFlag)
 						ctx->event_cb(RK_PLAYER_EOF);
 			} else {
-				LOG_ERROR("decode one frame cost too much time %llu ms\n", cost_time / 1000);
+				LOG_ERROR("decode one frame cost too much time %" PRIu64 " ms\n", cost_time / 1000);
 			}
 		}
 	}
@@ -807,7 +807,7 @@ static void *audio_player_loop(void *p) {
 				int64_t frame_time = 33 * 1000; // 30 fps
 				int64_t sleep_time = (diff_time > frame_time * 4) ? frame_time * 4 : diff_time;
 				if (diff_time > frame_time) {
-					LOG_DEBUG("diff time %lld us, sleep time %lld\n", diff_time, sleep_time);
+					LOG_DEBUG("diff time %" PRId64 " us, sleep time %" PRId64 " \n", diff_time, sleep_time);
 					usleep(sleep_time);
 				}
 			}
@@ -907,12 +907,12 @@ static int read_duration_unlocked(PLAYER_CTX_S *ctx, const char *input_file_path
 	if (tmp_param.pVideoCodec) {
 		rkdemuxer_read_video_duration(tmp_handle, &duration);
 		ctx->video_total_duraion = duration;
-		LOG_DEBUG("get video duration %lld\n", duration);
+		LOG_DEBUG("get video duration %" PRId64 " \n", duration);
 	}
 	if (tmp_param.pAudioCodec) {
 		rkdemuxer_read_audio_duration(tmp_handle, &duration);
 		ctx->audio_total_duraion = duration;
-		LOG_DEBUG("get audio duration %lld\n", duration);
+		LOG_DEBUG("get audio duration %" PRId64 " \n", duration);
 	}
 	rkdemuxer_deinit(&tmp_handle);
 	return 0;
@@ -951,14 +951,14 @@ static int set_record_file_unlocked(PLAYER_CTX_S *ctx, const char *input_file_pa
 	}
 
 	LOG_INFO("demuxer file %s\n", ctx->input_file_path);
-	LOG_INFO("total time %lld ms, width %d, height %d, format %d\n", ctx->video_total_duraion / 1000,
+	LOG_INFO("total time %" PRId64 "  ms, width %d, height %d, format %d\n", ctx->video_total_duraion / 1000,
 	         ctx->demuxer_param.s32VideoWidth, ctx->demuxer_param.s32VideoHeigh,
 	         ctx->demuxer_param.s8VideoFormat);
-	LOG_INFO("video codec %s, avg fps %d, first pts %lld, timebase %d/%d\n",
+	LOG_INFO("video codec %s, avg fps %d, first pts %" PRId64 " , timebase %d/%d\n",
 	         ctx->demuxer_param.pVideoCodec, ctx->demuxer_param.s32VideoAvgFrameRate,
 	         ctx->demuxer_param.s64VideoFirstPTS, ctx->demuxer_param.s32VideoTimeBaseNum,
 	         ctx->demuxer_param.s32VideoTimeBaseDen);
-	LOG_INFO("audio codec %s, channel %d, sample rate %d, first pts %lld, timebase %d/%d\n",
+	LOG_INFO("audio codec %s, channel %d, sample rate %d, first pts %" PRId64 " , timebase %d/%d\n",
 	         ctx->demuxer_param.pAudioCodec, ctx->demuxer_param.s32AudioChannels,
 	         ctx->demuxer_param.s32AudioSampleRate, ctx->demuxer_param.s64AudioFirstPTS,
 	         ctx->demuxer_param.s32AudioTimeBaseNum, ctx->demuxer_param.s32AudioTimeBaseDen);
@@ -1161,7 +1161,7 @@ int rk_player_video_seek(RK_PLAYER_CONFIG_S *config, uint64_t time_ms) {
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
 	RKIPC_CHECK_POINTER(ctx, -1);
 	if (time_ms < 0 || time_ms > ctx->video_total_duraion / 1000) {
-		LOG_ERROR("invalid time_ms %llu\n", time_ms);
+		LOG_ERROR("invalid time_ms %" PRIu64 " \n", time_ms);
 		return -1;
 	}
 	pthread_mutex_lock(&ctx->mutex);
@@ -1175,7 +1175,7 @@ int rk_player_video_seek(RK_PLAYER_CONFIG_S *config, uint64_t time_ms) {
 		}
 	}
 	pthread_mutex_unlock(&ctx->mutex);
-	LOG_DEBUG("seek video to %llu ms\n", time_ms);
+	LOG_DEBUG("seek video to %" PRIu64 "  ms\n", time_ms);
 	return ret;
 }
 
@@ -1185,7 +1185,7 @@ int rk_player_audio_seek(RK_PLAYER_CONFIG_S *config, uint64_t time_ms) {
 	PLAYER_CTX_S *ctx = (PLAYER_CTX_S *)config->ctx;
 	RKIPC_CHECK_POINTER(ctx, -1);
 	if (time_ms < 0 || time_ms > ctx->video_total_duraion / 1000) {
-		LOG_ERROR("invalid time_ms %llu\n", time_ms);
+		LOG_ERROR("invalid time_ms %" PRIu64 " \n", time_ms);
 		return -1;
 	}
 	pthread_mutex_lock(&ctx->mutex);
@@ -1199,7 +1199,7 @@ int rk_player_audio_seek(RK_PLAYER_CONFIG_S *config, uint64_t time_ms) {
 		}
 	}
 	pthread_mutex_unlock(&ctx->mutex);
-	LOG_DEBUG("seek audio to %llu ms\n", time_ms);
+	LOG_DEBUG("seek audio to %" PRIu64 "  ms\n", time_ms);
 	return ret;
 }
 

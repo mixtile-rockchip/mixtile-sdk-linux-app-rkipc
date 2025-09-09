@@ -72,7 +72,7 @@ static struct {
 	bool osd_thread_running;
 	bool start_record;
 	bool start_take_photo;
-	long long start_record_pts;
+	int64_t start_record_pts;
 	int debug_frame_cnt;
 	FILE *vi_debug_file;  // eis debug info
 	FILE *imu_debug_file; // eis debug info
@@ -119,7 +119,7 @@ static int set_camera_format(uint32_t width, uint32_t height, uint32_t fps, uint
 
 extern void* rk_isp_get_ctx(int cam_id);
 static int gdc_aiq_imu_callback(RK_VOID *pUsr, GDC_SENSOR_INFO_S *pInfo) {
-	LOG_VERBOSE("time stamp = %lld, temp is %lf,"
+	LOG_VERBOSE("time stamp = %" PRId64 ", temp is %lf,"
 			"gyro data is %lf %lf %lf, acc data is %lf %lf %lf\n",
 		pInfo->s64Timestamp, pInfo->dTemp,
 		pInfo->dGyroData[0], pInfo->dGyroData[1], pInfo->dGyroData[2],
@@ -160,7 +160,7 @@ static int gdc_aiq_frame_callback(RK_VOID *pUsr, GDC_VFAME_INFO_S *pInfo) {
 }
 
 static int gdc_sensor_callback(void *pUsr, GDC_SENSOR_INFO_S *pInfo) {
-	// LOG_INFO("time stamp = %lld, temp is %lf,"
+	// LOG_INFO("time stamp = %" PRId64 ", temp is %lf,"
 	// "gyro data is %lf %lf %lf, acc data is %lf %lf %lf\n",
 	// pInfo->s64Timestamp, pInfo->dTemp,
 	// pInfo->dGyroData[0], pInfo->dGyroData[1], pInfo->dGyroData[2],
@@ -168,7 +168,7 @@ static int gdc_sensor_callback(void *pUsr, GDC_SENSOR_INFO_S *pInfo) {
 	char gdc_imu_info_buffer[256] = {};
 	if (!rk_mode_param.start_record)
 		return GDC_INFO_CB_SUCCESS;
-	sprintf(gdc_imu_info_buffer, "%lf %lf %lf %lf %lf %lf %lf %lld\n", pInfo->dAccData[0],
+	sprintf(gdc_imu_info_buffer, "%lf %lf %lf %lf %lf %lf %lf %" PRId64 "\n", pInfo->dAccData[0],
 	        pInfo->dAccData[1], pInfo->dAccData[2], pInfo->dGyroData[0], pInfo->dGyroData[1],
 	        pInfo->dGyroData[2], pInfo->dTemp, pInfo->s64Timestamp);
 
@@ -184,7 +184,7 @@ static int gdc_frame_callback(void *pUsr, GDC_VFAME_INFO_S *pInfo) {
 	char gdc_vi_info_buffer[256] = {};
 	// void *data = RK_MPI_MB_Handle2VirAddr(pInfo->pMbBlk);
 	// RK_U64 len = RK_MPI_MB_GetSize(pInfo->pMbBlk);
-	// LOG_INFO("vframe seq = %d, data = %p, len = %lld, time stamp = %llu\n",
+	// LOG_INFO("vframe seq = %d, data = %p, len = %" PRId64 ", time stamp = %llu\n",
 	//		pInfo->u32Seq, data, len, pInfo->u64PTS);
 	// LOG_INFO("u64ExtraPts = %llu, u32RsSkew = %d, u32ExpTime = %d,"
 	//		"u32Again = %d, u32Dgain = %d, u32Ispgain = %d, u32Ispgain = %lf\n",
@@ -203,7 +203,7 @@ static int gdc_frame_callback(void *pUsr, GDC_VFAME_INFO_S *pInfo) {
 		return GDC_INFO_CB_SUCCESS;
 	}
 
-	sprintf(gdc_vi_info_buffer, "%lld %d %d %d %d %d %lf\n", pInfo->u64ExtraPts, pInfo->u32RsSkew,
+	sprintf(gdc_vi_info_buffer, "%" PRId64 " %d %d %d %d %d %lf\n", pInfo->u64ExtraPts, pInfo->u32RsSkew,
 	        pInfo->u32ExpTime, pInfo->u32Again, pInfo->u32Dgain, pInfo->u32Ispgain, pInfo->dIso);
 	fwrite(gdc_vi_info_buffer, sizeof(char), strlen(gdc_vi_info_buffer),
 	       rk_mode_param.vi_debug_file);
@@ -230,8 +230,8 @@ static void *normal_video_loop(void *arg) {
 	int ret = 0;
 	int rk_muxer_id = 0;
 	int cal_fps_step = 90;
-	long long total_time = 0, total_cost_time = 0, total_write_time = 0;
-	long long packet_cnt = 0;
+	int64_t total_time = 0, total_cost_time = 0, total_write_time = 0;
+	int64_t packet_cnt = 0;
 	FILE *fp = fopen("/tmp/venc.h265", "wb");
 	video_stream.pstPack = malloc(sizeof(VENC_PACK_S));
 
@@ -269,7 +269,7 @@ static void *normal_video_loop(void *arg) {
 				total_time = rkipc_get_curren_time_ms() - total_time;
 				float real_frame_interval = (float)total_time / (float)packet_cnt;
 				float real_fps = 1000.0f / real_frame_interval;
-				LOG_DEBUG("total_time %lldms, packet_cnt %lld, real fps %.2f\n", total_time,
+				LOG_DEBUG("total_time %" PRId64 " ms, packet_cnt %" PRId64 ", real fps %.2f\n", total_time,
 				         packet_cnt, real_fps);
 				total_time = rkipc_get_curren_time_ms();
 				packet_cnt = 0;
@@ -370,7 +370,7 @@ static void *time_lapse_loop(void *arg) {
 	struct stream_cache_packet *packet = NULL;
 	int loop_count = 0;
 	int ret = 0;
-	long long before_time = 0, cost_time = 0;
+	int64_t before_time = 0, cost_time = 0;
 	uint64_t pts = 0;
 	uint64_t pts_step = rk_param_get_int("video.0:pts_step", 33333);
 	FILE *fp = fopen("/tmp/venc.h265", "wb");
@@ -409,7 +409,7 @@ static void *time_lapse_loop(void *arg) {
 	if (fp)
 		fclose(fp);
 	cost_time = rkipc_get_curren_time_ms() - before_time;
-	LOG_INFO("total record time %lld ms\n", cost_time);
+	LOG_INFO("total record time %" PRId64 " ms\n", cost_time);
 	LOG_INFO("exit\n");
 	return 0;
 }
@@ -450,7 +450,7 @@ static void *take_photo_loop(void *arg) {
 			continue;
 		}
 		// 5.get the frame
-		long long before_time = rkipc_get_curren_time_ms();
+		int64_t before_time = rkipc_get_curren_time_ms();
 		ret = RK_MPI_VENC_GetStream(JPEG_CHN, &video_stream, 1000);
 		if (ret == RK_SUCCESS) {
 			void *data = RK_MPI_MB_Handle2VirAddr(video_stream.pstPack->pMbBlk);
@@ -495,7 +495,7 @@ static void *take_photo_loop(void *arg) {
 typedef struct {
 	struct list_head list;
 	ae_api_queryInfo_t ae_info;
-	long long pts;
+	int64_t pts;
 } ae_info_list_t;
 
 static void *osd_update_loop(void *arg) {
@@ -522,7 +522,7 @@ static void *osd_update_loop(void *arg) {
 	}
 	memset(osd_draw_buff, 0, osd_buf_size);
 	while (rk_mode_param.osd_thread_running) {
-		long long before_time = rkipc_get_curren_time_ms();
+		int64_t before_time = rkipc_get_curren_time_ms();
 		ae_info_list_t *ae_info_node = NULL;
 		ae_api_queryInfo_t *ae_info = NULL;
 		struct timespec ts;
@@ -540,8 +540,8 @@ static void *osd_update_loop(void *arg) {
 		}
 		memset(ae_info_node, 0, sizeof(ae_info_list_t));
 		clock_gettime(CLOCK_BOOTTIME, &ts);
-		ae_info_node->pts = (long long)ts.tv_sec * 1000000 + (long long)ts.tv_nsec / 1000;
-		LOG_DEBUG("ae_info_node->pts is %lld, start_record_pts is %lld\n",
+		ae_info_node->pts = (int64_t)ts.tv_sec * 1000000 + (int64_t)ts.tv_nsec / 1000;
+		LOG_DEBUG("ae_info_node->pts is %" PRId64 ", start_record_pts is %" PRId64 "\n",
 		         ae_info_node->pts, rk_mode_param.start_record_pts);
 		ae_info_node->pts = (ae_info_node->pts - rk_mode_param.start_record_pts) / 1000;
 
@@ -566,7 +566,7 @@ static void *osd_update_loop(void *arg) {
 		list_del(&ae_info_node->list);
 
 		ae_info = &ae_info_node->ae_info;
-		swprintf(osd_text_buff, OSD_TEXT_LEN, L"exptime:%.4f again:%.3f dgain:%.3f isp_dgain:%.3f ae_info_ts:%lldms",
+		swprintf(osd_text_buff, OSD_TEXT_LEN, L"exptime:%.4f again:%.3f dgain:%.3f isp_dgain:%.3f ae_info_ts:%" PRId64 "ms",
 			ae_info->linExpInfo.expParam.integration_time,
 			ae_info->linExpInfo.expParam.analog_gain, ae_info->linExpInfo.expParam.digital_gain,
 			ae_info->linExpInfo.expParam.isp_dgain,
@@ -584,12 +584,12 @@ static void *osd_update_loop(void *arg) {
 			LOG_ERROR("RK_MPI_RGN_SetBitMap failed %x\n", ret);
 		}
 __loop_sleep:
-		long long cost_time = rkipc_get_curren_time_ms() - before_time;
+		int64_t cost_time = rkipc_get_curren_time_ms() - before_time;
 		if (cost_time < 33) {
 			usleep((33 - cost_time) * 1000); // sleep to make osd update 30fps
-			LOG_DEBUG("osd update cost time is %lldms, sleep %lldms\n", cost_time, (33 - cost_time));
+			LOG_DEBUG("osd update cost time is %" PRId64 "ms, sleep %" PRId64 "ms\n", cost_time, (33 - cost_time));
 		} else {
-			LOG_ERROR("osd update cost time is %lldms, too long!\n", cost_time);
+			LOG_ERROR("osd update cost time is %" PRId64 "ms, too long!\n", cost_time);
 		}
 	}
 	ae_info_list_t *ae_info_node = NULL, *tmp = NULL;
@@ -1498,6 +1498,7 @@ static int bind_media_pipe(void) {
 		}
 	}
 	LOG_INFO("exit\n");
+	return ret;
 }
 
 static int unbind_media_pipe(void) {

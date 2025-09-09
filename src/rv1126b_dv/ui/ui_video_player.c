@@ -113,7 +113,7 @@ static void update_play_progress(void) {
 	if (false == lv_obj_has_state(player_ctx.slider_obj, LV_STATE_PRESSED))
 		lv_slider_set_value(player_ctx.slider_obj, cur_time, LV_ANIM_OFF);
 
-	sprintf(str_time, "%02zu:%02zu", cur_time / 60, cur_time % 60);
+	sprintf(str_time, "%02u:%02u", cur_time / 60, cur_time % 60);
 	lv_label_set_text(player_ctx.cur_time_obj, str_time);
 }
 
