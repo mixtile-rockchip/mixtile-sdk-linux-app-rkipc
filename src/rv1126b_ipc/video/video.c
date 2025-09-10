@@ -55,6 +55,7 @@ static const char *tmp_h264_profile;
 static const char *tmp_smart;
 static const char *tmp_gop_mode;
 static const char *tmp_rc_quality;
+static const char *distortion_correction;
 static pthread_t venc_thread_0, venc_thread_1, venc_thread_2, jpeg_venc_thread_id,
     get_vpss_2_send_npu_thread, get_nn_update_osd_thread_id, get_vi_2_send_thread,
     get_ivs_result_thread, cycle_snapshot_thread_id, get_vi_thread_id;
@@ -491,36 +492,48 @@ int rkipc_vi_gdc_vpss_init() {
 		stAttr.enDstCompMode = COMPRESS_MODE_NONE;
 	}
 
-	stAttr.enMode = GDC_CHN_MODE_FEC;
-	stAttr.stFecAttr.s32InFourcc = 0;
-	stAttr.stFecAttr.s32OutFourcc = 0;
-	stAttr.stFecAttr.s32BorderMode = 0;
-	stAttr.stFecAttr.s32CrossBufMode = 0;
-	stAttr.stFecAttr.stBgVal.s32BgY = 255;
-	stAttr.stFecAttr.stBgVal.s32BgU = 100;
-	stAttr.stFecAttr.stBgVal.s32BgV = 0;
-
-	const char *fec_ini_file = rk_param_get_string("isp.0.enhancement:fec_ini_file", NULL);
-	if (fec_ini_file) {
-		stUpdateAttr.enMode = GDC_CHN_MODE_FEC;
-		RK_MPI_GDC_GetAttrFromFile(&stUpdateAttr, fec_ini_file);
-		stAttr.stFecAttr.enFecMode = GDC_FEC_UPDATE_MESH_ONLINE;
-		stAttr.stFecAttr.dLightCenter[0] = stUpdateAttr.stFecAttr.stOnlineCfg.dLightCenter[0];
-		stAttr.stFecAttr.dLightCenter[1] = stUpdateAttr.stFecAttr.stOnlineCfg.dLightCenter[1];
-		for (int i = 0; i < 4; i++) {
-			stAttr.stFecAttr.dCoeff[i] = stUpdateAttr.stFecAttr.stOnlineCfg.dCoeff[i];
+	if (!strcmp(distortion_correction, "DIS")) {
+		stAttr.enMode = GDC_CHN_MODE_DIS;
+		const char *dis_file = rk_param_get_string("isp.0.enhancement:dis_file", NULL);
+		if (dis_file) {
+			LOG_INFO("dis_file is %s\n", dis_file);
+			memcpy(stAttr.cfgFile, dis_file, strlen(dis_file));
+		} else {
+			LOG_ERROR("dis_file is NULL\n");
+			return -1;
 		}
-		// stAttr.stFecAttr.s32CorrectLevel  = stUpdateAttr.stFecAttr.stOnlineCfg.s32CorrectLevel;
-		stAttr.stFecAttr.s32CorrectLevel =
-		    rk_param_get_int("isp.0.enhancement:fec_level", 0) * 2.55;
-		stAttr.stFecAttr.enStyle = stUpdateAttr.stFecAttr.stOnlineCfg.enStyle;
 	} else {
-		LOG_ERROR("fec_ini_file is NULL\n");
-		return -1;
-	}
-	stAttr.stFecAttr.enDirection = GDC_FEC_CORRECT_DIRECTION_XY;
-	stAttr.stFecAttr.enStyle = GDC_FEC_KEEP_ASPECT_RATIO_REDUCE_FOV;
+		stAttr.enMode = GDC_CHN_MODE_FEC;
+		stAttr.stFecAttr.s32InFourcc = 0;
+		stAttr.stFecAttr.s32OutFourcc = 0;
+		stAttr.stFecAttr.s32BorderMode = 0;
+		stAttr.stFecAttr.s32CrossBufMode = 0;
+		stAttr.stFecAttr.stBgVal.s32BgY = 255;
+		stAttr.stFecAttr.stBgVal.s32BgU = 100;
+		stAttr.stFecAttr.stBgVal.s32BgV = 0;
 
+		const char *fec_ini_file = rk_param_get_string("isp.0.enhancement:fec_ini_file", NULL);
+		if (fec_ini_file) {
+			LOG_INFO("fec_ini_file is %s\n", fec_ini_file);
+			stUpdateAttr.enMode = GDC_CHN_MODE_FEC;
+			RK_MPI_GDC_GetAttrFromFile(&stUpdateAttr, fec_ini_file);
+			stAttr.stFecAttr.enFecMode = GDC_FEC_UPDATE_MESH_ONLINE;
+			stAttr.stFecAttr.dLightCenter[0] = stUpdateAttr.stFecAttr.stOnlineCfg.dLightCenter[0];
+			stAttr.stFecAttr.dLightCenter[1] = stUpdateAttr.stFecAttr.stOnlineCfg.dLightCenter[1];
+			for (int i = 0; i < 4; i++) {
+				stAttr.stFecAttr.dCoeff[i] = stUpdateAttr.stFecAttr.stOnlineCfg.dCoeff[i];
+			}
+			// stAttr.stFecAttr.s32CorrectLevel  = stUpdateAttr.stFecAttr.stOnlineCfg.s32CorrectLevel;
+			stAttr.stFecAttr.s32CorrectLevel =
+				rk_param_get_int("isp.0.enhancement:fec_level", 0) * 2.55;
+			stAttr.stFecAttr.enStyle = stUpdateAttr.stFecAttr.stOnlineCfg.enStyle;
+		} else {
+			LOG_ERROR("fec_ini_file is NULL\n");
+			return -1;
+		}
+		stAttr.stFecAttr.enDirection = GDC_FEC_CORRECT_DIRECTION_XY;
+		stAttr.stFecAttr.enStyle = GDC_FEC_KEEP_ASPECT_RATIO_REDUCE_FOV;
+	}
 	ret = RK_MPI_GDC_CreateChn(0, &stAttr);
 
 	// VPSS
@@ -3139,9 +3152,9 @@ int rk_video_init() {
 	enable_ivs = rk_param_get_int("video.source:enable_ivs", 1);
 	enable_wrap = rk_param_get_int("video.source:enable_wrap", 0);
 	enable_osd = rk_param_get_int("osd.common:enable_osd", 1);
-	const char *distortion_correction =
+	distortion_correction =
 	    rk_param_get_string("isp.0.enhancement:distortion_correction", "close");
-	if (!strcmp(distortion_correction, "FEC"))
+	if (!strcmp(distortion_correction, "FEC") || !strcmp(distortion_correction, "DIS"))
 		enable_fec = 1;
 	else
 		enable_fec = 0;
