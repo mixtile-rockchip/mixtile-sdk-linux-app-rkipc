@@ -151,6 +151,9 @@ int main(int argc, char **argv) {
 	rkipc_version_dump();
 	signal(SIGINT, sig_proc);
 	signal(SIGTERM, sig_proc);
+	// FIXME: Avoid rockit force set isp online mode
+	setenv("rt_vi_rawstream_en", "0", 1);
+	setenv("HDR_MODE", "00", 1);
 	rkipc_get_opt(argc, argv);
 	LOG_INFO("rkipc_ini_path_ is %s, rkipc_iq_file_path_ is %s, rkipc_log_level "
 	         "is %d\n",
@@ -159,10 +162,7 @@ int main(int argc, char **argv) {
 	rk_param_init(rkipc_ini_path_);
 	rkipc_camera_id_ = rk_param_get_int("video.source:camera_id", 0); // need rk_param_init
 
-	// FIXME: Avoid rockit force set isp online mode
-	setenv("rt_vi_rawstream_en", "0", 1);
 	RK_MPI_SYS_Init();
-
 	rk_init_mode();
 	rk_storage_init();
 	rk_isp_init(0, "/etc/iqfiles");
