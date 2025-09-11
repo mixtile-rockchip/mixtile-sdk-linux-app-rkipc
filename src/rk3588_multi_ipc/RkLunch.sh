@@ -77,6 +77,9 @@ post_chk()
 	if [ "$result"x == "6"x ] ;then
 		ln -s -f /usr/share/rkipc-6x.ini $default_rkipc_ini
 	fi
+	if [ "$result"x == "4"x ] ;then
+		ln -s -f /usr/share/rkipc-4x.ini $default_rkipc_ini
+	fi
 
 	if [ ! -f "$default_rkipc_ini" ];then
 		echo "Error: not found rkipc.ini !!!"

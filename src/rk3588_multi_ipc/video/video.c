@@ -1137,6 +1137,9 @@ int rkipc_avs_init() {
 		}
 	}
 
+	stAvsGrpAttr.stInAttr.stSize.u32Width = rk_param_get_int("avs:source_width", -1);
+	stAvsGrpAttr.stInAttr.stSize.u32Height = rk_param_get_int("avs:source_height", -1);
+
 	stAvsGrpAttr.u32PipeNum = g_sensor_num;
 	stAvsGrpAttr.stGainAttr.enMode = AVS_GAIN_MODE_AUTO;
 	stAvsGrpAttr.stOutAttr.enPrjMode = rk_param_get_int("avs:projection_mode", 0);

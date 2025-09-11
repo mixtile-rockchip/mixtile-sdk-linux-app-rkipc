@@ -72,6 +72,7 @@ add_executable(${PROJECT_NAME} ${SRCS})
 target_link_libraries(${PROJECT_NAME} pthread rockit rkaiq rtsp freetype wpa_client rkmuxer rockiva m panoStitchApp rkaudio)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
+install(FILES rkipc-4x.ini DESTINATION share)
 install(FILES rkipc-6x.ini DESTINATION share)
 install(FILES rkipc-6x-no-blend-hor.ini DESTINATION share)
 install(FILES rkipc-8x.ini DESTINATION share)
