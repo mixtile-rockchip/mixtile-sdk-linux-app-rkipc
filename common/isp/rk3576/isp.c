@@ -67,12 +67,7 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 		g_aiq_ctx[cam_id] = NULL;
 		return 0;
 	}
-
-	// must set HDR_MODE, before init
 	g_WDRMode[cam_id] = WDRMode;
-	char hdr_str[16];
-	snprintf(hdr_str, sizeof(hdr_str), "%d", (int)WDRMode);
-	setenv("HDR_MODE", hdr_str, 1);
 
 	rk_aiq_sys_ctx_t *aiq_ctx;
 	rk_aiq_static_info_t aiq_static_info;
