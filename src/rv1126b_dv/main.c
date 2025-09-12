@@ -153,7 +153,6 @@ int main(int argc, char **argv) {
 	signal(SIGTERM, sig_proc);
 	// FIXME: Avoid rockit force set isp online mode
 	setenv("rt_vi_rawstream_en", "0", 1);
-	setenv("HDR_MODE", "00", 1);
 	rkipc_get_opt(argc, argv);
 	LOG_INFO("rkipc_ini_path_ is %s, rkipc_iq_file_path_ is %s, rkipc_log_level "
 	         "is %d\n",
