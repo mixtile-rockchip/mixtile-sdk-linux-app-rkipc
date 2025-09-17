@@ -959,6 +959,7 @@ static int gdc_record_init(void) {
 	gdc_attr.s32Depth = rk_param_get_int("video.0:depth", 0);
 	gdc_attr.enDstCompMode = COMPRESS_RFBC_64x4;
 	gdc_attr.enDstPixelFormat = RK_FMT_YUV420SP;
+	gdc_attr.enDstVideoFormat = VIDEO_FORMAT_LINEAR;
 	gdc_attr.stEisAttr.s32DevNo = IIO_IMU_DEVICE_NO;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
 	if (rk_mode_param.eis_mode == RK_HORIZON_STEADY) {
@@ -1737,6 +1738,11 @@ int rk_resume_preview(void) {
 	MPP_CHN_S vo_chn;
 	MPP_CHN_S gdc_display_chn;
 	int ret = 0;
+	int vo_layer = VO_PREV_LAYER;
+	int vo_dev_id = VO_DEV_ID;
+	int vo_chn_id = VO_PREV_CHN;
+	VO_CHN_ATTR_S vo_chn_attr = {};
+
 	LOG_INFO("enter\n");
 	vi_display_chn.enModId = RK_ID_VI;
 	vi_display_chn.s32DevId = VI_DEV;
@@ -1749,6 +1755,15 @@ int rk_resume_preview(void) {
 	gdc_display_chn.s32ChnId = GDC_DISPLAY_CHN;
 
 	if (rk_mode_param.enable_display) {
+		ret = RK_MPI_VO_GetChnAttr(vo_layer, vo_chn_id, &vo_chn_attr);
+		vo_chn_attr.stRect.s32X = rk_param_get_int("display:vo_rect_x", 0);
+		vo_chn_attr.stRect.s32Y = rk_param_get_int("display:vo_rect_y", 0);
+		vo_chn_attr.stRect.u32Width = rk_param_get_int("display:vo_rect_w", 0);
+		vo_chn_attr.stRect.u32Height = rk_param_get_int("display:vo_rect_h", 0);
+		ret = RK_MPI_VO_SetChnAttr(vo_layer, vo_chn_id, &vo_chn_attr);
+		if (ret)
+			LOG_ERROR("RK_MPI_VO_SetChnAttr failed %#X\n", ret);
+		RK_MPI_VO_SetLayerFlush(vo_layer);
 		if (rk_mode_param.eis_mode == RK_EIS_OFF) {
 			ret = RK_MPI_SYS_Bind(&vi_display_chn, &vo_chn);
 			if (ret != RK_SUCCESS) {
@@ -1772,6 +1787,13 @@ int rk_pause_preview(void) {
 	MPP_CHN_S vo_chn;
 	MPP_CHN_S gdc_display_chn;
 	int ret = 0;
+	int vo_width = rk_param_get_int("display:width", 1080);
+	int vo_height = rk_param_get_int("display:height", 1920);
+	int vo_layer = VO_PREV_LAYER;
+	int vo_dev_id = VO_DEV_ID;
+	int vo_chn_id = VO_PREV_CHN;
+	VO_CHN_ATTR_S vo_chn_attr = {};
+
 	LOG_INFO("enter\n");
 	vi_display_chn.enModId = RK_ID_VI;
 	vi_display_chn.s32DevId = VI_DEV;
@@ -1793,6 +1815,16 @@ int rk_pause_preview(void) {
 			if (ret != RK_SUCCESS)
 				LOG_ERROR("gdc display chn unbind vo chn fail:%x\n", ret);
 		}
+		// Set player display size same as screen size
+		ret = RK_MPI_VO_GetChnAttr(vo_layer, vo_chn_id, &vo_chn_attr);
+		vo_chn_attr.stRect.s32X = 0;
+		vo_chn_attr.stRect.s32Y = 0;
+		vo_chn_attr.stRect.u32Width = vo_width;
+		vo_chn_attr.stRect.u32Height = vo_height;
+		ret = RK_MPI_VO_SetChnAttr(vo_layer, vo_chn_id, &vo_chn_attr);
+		if (ret)
+			LOG_ERROR("RK_MPI_VO_SetChnAttr failed %#X\n", ret);
+		RK_MPI_VO_SetLayerFlush(vo_layer);
 	}
 	LOG_INFO("exit\n");
 	return ret;

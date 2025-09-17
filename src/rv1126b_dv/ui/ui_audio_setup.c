@@ -107,7 +107,7 @@ static void audio_event_handler(lv_event_t *e) {
 			LOG_INFO("set record volume %d\n", value);
 		} else if (obj == audio_setup_ctrl.play_slider_obj) {
 			int value = lv_slider_get_value(obj);
-			rk_param_set_int("audio.0:play_volume", value);
+			rk_param_set_int("audio.0:ao_volume", value);
 			LOG_INFO("set play volume %d\n", value);
 		}
 	}
@@ -164,7 +164,7 @@ static void audio_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_size(obj, lv_pct(60), lv_pct(50));
 	lv_obj_align(obj, LV_ALIGN_RIGHT_MID, -55, 0);
 	lv_slider_set_range(obj, 0, 100);
-	lv_slider_set_value(obj, rk_param_get_int("audio.0:play_volume", 50), LV_ANIM_OFF);
+	lv_slider_set_value(obj, rk_param_get_int("audio.0:ao_volume", 50), LV_ANIM_OFF);
 	lv_obj_add_event_cb(obj, audio_event_handler, LV_EVENT_RELEASED, NULL);
 }
 
