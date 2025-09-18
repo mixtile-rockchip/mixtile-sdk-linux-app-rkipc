@@ -90,23 +90,15 @@ post_chk()
 	rkipc_ini=/userdata/rkipc.ini
 	default_rkipc_ini=/tmp/rkipc-factory-config.ini
 
-	lsmod | grep imx415
+	ls /dev/media* | xargs -i media-ctl -pd {} | grep sc850sl
 	if [ $? -eq 0 ] ;then
 		ln -s -f /oem/usr/share/rkipc.ini $default_rkipc_ini
 	fi
-	lsmod | grep sc850sl
-	if [ $? -eq 0 ] ;then
-		ln -s -f /oem/usr/share/rkipc.ini $default_rkipc_ini
-	fi
-	lsmod | grep gc8613
+	ls /dev/media* | xargs -i media-ctl -pd {} | grep gc8613
 	if [ $? -eq 0 ] ;then
 		ln -s -f /oem/usr/share/rkipc-gc8613.ini $default_rkipc_ini
 	fi
-	media-ctl -pd /dev/media0 | grep imx586
-	if [ $? -eq 0 ] ;then
-		ln -s -f /oem/usr/share/rkipc-imx586.ini $default_rkipc_ini
-	fi
-	media-ctl -pd /dev/media0 | grep imx577
+	ls /dev/media* | xargs -i media-ctl -pd {} | grep imx586
 	if [ $? -eq 0 ] ;then
 		ln -s -f /oem/usr/share/rkipc-imx586.ini $default_rkipc_ini
 	fi
