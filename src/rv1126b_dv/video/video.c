@@ -910,9 +910,15 @@ static int gdc_display_init(void) {
 		LOG_ERROR("ERROR: distortion correction is not support now!\n");
 		return -1;
 	} else {
+#ifdef BUILDROOT
+		snprintf(gdc_attr.cfgFile, sizeof(gdc_attr.cfgFile),
+		         "/usr/share/rkeis_config_normal_%dx%d_%dx%d_30fps.json",
+		         display_width, display_height, display_width, display_height);
+#else
 		snprintf(gdc_attr.cfgFile, sizeof(gdc_attr.cfgFile),
 		         "/oem/usr/share/rkeis_config_normal_%dx%d_%dx%d_30fps.json",
 		         display_width, display_height, display_width, display_height);
+#endif
 	}
 	ret = RK_MPI_GDC_CreateChn(GDC_DISPLAY_CHN, &gdc_attr);
 	if (ret) {
@@ -969,9 +975,15 @@ static int gdc_record_init(void) {
 		LOG_ERROR("ERROR: distortion correction is not support now!\n");
 		return -1;
 	} else {
+#ifdef BUILDROOT
+		snprintf(gdc_attr.cfgFile, sizeof(gdc_attr.cfgFile),
+		         "/usr/share/rkeis_config_normal_%dx%d_%dx%d_30fps.json",
+		         sensor_width, sensor_height, video_width, video_height);
+#else
 		snprintf(gdc_attr.cfgFile, sizeof(gdc_attr.cfgFile),
 		         "/oem/usr/share/rkeis_config_normal_%dx%d_%dx%d_30fps.json",
 		         sensor_width, sensor_height, video_width, video_height);
+#endif
 	}
 	if (rk_mode_param.enable_eis_debug) {
 		GDC_INFO_CB_S gdc_info_cb = {};

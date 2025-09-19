@@ -545,7 +545,7 @@ static void* test_func(void *arg) {
 			, "/userdata/test_result_all_%d%02d%02d%02d%02d%02d.txt"
 			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	}
-	fd = open(file_name, O_RDWR | O_CREAT);
+	fd = open(file_name, O_RDWR | O_CREAT, 0666);
 	if (fd < 0) {
 		LOG_ERROR("open %s failed\n", file_name);
 		return NULL;

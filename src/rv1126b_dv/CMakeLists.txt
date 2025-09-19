@@ -65,6 +65,9 @@ add_definitions(-DDRAW_UI_BY_VO=1 -DLVGL_SUPPORT_TOUCHSCREEN)
 add_definitions(-DISP_HW_V35)
 add_definitions(-g -ggdb)
 add_definitions(-DRV1126B=1)
+if(COMPILE_FOR_BUILDROOT)
+add_definitions(-DBUILDROOT)
+endif()
 
 add_executable(${PROJECT_NAME} ${SRCS})
 
@@ -72,13 +75,17 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-result -Wno-unused-but-set-varia
 
 target_link_libraries(${PROJECT_NAME}
 						pthread rockit rkaiq rtsp freetype rkmuxer m rga rkaudio
-						lvgl rkdemuxer png)
+						lvgl rkdemuxer png RkEis)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 install(FILES rkipc.ini DESTINATION share)
 install(FILES rkipc-gc8613.ini DESTINATION share)
 install(FILES rkipc-imx586.ini DESTINATION share)
+if(COMPILE_FOR_BUILDROOT)
+install(PROGRAMS RkLunch-buildroot.sh DESTINATION bin RENAME RkLunch.sh)
+else()
 install(PROGRAMS RkLunch.sh DESTINATION bin)
+endif()
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/PuHuiTi.ttf DESTINATION share)
 file(GLOB ICON_FILES res/ui/*)

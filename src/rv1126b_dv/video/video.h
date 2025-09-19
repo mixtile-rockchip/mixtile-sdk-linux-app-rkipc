@@ -78,7 +78,10 @@ int rk_enter_sleep(void);
 int rk_video_init(void);
 int rk_video_deinit(void);
 int rk_video_restart(void);
-int rk_video_reset_frame_rate(int stream_id);
+
+static int rk_video_reset_frame_rate(int stream_id) {
+	return 0;
+}
 
 // Init display device like LCD, MCU
 int rk_display_init(void);

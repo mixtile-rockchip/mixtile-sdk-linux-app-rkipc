@@ -66,7 +66,11 @@ static lv_img_dsc_t *ui_dec_icon(const char *const icon_name) {
 
 	char icon_path[PATH_MAX] = {0};
 
+#ifdef BUILDROOT
+	snprintf(icon_path, sizeof(icon_path), "%s%s", "/usr/share/res/ui/", icon_name);
+#else
 	snprintf(icon_path, sizeof(icon_path), "%s%s", "/oem/usr/share/res/ui/", icon_name);
+#endif
 	return lv_dec_img(icon_path);
 }
 
@@ -76,7 +80,11 @@ static int32_t ui_font_init(lv_ft_info_t *info, uint32_t weight) {
 		return -1;
 	}
 
+#ifdef BUILDROOT
+	info->name = "/usr/share/PuHuiTi.ttf";
+#else
 	info->name = "/oem/usr/share/PuHuiTi.ttf";
+#endif
 	info->weight = weight;
 	info->style = FT_FONT_STYLE_NORMAL;
 
