@@ -1484,8 +1484,10 @@ dehaze_level = 0 ; 去雾等级
 dis = close ; 电子防抖，暂未使用
 gray_scale_mode = [0-255] ; 灰度范围
 image_rotation = close ; 图像旋转角，暂未使用
-distortion_correction = close ; 畸变矫正
+distortion_correction = close ; 畸变矫正，可选值：close\LDCH\FEC\DIS，取决于具体芯片
 ldch_level = 0 ; 横向镜头畸变校正
+fec_ini_file = /oem/usr/share/fec_calib/sc850sl_CMK-OT2115-PC1_ldc.ini ; fec参数文件
+dis_file = /oem/usr/share/rkdis_config/sc850sl_CMK-OT2115-PC1_dis.json ; dis参数文件
 
 [isp.0.video_adjustment]
 image_flip = close ; 镜像功能
