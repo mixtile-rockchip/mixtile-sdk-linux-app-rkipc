@@ -48,8 +48,6 @@ static int g_nn_osd_run_ = 1;
 static int pipe_id_ = 0;
 static int dev_id_ = 0;
 static int cycle_snapshot_flag = 0;
-static int g_avs_width = 0;
-static int g_avs_height = 0;
 static const char *tmp_output_data_type = "H.264";
 static const char *tmp_rc_mode;
 static const char *tmp_h264_profile;
@@ -392,8 +390,8 @@ int rkipc_avs_init() {
 	stAvsChnAttr[0].stFrameRate.s32SrcFrameRate = -1;
 	stAvsChnAttr[0].stFrameRate.s32DstFrameRate = -1;
 	stAvsChnAttr[0].u32Depth = 0;
-	stAvsChnAttr[0].u32Width = rk_param_get_int("video.0:width", -1);
-	stAvsChnAttr[0].u32Height = rk_param_get_int("video.0:height", -1);
+	stAvsChnAttr[0].u32Width = rk_param_get_int("avs:avs_width", -1);
+	stAvsChnAttr[0].u32Height = rk_param_get_int("avs:avs_height", -1);
 	stAvsChnAttr[0].enDynamicRange = DYNAMIC_RANGE_SDR8;
 	stAvsChnAttr[0].u32FrameBufCnt = 3;
 	LOG_INFO("avs channel 0\n");
@@ -2100,7 +2098,23 @@ int rk_video_get_resolution(int stream_id, char **value) {
 }
 
 int rk_video_set_resolution(int stream_id, const char *value) {
-	LOG_INFO("not support\n");
+	char entry[128] = {'\0'};
+	int width, height;
+
+	sscanf(value, "%d*%d", &width, &height);
+	LOG_INFO("value is %s, width is %d, height is %d\n", value, width, height);
+	snprintf(entry, 127, "video.%d:width", stream_id);
+	rk_param_set_int(entry, width);
+	snprintf(entry, 127, "video.%d:height", stream_id);
+	rk_param_set_int(entry, height);
+	if (enable_jpeg && (stream_id == 0)) {
+		snprintf(entry, 127, "video.jpeg:width");
+		rk_param_set_int(entry, width);
+		snprintf(entry, 127, "video.jpeg:height");
+		rk_param_set_int(entry, height);
+	}
+	rk_video_restart();
+
 	return 0;
 }
 
@@ -3097,8 +3111,6 @@ int rk_video_init() {
 	          enable_osd);
 	g_video_run_ = 1;
 	g_nn_osd_run_ = 1;
-	g_avs_width = rk_param_get_int("avs:avs_width", 0);
-	g_avs_height = rk_param_get_int("avs:avs_height", 0);
 
 	ret |= rkipc_vi_dev_init();
 	ret |= rkipc_multi_vi_init();
