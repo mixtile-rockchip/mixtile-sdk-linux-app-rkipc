@@ -20,7 +20,7 @@
 #define JPEG_VENC_CHN 3
 #define VPSS_ROTATE 6
 #define VPSS_GRP_ID VPSS_MAX_CHN_NUM
-#define VI_PIPE_ID 8
+#define VI_PIPE_ID VI_MAX_CHN_NUM
 #define DRAW_NN_VENC_CHN_ID 0
 #define DRAW_NN_OSD_ID 7
 #define RED_COLOR 0x0000FF
