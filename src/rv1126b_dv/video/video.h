@@ -53,6 +53,8 @@ int rk_set_eis_mode(RK_EIS_MODE_E eis_mode);
 int rk_set_hdr(RK_HDR_MODE_E hdr_mode);
 RK_HDR_MODE_E rk_get_hdr(void);
 
+int rk_venc_update_bitrate(void);
+
 int rk_set_memc_mode(bool enable);
 int rk_get_memc_mode(void);
 

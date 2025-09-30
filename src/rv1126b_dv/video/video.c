@@ -2249,3 +2249,38 @@ int rk_enter_sleep(void) {
 	LOG_INFO("exit\n");
 	return 0;
 }
+
+int rk_venc_update_bitrate(void) {
+	VENC_CHN_ATTR_S venc_chn_attr;
+	const char *tmp_output_data_type = rk_param_get_string("video.0:output_data_type", NULL);
+	const char *tmp_rc_mode = rk_param_get_string("video.0:rc_mode", NULL);
+	const char *tmp_h264_profile = rk_param_get_string("video.0:h264_profile", NULL);
+	int ret = 0;
+	ret = RK_MPI_VENC_GetChnAttr(VENC_MAIN_CHN, &venc_chn_attr);
+	if (ret) {
+		LOG_ERROR("ERROR: RK_MPI_VENC_GetChnAttr failed! ret=%d\n", ret);
+		return ret;
+	}
+	if (!strcmp(tmp_output_data_type, "H.264")) {
+		if (!strcmp(tmp_rc_mode, "CBR")) {
+			venc_chn_attr.stRcAttr.stH264Cbr.u32BitRate = rk_param_get_int("video.0:max_rate", 0);
+		} else {
+			venc_chn_attr.stRcAttr.stH264Vbr.u32MaxBitRate = rk_param_get_int("video.0:max_rate", 0);
+		}
+	} else if (!strcmp(tmp_output_data_type, "H.265")) {
+		if (!strcmp(tmp_rc_mode, "CBR")) {
+			venc_chn_attr.stRcAttr.stH265Cbr.u32BitRate = rk_param_get_int("video.0:max_rate", 0);
+		} else {
+			venc_chn_attr.stRcAttr.stH265Vbr.u32MaxBitRate = rk_param_get_int("video.0:max_rate", 0);
+		}
+	} else {
+		LOG_ERROR("ERROR: bad output_data_type %s\n", tmp_output_data_type);
+		return -1;
+	}
+	ret = RK_MPI_VENC_SetChnAttr(VENC_MAIN_CHN, &venc_chn_attr);
+	if (ret) {
+		LOG_ERROR("ERROR: RK_MPI_VENC_SetChnAttr failed! ret=%d\n", ret);
+		return ret;
+	}
+	return ret;
+}

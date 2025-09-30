@@ -47,6 +47,8 @@ typedef struct {
 	lv_obj_t *hdr_label_obj;
 	lv_obj_t *photo_obj;
 	lv_obj_t *photo_label_obj;
+	lv_obj_t *birtate_obj;
+	lv_obj_t *bitrate_label_obj;
 	lv_obj_t *debug_obj;
 	lv_obj_t *smart_ae_obj;
 	lv_obj_t *enable_osd_obj;
@@ -207,6 +209,39 @@ static void photo_event_handler(lv_event_t *e) {
 	}
 }
 
+static void bitrate_config_cb(void *userdata) {
+	int mode = (int)(size_t)userdata;
+	if (mode == 0)
+		rk_param_set_int("video.0:max_rate", 50000); // normal mode
+	else if (mode == 1)
+		rk_param_set_int("video.0:max_rate", 90000); // high bitrate mode
+	else if (mode == 2)
+		rk_param_set_int("video.0:max_rate", 8000); // low bitrate mode
+	rk_venc_update_bitrate();
+	LOG_INFO("set bitrate %dkbps\n", rk_param_get_int("video.0:max_rate", 50000));
+}
+
+static const ui_option_entry_t bitrate_options[] = {
+	{"标准", bitrate_config_cb, (void *)0},
+	{"高码率", bitrate_config_cb, (void *)1},
+	{"超低码率(用于RTSP)", bitrate_config_cb, (void *)2},
+};
+
+static void venc_event_handler(lv_event_t *e) {
+	lv_event_code_t code = lv_event_get_code(e);
+	lv_obj_t *obj = lv_event_get_target(e);
+	if (code == LV_EVENT_CLICKED) {
+		int bitrate = rk_param_get_int("video.0:max_rate", 50000);
+		int index = 0;
+		if (bitrate == 100000)
+			index = 1;
+		else if (bitrate == 8000)
+			index = 2;
+		create_select_box("码率配置", bitrate_options, sizeof(bitrate_options) / sizeof(bitrate_options[0])
+			, index);
+	}
+}
+
 static void video_setup_layout(lv_obj_t *page_obj) {
 	lv_obj_set_flex_flow(video_setup_ctrl.container_obj, LV_FLEX_FLOW_COLUMN);
 	lv_obj_set_flex_align(video_setup_ctrl.container_obj, LV_FLEX_ALIGN_START,
@@ -262,6 +297,12 @@ static void video_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_size(video_setup_ctrl.photo_obj, lv_pct(100), lv_pct(10));
 	lv_obj_add_event_cb(video_setup_ctrl.photo_obj, photo_event_handler, LV_EVENT_CLICKED, NULL);
 	video_setup_ctrl.photo_label_obj = lv_label_create(video_setup_ctrl.photo_obj);
+
+	video_setup_ctrl.birtate_obj = lv_btn_create(cont_obj);
+	lv_obj_set_size(video_setup_ctrl.birtate_obj, lv_pct(100), lv_pct(10));
+	video_setup_ctrl.bitrate_label_obj = lv_label_create(video_setup_ctrl.birtate_obj);
+	lv_obj_add_event_cb(video_setup_ctrl.birtate_obj, venc_event_handler, LV_EVENT_CLICKED, NULL);
+	video_setup_ctrl.bitrate_label_obj = lv_label_create(video_setup_ctrl.birtate_obj);
 
 	video_setup_ctrl.memc_obj = lv_checkbox_create(cont_obj);
 	lv_obj_add_flag(video_setup_ctrl.memc_obj, LV_OBJ_FLAG_CHECKABLE);
@@ -370,6 +411,11 @@ static void video_setup_set_text() {
 	                 LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_label_set_text(video_setup_ctrl.photo_label_obj, "连拍设置");
 
+	lv_obj_add_style(video_setup_ctrl.birtate_obj, &option_style, 0);
+	lv_obj_add_style(video_setup_ctrl.birtate_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_label_set_text(video_setup_ctrl.bitrate_label_obj, "码率设置");
+
 	lv_checkbox_set_text(video_setup_ctrl.memc_obj, "MEMC");
 	lv_obj_add_style(video_setup_ctrl.memc_obj, &option_style, 0);
 	lv_obj_add_style(video_setup_ctrl.memc_obj, &option_focus_style,
@@ -411,6 +457,11 @@ static void video_setup_destroy_ctrl(void) {
 		ui_common_remove_style_all(video_setup_ctrl.photo_obj);
 		lv_obj_del(video_setup_ctrl.photo_obj);
 		video_setup_ctrl.photo_obj = NULL;
+	}
+	if (NULL != video_setup_ctrl.birtate_obj) {
+		ui_common_remove_style_all(video_setup_ctrl.birtate_obj);
+		lv_obj_del(video_setup_ctrl.birtate_obj);
+		video_setup_ctrl.birtate_obj = NULL;
 	}
 	if (NULL != video_setup_ctrl.exit_obj) {
 		ui_common_remove_style_all(video_setup_ctrl.exit_obj);
