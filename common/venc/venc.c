@@ -186,9 +186,9 @@ int rkipc_set_advanced_venc_params(int venc_chn_id) {
 	VENC_FILTER_S filter_s;
 	RK_MPI_VENC_GetFilter(venc_chn_id, &filter_s);
 	snprintf(entry, 127, "video.%d:flt_str_i", venc_chn_id);
-	filter_s.u32StrengthI = rk_param_get_int(entry, 2);
+	filter_s.u32StrengthI = rk_param_get_int(entry, 0);
 	snprintf(entry, 127, "video.%d:flt_str_p", venc_chn_id);
-	filter_s.u32StrengthP = rk_param_get_int(entry, 2);
+	filter_s.u32StrengthP = rk_param_get_int(entry, 0);
 	RK_MPI_VENC_SetFilter(venc_chn_id, &filter_s);
 
 	if (!strcmp(tmp_output_data_type, "H.265")) {
@@ -215,9 +215,15 @@ int rkipc_set_advanced_venc_params(int venc_chn_id) {
 	VENC_LAMBDA_S lambda_s;
 	RK_MPI_VENC_GetLambda(venc_chn_id, &lambda_s);
 	snprintf(entry, 127, "video.%d:lambda", venc_chn_id);
-	lambda_s.u32Lambda = rk_param_get_int(entry, 4);
+	if (!strcmp(tmp_output_data_type, "H.264"))
+		lambda_s.u32Lambda = rk_param_get_int(entry, 6);
+	else
+		lambda_s.u32Lambda = rk_param_get_int(entry, 5);
 	snprintf(entry, 127, "video.%d:lambda_i", venc_chn_id);
-	lambda_s.u32LambdaI = rk_param_get_int(entry, 7);
+	if (!strcmp(tmp_output_data_type, "H.264"))
+		lambda_s.u32LambdaI = rk_param_get_int(entry, 6);
+	else
+		lambda_s.u32LambdaI = rk_param_get_int(entry, 5);
 	RK_MPI_VENC_SetLambda(venc_chn_id, &lambda_s);
 
 	VENC_ANTI_FLICK_S anti_flick_s;
