@@ -178,8 +178,10 @@ static void *rkipc_get_venc_0(void *arg) {
 			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_ISLICE)) {
 				rk_storage_write_video_frame(0, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 1);
-				rk_rtmp_write_video_frame(0, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
+				ret = rk_rtmp_write_video_frame(0, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
 				                          1);
+				if (ret)
+					rk_rtmp_deinit(0);
 			} else {
 				rk_storage_write_video_frame(0, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 0);
@@ -227,8 +229,10 @@ static void *rkipc_get_venc_1(void *arg) {
 			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_ISLICE)) {
 				rk_storage_write_video_frame(1, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 1);
-				rk_rtmp_write_video_frame(1, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
+				ret = rk_rtmp_write_video_frame(1, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
 				                          1);
+				if (ret)
+					rk_rtmp_deinit(1);
 			} else {
 				rk_storage_write_video_frame(1, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 0);
@@ -273,8 +277,10 @@ static void *rkipc_get_venc_2(void *arg) {
 			    (stFrame.pstPack->DataType.enH265EType == H265E_NALU_ISLICE)) {
 				rk_storage_write_video_frame(2, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 1);
-				rk_rtmp_write_video_frame(2, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
+				ret = rk_rtmp_write_video_frame(2, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
 				                          1);
+				if (ret)
+					rk_rtmp_deinit(2);
 			} else {
 				rk_storage_write_video_frame(2, data, stFrame.pstPack->u32Len,
 				                             stFrame.pstPack->u64PTS, 0);
@@ -351,6 +357,7 @@ int rkipc_rtmp_init() {
 	ret |= rk_rtmp_init(0, RTMP_URL_0);
 	ret |= rk_rtmp_init(1, RTMP_URL_1);
 	ret |= rk_rtmp_init(2, RTMP_URL_2);
+	LOG_INFO("ret is %d\n", ret);
 
 	return ret;
 }
