@@ -180,6 +180,13 @@ int isp_camera_group_init(int cam_group_id, rk_aiq_working_mode_t WDRMode, bool 
 		return -1;
 	}
 	LOG_INFO("rk_aiq_uapi2_camgroup_create over\n");
+	// set fps before aiq prepare, and the output stream will directly be at a low frame rate,
+	// avoiding errors caused by too small vblank in the first few frames when half online
+	if (rk_param_get_int("isp:init_from_ini", 1)) {
+		char entry[128] = {'\0'};
+		snprintf(entry, 127, "isp.%d.adjustment:fps", rkipc_get_scenario_id(cam_group_id));
+		rk_isp_set_frame_rate_without_ini(cam_group_id, rk_param_get_int(entry, 30));
+	}
 	ret = rk_aiq_uapi2_camgroup_prepare(g_camera_group_ctx[cam_group_id], WDRMode);
 	LOG_INFO("rk_aiq_uapi2_camgroup_prepare over\n");
 	ret |= rk_aiq_uapi2_camgroup_start(g_camera_group_ctx[cam_group_id]);
