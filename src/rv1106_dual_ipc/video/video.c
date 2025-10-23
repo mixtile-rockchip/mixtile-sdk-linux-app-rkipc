@@ -206,8 +206,8 @@ int rkipc_vi_dev_init() {
 #ifdef RKIPC_RV1103B
 		// group mode + half online, only need 1 buffer
 		if (rk_param_get_int("isp:group_mode", 1) &&
-			(rk_param_get_int("isp:vi_dev_pipe_mode", 1) == VI_DEV_PIPE_LEFT_HALF_ONLINE ||
-			rk_param_get_int("isp:vi_dev_pipe_mode", 1) == VI_DEV_PIPE_RIGHT_HALF_ONLINE))
+		    (rk_param_get_int("isp:vi_dev_pipe_mode", 1) == VI_DEV_PIPE_LEFT_HALF_ONLINE ||
+		     rk_param_get_int("isp:vi_dev_pipe_mode", 1) == VI_DEV_PIPE_RIGHT_HALF_ONLINE))
 			stDevAttr.u32BufCount = 1;
 		else
 			stDevAttr.u32BufCount = 2;
@@ -2007,7 +2007,7 @@ int rk_video_get_frame_rate(int stream_id, char **value) {
 
 int rk_video_set_frame_rate(int stream_id, const char *value) {
 	char entry[128] = {'\0'};
-	int den, num, sensor_fps;
+	int den, num, sensor_fps, ret;
 	VI_CHN_ATTR_S vi_chn_attr_0;
 	VI_CHN_ATTR_S vi_chn_attr_1;
 	VENC_CHN_ATTR_S venc_chn_attr;
@@ -2023,12 +2023,24 @@ int rk_video_set_frame_rate(int stream_id, const char *value) {
 	if (rk_param_get_int("isp:vi_dev_pipe_mode", 1) == 2)
 		sensor_fps = sensor_fps / 2;
 
-	RK_MPI_VI_GetChnAttr(0, 0, &vi_chn_attr_0);
-	RK_MPI_VI_GetChnAttr(1, 0, &vi_chn_attr_1);
+	ret = RK_MPI_VI_GetChnAttr(0, 0, &vi_chn_attr_0);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_VI_GetChnAttr 0, 0 failed, ret is %x\n", ret);
+		return -1;
+	}
+	ret = RK_MPI_VI_GetChnAttr(1, 0, &vi_chn_attr_1);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_VI_GetChnAttr 1, 0 failed, ret is %x\n", ret);
+		return -1;
+	}
 	LOG_INFO("old VI 0,0 framerate is [%d:%d], 1,0 framerate is [%d:%d]\n",
-			 vi_chn_attr_0.stFrameRate.s32SrcFrameRate, vi_chn_attr_0.stFrameRate.s32DstFrameRate,
-			 vi_chn_attr_1.stFrameRate.s32SrcFrameRate, vi_chn_attr_1.stFrameRate.s32DstFrameRate);
-	RK_MPI_VENC_GetChnAttr(stream_id, &venc_chn_attr);
+	         vi_chn_attr_0.stFrameRate.s32SrcFrameRate, vi_chn_attr_0.stFrameRate.s32DstFrameRate,
+	         vi_chn_attr_1.stFrameRate.s32SrcFrameRate, vi_chn_attr_1.stFrameRate.s32DstFrameRate);
+	ret = RK_MPI_VENC_GetChnAttr(stream_id, &venc_chn_attr);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("RK_MPI_VENC_GetChnAttr failed, ret is %x\n", ret);
+		return -1;
+	}
 	snprintf(entry, 127, "video.%d:output_data_type", stream_id);
 	tmp_output_data_type = rk_param_get_string(entry, "H.264");
 	snprintf(entry, 127, "video.%d:rc_mode", stream_id);
@@ -2071,8 +2083,8 @@ int rk_video_set_frame_rate(int stream_id, const char *value) {
 		return -1;
 	}
 	LOG_INFO("new VI 0,0 framerate is [%d:%d], 1,0 framerate is [%d:%d]\n",
-			 vi_chn_attr_0.stFrameRate.s32SrcFrameRate, vi_chn_attr_0.stFrameRate.s32DstFrameRate,
-			 vi_chn_attr_1.stFrameRate.s32SrcFrameRate, vi_chn_attr_1.stFrameRate.s32DstFrameRate);
+	         vi_chn_attr_0.stFrameRate.s32SrcFrameRate, vi_chn_attr_0.stFrameRate.s32DstFrameRate,
+	         vi_chn_attr_1.stFrameRate.s32SrcFrameRate, vi_chn_attr_1.stFrameRate.s32DstFrameRate);
 	RK_MPI_VI_SetChnAttr(0, 0, &vi_chn_attr_0);
 	RK_MPI_VI_SetChnAttr(1, 0, &vi_chn_attr_1);
 	RK_MPI_VENC_SetChnAttr(stream_id, &venc_chn_attr);
@@ -2288,9 +2300,11 @@ int rkipc_osd_cover_create(int id, osd_data_s *osd_data) {
 
 	if (enable_venc_1) {
 		RgnHandle += 7; // 7 is the offset of sub stream OSD cover
-		stRgnAttr.unAttr.stOverlay.stSize.u32Width = UPALIGNTO16(osd_data->width * rk_param_get_int("video.1:width", 1) /
+		stRgnAttr.unAttr.stOverlay.stSize.u32Width =
+		    UPALIGNTO16(osd_data->width * rk_param_get_int("video.1:width", 1) /
 		                rk_param_get_int("video.0:width", 1));
-		stRgnAttr.unAttr.stOverlay.stSize.u32Height = UPALIGNTO16(osd_data->height * rk_param_get_int("video.1:height", 1) /
+		stRgnAttr.unAttr.stOverlay.stSize.u32Height =
+		    UPALIGNTO16(osd_data->height * rk_param_get_int("video.1:height", 1) /
 		                rk_param_get_int("video.0:height", 1));
 		ret = RK_MPI_RGN_Create(RgnHandle, &stRgnAttr);
 		if (RK_SUCCESS != ret) {
@@ -2315,7 +2329,8 @@ int rkipc_osd_cover_create(int id, osd_data_s *osd_data) {
 		}
 		LOG_DEBUG("RK_MPI_RGN_AttachToChn to venc1 success\n");
 
-		osd_data->size = stRgnAttr.unAttr.stOverlay.stSize.u32Width * stRgnAttr.unAttr.stOverlay.stSize.u32Height / 4; // RK_FMT_2BPP
+		osd_data->size = stRgnAttr.unAttr.stOverlay.stSize.u32Width *
+		                 stRgnAttr.unAttr.stOverlay.stSize.u32Height / 4; // RK_FMT_2BPP
 		osd_data->buffer = malloc(osd_data->size);
 		memset(osd_data->buffer, 0xff, osd_data->size);
 		stBitmap.enPixelFormat = RK_FMT_2BPP;
