@@ -203,6 +203,16 @@ int rkipc_vi_dev_init() {
 	memset(&stBindPipe, 0, sizeof(stBindPipe));
 	for (int i = 0; i < g_sensor_num; i++) {
 		ret = RK_MPI_VI_GetDevAttr(i, &stDevAttr);
+#ifdef RKIPC_RV1103B
+		// group mode + half online, only need 1 buffer
+		if (rk_param_get_int("isp:group_mode", 1) &&
+			(rk_param_get_int("isp:vi_dev_pipe_mode", 1) == VI_DEV_PIPE_LEFT_HALF_ONLINE ||
+			rk_param_get_int("isp:vi_dev_pipe_mode", 1) == VI_DEV_PIPE_RIGHT_HALF_ONLINE))
+			stDevAttr.u32BufCount = 1;
+		else
+			stDevAttr.u32BufCount = 2;
+		LOG_INFO("stDevAttr.u32BufCount is %d\n", stDevAttr.u32BufCount);
+#endif
 		if (ret == RK_ERR_VI_NOT_CONFIG) {
 			ret = RK_MPI_VI_SetDevAttr(i, &stDevAttr);
 			if (ret != RK_SUCCESS) {
