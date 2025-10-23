@@ -943,6 +943,7 @@ int rkipc_venc_1_init() {
 		LOG_ERROR("ERROR: create VENC error! ret=%#x\n", ret);
 		return -1;
 	}
+
 	rk_video_reset_frame_rate(VIDEO_PIPE_1);
 
 	tmp_smart = rk_param_get_string("video.1:smart", "close");
@@ -1997,7 +1998,8 @@ int rk_video_get_frame_rate(int stream_id, char **value) {
 int rk_video_set_frame_rate(int stream_id, const char *value) {
 	char entry[128] = {'\0'};
 	int den, num, sensor_fps;
-	VI_CHN_ATTR_S vi_chn_attr;
+	VI_CHN_ATTR_S vi_chn_attr_0;
+	VI_CHN_ATTR_S vi_chn_attr_1;
 	VENC_CHN_ATTR_S venc_chn_attr;
 
 	if (strchr(value, '/') == NULL) {
@@ -2011,9 +2013,11 @@ int rk_video_set_frame_rate(int stream_id, const char *value) {
 	if (rk_param_get_int("isp:vi_dev_pipe_mode", 1) == 2)
 		sensor_fps = sensor_fps / 2;
 
-	RK_MPI_VI_GetChnAttr(pipe_id_, stream_id, &vi_chn_attr);
-	LOG_INFO("old VI framerate is [%d:%d]\n", vi_chn_attr.stFrameRate.s32SrcFrameRate,
-	         vi_chn_attr.stFrameRate.s32DstFrameRate);
+	RK_MPI_VI_GetChnAttr(0, 0, &vi_chn_attr_0);
+	RK_MPI_VI_GetChnAttr(1, 0, &vi_chn_attr_1);
+	LOG_INFO("old VI 0,0 framerate is [%d:%d], 1,0 framerate is [%d:%d]\n",
+			 vi_chn_attr_0.stFrameRate.s32SrcFrameRate, vi_chn_attr_0.stFrameRate.s32DstFrameRate,
+			 vi_chn_attr_1.stFrameRate.s32SrcFrameRate, vi_chn_attr_1.stFrameRate.s32DstFrameRate);
 	RK_MPI_VENC_GetChnAttr(stream_id, &venc_chn_attr);
 	snprintf(entry, 127, "video.%d:output_data_type", stream_id);
 	tmp_output_data_type = rk_param_get_string(entry, "H.264");
@@ -2021,8 +2025,10 @@ int rk_video_set_frame_rate(int stream_id, const char *value) {
 	tmp_rc_mode = rk_param_get_string(entry, "CBR");
 
 	// dual ipc, only use VENC frame rate control,
-	vi_chn_attr.stFrameRate.s32SrcFrameRate = sensor_fps;
-	vi_chn_attr.stFrameRate.s32DstFrameRate = sensor_fps;
+	vi_chn_attr_0.stFrameRate.s32SrcFrameRate = sensor_fps;
+	vi_chn_attr_0.stFrameRate.s32DstFrameRate = sensor_fps;
+	vi_chn_attr_1.stFrameRate.s32SrcFrameRate = sensor_fps;
+	vi_chn_attr_1.stFrameRate.s32DstFrameRate = sensor_fps;
 
 	if (!strcmp(tmp_output_data_type, "H.264")) {
 		venc_chn_attr.stVencAttr.enType = RK_VIDEO_ID_AVC;
@@ -2054,9 +2060,11 @@ int rk_video_set_frame_rate(int stream_id, const char *value) {
 		LOG_ERROR("tmp_output_data_type is %s, not support\n", tmp_output_data_type);
 		return -1;
 	}
-	LOG_INFO("new VI framerate is [%d:%d]\n", vi_chn_attr.stFrameRate.s32SrcFrameRate,
-	         vi_chn_attr.stFrameRate.s32DstFrameRate);
-	RK_MPI_VI_SetChnAttr(pipe_id_, stream_id, &vi_chn_attr);
+	LOG_INFO("new VI 0,0 framerate is [%d:%d], 1,0 framerate is [%d:%d]\n",
+			 vi_chn_attr_0.stFrameRate.s32SrcFrameRate, vi_chn_attr_0.stFrameRate.s32DstFrameRate,
+			 vi_chn_attr_1.stFrameRate.s32SrcFrameRate, vi_chn_attr_1.stFrameRate.s32DstFrameRate);
+	RK_MPI_VI_SetChnAttr(0, 0, &vi_chn_attr_0);
+	RK_MPI_VI_SetChnAttr(1, 0, &vi_chn_attr_1);
 	RK_MPI_VENC_SetChnAttr(stream_id, &venc_chn_attr);
 
 	snprintf(entry, 127, "video.%d:dst_frame_rate_den", stream_id);
