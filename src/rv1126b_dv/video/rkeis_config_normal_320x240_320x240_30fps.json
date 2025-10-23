@@ -57,7 +57,7 @@
         "rs_skew": 32472000,
         "start_of_scanline": 0,
         "image_timestamp_offset": 0,
-        "gyro_timestamp_offset": -33200000,
+        "gyro_timestamp_offset": 1200000,
         "hall_timestamp_offset": 0,
         "src_ldc": {
             "k1": 9.29058045e-02,
