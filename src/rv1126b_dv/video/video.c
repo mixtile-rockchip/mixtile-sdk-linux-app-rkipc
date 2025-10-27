@@ -83,20 +83,42 @@ extern char *rkipc_iq_file_path_;
 #define SUBDEV_PATH "/dev/v4l-subdev4" // use media-ctl -p to get the path
 #define FIXED_PAD 0
 
-static int set_camera_format(uint32_t width, uint32_t height, uint32_t fps, uint32_t bps) {
-	uint32_t format = (bps == 10) ? MEDIA_BUS_FMT_SRGGB10_1X10 : MEDIA_BUS_FMT_SRGGB12_1X12;
-	int fd = open(SUBDEV_PATH, O_RDWR);
+static int set_camera_format(uint32_t width, uint32_t height, uint32_t fps, const char* format) {
+	uint32_t code = 0;
+	int fd = -1;
+	if (!format) {
+		LOG_ERROR("empty raw format!\n");
+		return -1;
+	} else if (!strcmp(format, "RGGB10"))
+		code = MEDIA_BUS_FMT_SRGGB10_1X10;
+	else if (!strcmp(format, "GBRG10"))
+		code = MEDIA_BUS_FMT_SGBRG10_1X10;
+	else if (!strcmp(format, "RGGB12"))
+		code = MEDIA_BUS_FMT_SRGGB12_1X12;
+	else if (!strcmp(format, "BGGR14"))
+		code = MEDIA_BUS_FMT_SBGGR14_1X14;
+	else if (!strcmp(format, "RGGB14"))
+		code = MEDIA_BUS_FMT_SRGGB14_1X14;
+	else if (!strcmp(format, "GBRG14"))
+		code = MEDIA_BUS_FMT_SGBRG14_1X14;
+	else if (!strcmp(format, "GRBG14"))
+		code = MEDIA_BUS_FMT_SGRBG14_1X14;
+	else {
+		LOG_ERROR("unknown raw format!\n");
+		return -1;
+	}
+	fd = open(SUBDEV_PATH, O_RDWR);
 	if (fd < 0) {
 		LOG_ERROR("Failed to open subdev\n");
 		return -1;
 	}
 
-	LOG_INFO("width %d, height %d, fps %d, bps %d\n", width, height, fps, bps);
+	LOG_INFO("width %d, height %d, fps %d, code %#X\n", width, height, fps, code);
 	struct v4l2_subdev_format fmt = {.which = V4L2_SUBDEV_FORMAT_ACTIVE,
 	                                 .pad = FIXED_PAD,
 	                                 .format = {.width = width,
 	                                            .height = height,
-	                                            .code = format,
+	                                            .code = code,
 	                                            .field = V4L2_FIELD_NONE,
 	                                            .colorspace = V4L2_COLORSPACE_RAW}};
 	struct v4l2_subdev_frame_interval ival = {.pad = FIXED_PAD,
@@ -113,7 +135,7 @@ static int set_camera_format(uint32_t width, uint32_t height, uint32_t fps, uint
 		return -1;
 	}
 	close(fd);
-	LOG_INFO("update sensor setting width %d height %d fps %d format %d\n", width, height, fps, format);
+	LOG_INFO("update sensor setting width %d height %d fps %d format %s\n", width, height, fps, format);
 	return 0;
 }
 
@@ -1562,13 +1584,14 @@ static int unbind_media_pipe(void) {
 }
 
 static int set_camera_format_by_mode(void) {
-	uint32_t width, height, fps, bps;
+	uint32_t width, height, fps;
+	const char *format = NULL;
 	const char *iq_name = NULL;
 	if (rk_mode_param.mode == RK_SLOW_MOTION_MODE) {
 		width = rk_param_get_int("sensor.binning:width", 1920);
 		height = rk_param_get_int("sensor.binning:height", 1080);
 		fps = rk_param_get_int("sensor.binning:fps", 120);
-		bps = rk_param_get_int("sensor.binning:bps", 10);
+		format = rk_param_get_string("sensor.binning:format", NULL);
 		iq_name = rk_param_get_string("sensor.binning:iq_name", NULL);
 		rk_param_set_string("isp.0.adjustment:force_iq_name", NULL);
 		rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
@@ -1578,7 +1601,7 @@ static int set_camera_format_by_mode(void) {
 			width = rk_param_get_int("sensor.dag_hdr:width", 3840);
 			height = rk_param_get_int("sensor.dag_hdr:height", 2160);
 			fps = rk_param_get_int("sensor.dag_hdr:fps", 30);
-			bps = rk_param_get_int("sensor.dag_hdr:bps", 12);
+			format = rk_param_get_string("sensor.dag_hdr:format", NULL);
 			iq_name = rk_param_get_string("sensor.dag_hdr:iq_name", NULL);
 			rk_param_set_string("isp.0.adjustment:force_iq_name", iq_name);
 			rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
@@ -1587,7 +1610,7 @@ static int set_camera_format_by_mode(void) {
 			width = rk_param_get_int("sensor.stagger_hdr:width", 3840);
 			height = rk_param_get_int("sensor.stagger_hdr:height", 2160);
 			fps = rk_param_get_int("sensor.stagger_hdr:fps", 30);
-			bps = rk_param_get_int("sensor.stagger_hdr:bps", 10);
+			format = rk_param_get_string("sensor.stagger_hdr:format", NULL);
 			iq_name = rk_param_get_string("sensor.stagger_hdr:iq_name", NULL);
 			rk_param_set_string("isp.0.adjustment:force_iq_name", iq_name);
 			rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_ISP_HDR2);
@@ -1596,14 +1619,14 @@ static int set_camera_format_by_mode(void) {
 			width = rk_param_get_int("sensor.linear:width", 3840);
 			height = rk_param_get_int("sensor.linear:height", 2160);
 			fps = rk_param_get_int("sensor.linear:fps", 30);
-			bps = rk_param_get_int("sensor.linear:bps", 10);
+			format = rk_param_get_string("sensor.linear:format", NULL);
 			iq_name = rk_param_get_string("sensor.linear:iq_name", NULL);
 			rk_param_set_string("isp.0.adjustment:force_iq_name", iq_name);
 			rk_param_set_int("isp.0.adjustment:force_hdr_mode", RK_AIQ_WORKING_MODE_NORMAL);
 			rk_param_set_string("isp.0.blc:hdr", "close");
 		}
 	}
-	return set_camera_format(width, height, fps, bps);
+	return set_camera_format(width, height, fps, format);
 }
 
 int rk_video_init(void) {

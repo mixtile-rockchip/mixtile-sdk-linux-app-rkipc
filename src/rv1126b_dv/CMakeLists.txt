@@ -78,9 +78,8 @@ target_link_libraries(${PROJECT_NAME}
 						lvgl rkdemuxer png RkEis)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
-install(FILES rkipc.ini DESTINATION share)
-install(FILES rkipc-gc8613.ini DESTINATION share)
-install(FILES rkipc-imx586.ini DESTINATION share)
+file(GLOB RKIPC_INI_FILES rkipc*)
+install(FILES ${RKIPC_INI_FILES} DESTINATION share)
 if(COMPILE_FOR_BUILDROOT)
 install(PROGRAMS RkLunch-buildroot.sh DESTINATION bin RENAME RkLunch.sh)
 else()
