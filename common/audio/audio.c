@@ -35,6 +35,7 @@ static int ai_chn_id = 0;
 static int aenc_dev_id = 0;
 static int aenc_chn_id = 0;
 static int g_audio_run_ = 1;
+static int g_save_aenc_run_ = 0;
 static int enable_aed, enable_bcd, enable_vqe;
 MPP_CHN_S ai_chn, aenc_chn;
 
@@ -393,6 +394,7 @@ int rkipc_aenc_init() {
 	LOG_DEBUG("create aenc chn %d success\n", aenc_chn_id);
 
 	pthread_create(&save_aenc_tid, RK_NULL, save_aenc_thread, NULL);
+	g_save_aenc_run_ = 1;
 
 	return 0;
 }
@@ -723,7 +725,15 @@ int rkipc_audio_init() {
 	LOG_INFO("%s\n", __func__);
 	g_audio_run_ = 1;
 	int ret = rkipc_ai_init();
-	ret |= rkipc_aenc_init();
+	if (ret) {
+		LOG_ERROR("rkipc_ai_init failed %#X\n", ret);
+		return ret;
+	}
+	ret = rkipc_aenc_init();
+	if (ret) {
+		LOG_ERROR("rkipc_aenc_init failed %#X\n", ret);
+		return ret;
+	}
 
 	// bind ai to aenc
 	ai_chn.enModId = RK_ID_AI;
@@ -734,7 +744,7 @@ int rkipc_audio_init() {
 	aenc_chn.s32DevId = aenc_dev_id;
 	aenc_chn.s32ChnId = aenc_chn_id;
 
-	ret |= RK_MPI_SYS_Bind(&ai_chn, &aenc_chn);
+	ret = RK_MPI_SYS_Bind(&ai_chn, &aenc_chn);
 	if (ret != 0) {
 		LOG_ERROR("RK_MPI_SYS_Bind fail %x\n", ret);
 	}
@@ -755,7 +765,10 @@ int rkipc_audio_deinit() {
 	// 	rkipc_audio_bcd_deinit();
 	// if (enable_vqe)
 	// 	rkipc_audio_vqe_deinit();
-	pthread_join(save_aenc_tid, RK_NULL);
+	if (g_save_aenc_run_) {
+		pthread_join(save_aenc_tid, RK_NULL);
+		g_save_aenc_run_ = 0;
+	}
 	ret = RK_MPI_SYS_UnBind(&ai_chn, &aenc_chn);
 	if (ret != 0) {
 		LOG_ERROR("RK_MPI_SYS_UnBind fail %x\n", ret);
