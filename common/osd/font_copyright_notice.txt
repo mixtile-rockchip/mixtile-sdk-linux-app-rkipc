@@ -1,0 +1,18 @@
+Font Usage Notice and License Information
+==========================================
+
+This software package includes the following font files:
+
+1. rkipc_cn.ttf and rkipc_en.ttf
+   - These fonts are derivative works based on Adobe and Google's Source Han Sans project.
+   - Original copyright: Adobe Systems Incorporated and Google LLC.
+   - Licensed under the SIL Open Font License (Version 1.1). Complete license text is provided in OFL.txt.
+
+2. PuHuiTi.ttf (Alibaba PuHui Font)
+   - Copyright © Alibaba Corp.
+   - This font is licensed under the Alibaba PuHui Font Free License.
+   - It is free to use for commercial and non-commercial purposes, including embedding and distribution within this product.
+   - For full license terms, please visit: https://alibabafont.taobao.com/
+
+---
+Note: Users must comply with the respective licenses of the included fonts. Redistribution of the font files as standalone products is not permitted.
