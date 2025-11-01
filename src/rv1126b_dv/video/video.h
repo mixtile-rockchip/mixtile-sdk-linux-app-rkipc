@@ -43,6 +43,13 @@ typedef enum {
 	RK_HDR_MODE_NUM,
 } RK_HDR_MODE_E;
 
+typedef enum {
+	USB_NORMAL_MODE = 0,
+	USB_UVC_MODE,
+	USB_STORAGE_MODE,
+	USB_MODE_MAX_NUM
+} USB_MODE_E;
+
 int rk_init_mode(void);
 int rk_set_mode(RK_MODE_E mode);
 RK_MODE_E rk_get_mode(void);
@@ -91,3 +98,8 @@ int rk_display_deinit(void);
 
 int rk_pause_preview(void);
 int rk_resume_preview(void);
+
+int rk_enable_usb_function(void);
+int rk_disable_usb_function(void);
+int rk_set_usb_mode(USB_MODE_E mode);
+USB_MODE_E rk_get_usb_mode(void);

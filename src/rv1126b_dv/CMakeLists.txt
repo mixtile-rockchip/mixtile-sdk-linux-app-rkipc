@@ -38,6 +38,7 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/common/osd/freetype2 SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/storage SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/event SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/sysutil SRCS)
+aux_source_directory(${PROJECT_SOURCE_DIR}/common/uvc SRCS)
 
 include_directories(video
 					ui
@@ -57,6 +58,7 @@ include_directories(video
 					${PROJECT_SOURCE_DIR}/common/storage
 					${PROJECT_SOURCE_DIR}/common/event
 					${PROJECT_SOURCE_DIR}/common/sysutil
+					${PROJECT_SOURCE_DIR}/common/uvc
 					)
 
 message(STATUS "RK_APP_ARCH_TYPE is ${RK_APP_ARCH_TYPE}")
@@ -91,3 +93,4 @@ file(GLOB ICON_FILES res/ui/*)
 install(FILES ${ICON_FILES} DESTINATION share/res/ui/)
 file(GLOB EIS_CONFIG_FILES video/rkeis_config_*)
 install(FILES ${EIS_CONFIG_FILES} DESTINATION share)
+install(PROGRAMS ${PROJECT_SOURCE_DIR}/common/uvc/rkipc_usb_config.sh DESTINATION bin)

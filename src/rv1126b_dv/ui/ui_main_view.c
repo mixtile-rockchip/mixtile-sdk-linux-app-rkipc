@@ -14,6 +14,10 @@
  *  limitations under the License.
  */
 
+#include <errno.h>
+#include <fcntl.h>
+#include <string.h>
+#include <unistd.h>
 #ifdef LOG_TAG
 #undef LOG_TAG
 #endif
@@ -26,6 +30,7 @@
 #include "lvgl/porting/lv_port_indev.h"
 #include "storage.h"
 #include "ui_common.h"
+#include "ui_dialog.h"
 #include "ui_dialog_storage.h"
 #include "ui_page_manager.h"
 #include "ui_player.h"
@@ -102,6 +107,35 @@ static bool rk_record_is_active() {
 	return (value == 1);
 }
 
+static int check_usb_state(int *state) {
+	// Check usb-phy state
+	const char *state_str = "/sys/devices/platform/21400000.usb2-phy/extcon/extcon0/state";
+	char buf[256];
+	int fd = -1, ret = 0;
+	fd = open(state_str, O_RDONLY);
+	if (fd < 0) {
+		LOG_ERROR("open error %s\n", strerror(errno));
+		return -1;
+	}
+	ret = read(fd, buf, sizeof(buf));
+	if (ret <= 0) {
+		LOG_ERROR("read error %s\n", strerror(errno));
+		close(fd);
+		return -1;
+	}
+	LOG_DEBUG("usb state %s\n", buf);
+	if (strstr(buf, "USB=0")) {
+		*state = 0;
+	} else if (strstr(buf, "USB=1")) {
+		*state = 1;
+	} else {
+		LOG_ERROR("what happed? can't read usb state\n");
+		return -1;
+	}
+	close(fd);
+	return 0;
+}
+
 static int get_bat_capacity(void) {
 	char buf[64] = {'\0'};
 	int fd = open("/sys/class/power_supply/cw221X-bat/capacity", O_RDONLY);
@@ -119,10 +153,41 @@ static int get_bat_capacity(void) {
 	return capacity;
 }
 
+static void usb_config_cb(void *userdata) {
+	USB_MODE_E mode = (USB_MODE_E)(size_t)userdata;
+	rk_set_usb_mode(mode);
+}
+
+static const ui_option_entry_t usb_options[] = {
+	{"ADB", usb_config_cb, (void *)0},
+	{"USB摄像头", usb_config_cb, (void *)1},
+	{"传输文件", usb_config_cb, (void *)2},
+};
+
 static void timer_xcb(lv_timer_t *timer) {
 	time_t timep;
 	struct tm *p;
 	static bool flag = true;
+	static int old_usb_state = -1;
+	int ret = 0, current_usb_state = -1;
+	int index = rk_get_usb_mode();
+
+	if (old_usb_state == -1) {
+		check_usb_state(&old_usb_state);
+		create_select_box("USB模式", usb_options, sizeof(usb_options) / sizeof(usb_options[0])
+			, index);
+	} else {
+		check_usb_state(&current_usb_state);
+		if (old_usb_state != current_usb_state) {
+			LOG_INFO("usb state change %d -> %d\n", old_usb_state, current_usb_state);
+			old_usb_state = current_usb_state;
+			if (current_usb_state)
+				create_select_box("USB模式", usb_options, sizeof(usb_options) / sizeof(usb_options[0])
+					, index);
+			else
+				rk_disable_usb_function(); // Disable usb function like uvc when usb is disconnected
+		}
+	}
 
 	time(&timep);
 	if (rk_record_is_active()) {
@@ -372,7 +437,7 @@ static void main_view_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_style_bg_opa(main_view_ctrl.cap_obj, LV_OPA_TRANSP, 0);
 	lv_label_set_text_fmt(main_view_ctrl.cap_obj, " ");
 
-	main_view_ctrl.timer = lv_timer_create(timer_xcb, 500, NULL);
+	main_view_ctrl.timer = lv_timer_create(timer_xcb, 200, NULL);
 	lv_timer_ready(main_view_ctrl.timer);
 
 	main_view_ctrl.capture_timer = lv_timer_create(capture_xcb, 100, NULL);

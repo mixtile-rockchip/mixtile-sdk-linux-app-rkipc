@@ -20,25 +20,24 @@
 #include <rk_aiq_user_api2_isp.h>
 #include <rk_aiq_user_api2_sysctl.h>
 
+#include "uvc_control.h"
+#include "uvc_video.h"
+#include "uvc-gadget.h"
 #include "list.h"
 #include "video.h"
 #include "rk_sysfs.h"
 #include "osd.h"
 
-#define ENABLE_HW_VPSS 1
-
 #define IIO_IMU_DEVICE_NO 1
 
 #define VI_DEV 0
-#ifdef ENABLE_HW_VPSS
 #define VI_MAIN_CHN 3
 #define VI_DISPLAY_CHN 2
-#else
-#define VI_MAIN_CHN 0
-#define VI_DISPLAY_CHN 1
-#endif
+#define VI_UVC_CHN 4
 #define VENC_MAIN_CHN 0
 #define JPEG_CHN 1
+#define VENC_UVC_CHN 2
+
 #define GDC_MAIN_CHN 0
 #define GDC_DISPLAY_CHN 1
 #define GDC_DUMMY_CHN 2
@@ -58,6 +57,7 @@ static struct {
 	RK_MODE_E mode;
 	RK_EIS_MODE_E eis_mode;
 	RK_HDR_MODE_E hdr_mode;
+	USB_MODE_E usb_mode;
 	bool enable_memc;
 	bool enable_eis_debug;
 	bool enable_smart_ae;
@@ -69,9 +69,11 @@ static struct {
 	pthread_t photo_thread;
 	pthread_t record_thread;
 	pthread_t osd_thread;
+	pthread_t uvc_thread;
 	bool osd_thread_running;
 	bool start_record;
 	bool start_take_photo;
+	bool uvc_thread_running;
 	int64_t start_record_pts;
 	int debug_frame_cnt;
 	FILE *vi_debug_file;  // eis debug info
@@ -244,6 +246,55 @@ static int gdc_frame_callback(void *pUsr, GDC_VFAME_INFO_S *pInfo) {
 	RK_MPI_MB_ReleaseMB(pInfo->pMbBlk);
 
 	return GDC_INFO_CB_SUCCESS;
+}
+
+static void *uvc_get_stream_loop(void *arg) {
+	printf("#Start %s thread, arg:%p\n", __func__, arg);
+	VENC_STREAM_S video_stream = {};
+	VIDEO_FRAME_INFO_S video_frame = {};
+	const char *uvc_format = rk_param_get_string("video.source:uvc_format", NULL);
+	int loopCount = 0;
+	int ret = 0;
+	// FILE *fp = fopen("/data/venc.h265", "wb");
+	video_stream.pstPack = malloc(sizeof(VENC_PACK_S));
+
+	while (rk_mode_param.uvc_thread_running) {
+		if (!strcmp(uvc_format, "NV12")) {
+			ret = RK_MPI_VI_GetChnFrame(VI_DEV, VI_UVC_CHN, &video_frame, 1000);
+			if (ret == RK_SUCCESS) {
+				void *data = RK_MPI_MB_Handle2VirAddr(video_frame.stVFrame.pMbBlk);
+				size_t len = video_frame.stVFrame.u32Width * video_frame.stVFrame.u32Height * 3 / 2;
+				if (data)
+					uvc_read_camera_buffer(data, -1, len, NULL, 0);
+				LOG_DEBUG("data %p, len %zu\n", data, len);
+				RK_MPI_VI_ReleaseChnFrame(VI_DEV, VI_UVC_CHN, &video_frame);
+			} else {
+				LOG_ERROR("RK_MPI_VI_GetChnFrame failed %#X\n", ret);
+			}
+		} else {
+			// 5.get the frame
+			ret = RK_MPI_VENC_GetStream(VENC_UVC_CHN, &video_stream, 1000);
+			if (ret == RK_SUCCESS) {
+				void *data = RK_MPI_MB_Handle2VirAddr(video_stream.pstPack->pMbBlk);
+				// fwrite(data, 1, video_stream.pstPack->u32Len, fp);
+				// fflush(fp);
+				LOG_DEBUG("Count:%d, Len:%d, PTS is %" PRId64", enH264EType is %d\n", loopCount,
+					video_stream.pstPack->u32Len, video_stream.pstPack->u64PTS,
+					video_stream.pstPack->DataType.enH264EType);
+				uvc_read_camera_buffer(data, -1, video_stream.pstPack->u32Len, NULL, 0);
+
+				ret = RK_MPI_VENC_ReleaseStream(VENC_UVC_CHN, &video_stream);
+				if (ret != RK_SUCCESS)
+					LOG_ERROR("RK_MPI_VENC_ReleaseStream fail %x\n", ret);
+			} else {
+					LOG_ERROR("RK_MPI_VENC_GetStream timeout %x\n", ret);
+			}
+			loopCount++;
+		}
+	}
+	if (video_stream.pstPack)
+		free(video_stream.pstPack);
+	return 0;
 }
 
 static void *normal_video_loop(void *arg) {
@@ -660,7 +711,6 @@ static int vi_dev_init(void) {
 	} else {
 		LOG_ERROR("RK_MPI_VI_EnableDev already\n");
 	}
-#ifdef ENABLE_HW_VPSS
 	// INFO: DO NOT MODIFIED THESE CODE! Just for RV1126B.
 	VI_PARAM_MOD_S vi_mod_param;
 	if (rk_param_get_int("video.source:enable_isp_offline", 0)) {
@@ -671,29 +721,6 @@ static int vi_dev_init(void) {
 		if (ret)
 			LOG_ERROR("RK_MPI_VI_SetModParam fail:%#X\n", ret);
 	}
-	memset(&vi_mod_param, 0, sizeof(vi_mod_param));
-	vi_mod_param.enViModType = VI_EXT_CHN_MODE;
-	vi_mod_param.stExtChnParam.mirrorCmsc = 0; // 1 is for vpss, 0 is for vi ext
-	vi_mod_param.stExtChnParam.extChn[0] = 0;
-	vi_mod_param.stExtChnParam.extChn[1] = 0;
-	vi_mod_param.stExtChnParam.extChn[2] = 0;
-	vi_mod_param.stExtChnParam.extChn[3] = 0;
-	ret = RK_MPI_VI_SetModParam(&vi_mod_param);
-	if (ret)
-		LOG_ERROR("RK_MPI_VI_SetModParam fail:%#X\n", ret);
-
-	memset(&vi_mod_param, 0, sizeof(vi_mod_param));
-	vi_mod_param.enViModType = VI_EXT_CHN_MODE;
-	ret = RK_MPI_VI_GetModParam(&vi_mod_param);
-	if (ret)
-		LOG_ERROR("RK_MPI_VI_GetModParam fail:%#X\n", ret);
-
-	LOG_INFO("vi mod:%d mirror:%d ext_chn_mode:%d ext_chn1_mode:%d"
-				"ext_chn2_mode:%d ext_chn3_mode:%d\n",
-				vi_mod_param.enViModType, vi_mod_param.stExtChnParam.mirrorCmsc,
-				vi_mod_param.stExtChnParam.extChn[0], vi_mod_param.stExtChnParam.extChn[1],
-				vi_mod_param.stExtChnParam.extChn[2], vi_mod_param.stExtChnParam.extChn[3]);
-#endif
 	LOG_INFO("vi device init success\n");
 	return ret;
 }
@@ -761,6 +788,7 @@ static int vi_chn_init(void) {
 		LOG_ERROR("ERROR: create VI display channel error! ret=%#X\n", ret);
 		return ret;
 	}
+
 	LOG_INFO("vi chn init success\n");
 	return ret;
 }
@@ -1406,6 +1434,230 @@ static int rgn_deinit(void) {
 	return ret;
 }
 
+static int open_uvc(int width, int height, int fcc, int fps) {
+	LOG_INFO("open uvc %dx%d %d %d\n", width, height, fcc, fps);
+	return 0;
+}
+
+static void close_uvc(void) { LOG_INFO("close_uvc"); }
+
+static int init_uvc(void) {
+	char usb_config_cmd[128];
+	const char *uvc_format = rk_param_get_string("video.source:uvc_format", NULL);
+	int width = rk_param_get_int("video.source:uvc_width", 0);
+	int height = rk_param_get_int("video.source:uvc_height", 0);
+	uint32_t flags = UVC_CONTROL_CHECK_STRAIGHT; // UVC_CONTROL_LOOP_ONCE;
+	int enable_uvc = 1;
+	int enable_uac = rk_param_get_int("audio.0:enable_uac", 0);
+	LOG_INFO("enter\n");
+	if (uvc_format == NULL || !width || !height) {
+		LOG_ERROR("bad uvc config: width %d height %d format %s!\n"
+				, width, height, uvc_format);
+		return -1;
+	}
+	if (enable_uvc || enable_uac) {
+		memset(usb_config_cmd, 0, sizeof(usb_config_cmd));
+		system("/etc/init.d/S50usbdevice stop");
+		sleep(2); // wait old usb change
+		if (enable_uvc && enable_uac) {
+			snprintf(usb_config_cmd, sizeof(usb_config_cmd),
+			         "rkipc_usb_config.sh -f %s -w %d -h %d -a", uvc_format, width, height);
+		} else if (enable_uvc) {
+			snprintf(usb_config_cmd, sizeof(usb_config_cmd),
+			         "rkipc_usb_config.sh -f %s -w %d -h %d", uvc_format, width, height);
+		} else if (enable_uac) {
+			snprintf(usb_config_cmd, sizeof(usb_config_cmd), "rkipc_usb_config.sh -a");
+		}
+		LOG_INFO("usb_config_cmd is %s\n", usb_config_cmd);
+		system(usb_config_cmd);
+		sleep(1);
+		if (enable_uvc) {
+			uvc_formats_init(uvc_format, width, height);
+			register_uvc_open_camera(open_uvc);
+			register_uvc_close_camera(close_uvc);
+		}
+		uvc_control_run(flags); // also monitor uac
+	}
+	LOG_INFO("exit\n");
+	return 0;
+}
+
+static int deinit_uvc(void) {
+	int ret = 0;
+	int flags = UVC_CONTROL_CHECK_STRAIGHT;
+	LOG_INFO("enter\n");
+	uvc_control_join(flags);
+	uvc_formats_deinit();
+	LOG_INFO("exit\n");
+	return ret;
+}
+
+static int create_uvc_pipe(void) {
+	int ret;
+	VI_CHN_ATTR_S vi_chn_attr = {};
+	VENC_CHN_ATTR_S venc_chn_attr = {};
+
+	LOG_INFO("enter\n");
+	vi_chn_attr.stIspOpt.u32BufCount = 3;
+	vi_chn_attr.stIspOpt.enMemoryType = VI_V4L2_MEMORY_TYPE_DMABUF;
+	vi_chn_attr.stSize.u32Width = rk_param_get_int("video.source:uvc_width", 0);
+	vi_chn_attr.stSize.u32Height = rk_param_get_int("video.source:uvc_height", 0);
+	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
+	vi_chn_attr.u32Depth = 1;
+	ret = RK_MPI_VI_SetChnAttr(VI_DEV, VI_UVC_CHN, &vi_chn_attr);
+	ret |= RK_MPI_VI_EnableChn(VI_DEV, VI_UVC_CHN);
+	if (ret) {
+		LOG_ERROR("ERROR: create VI uvc channel error! ret=%#X\n", ret);
+		return ret;
+	}
+
+	const char *uvc_format = rk_param_get_string("video.source:uvc_format", NULL);
+	if (!strcmp(uvc_format, "H.264")) {
+		venc_chn_attr.stVencAttr.enType = RK_VIDEO_ID_AVC;
+		venc_chn_attr.stRcAttr.enRcMode = VENC_RC_MODE_H264CBR;
+		venc_chn_attr.stRcAttr.stH264Cbr.u32Gop = 60;
+		venc_chn_attr.stRcAttr.stH264Cbr.u32BitRate = 2000;
+		venc_chn_attr.stRcAttr.stH264Cbr.fr32DstFrameRateDen = 1;
+		venc_chn_attr.stRcAttr.stH264Cbr.fr32DstFrameRateNum = 30;
+		venc_chn_attr.stRcAttr.stH264Cbr.u32SrcFrameRateDen = 1;
+		venc_chn_attr.stRcAttr.stH264Cbr.u32SrcFrameRateNum = 30;
+	} else if (!strcmp(uvc_format, "H.265")) {
+		venc_chn_attr.stVencAttr.enType = RK_VIDEO_ID_HEVC;
+		venc_chn_attr.stRcAttr.enRcMode = VENC_RC_MODE_H265CBR;
+		venc_chn_attr.stRcAttr.stH265Cbr.u32Gop = 60;
+		venc_chn_attr.stRcAttr.stH265Cbr.u32BitRate = 2000;
+		venc_chn_attr.stRcAttr.stH265Cbr.fr32DstFrameRateDen = 1;
+		venc_chn_attr.stRcAttr.stH265Cbr.fr32DstFrameRateNum = 30;
+		venc_chn_attr.stRcAttr.stH265Cbr.u32SrcFrameRateDen = 1;
+		venc_chn_attr.stRcAttr.stH265Cbr.u32SrcFrameRateNum = 30;
+	} else {
+		LOG_INFO("exit\n");
+		return ret;
+	}
+
+	venc_chn_attr.stGopAttr.enGopMode = VENC_GOPMODE_NORMALP;
+	venc_chn_attr.stVencAttr.enPixelFormat = RK_FMT_YUV420SP;
+	venc_chn_attr.stVencAttr.u32PicWidth = rk_param_get_int("video.source:uvc_width", 0);
+	venc_chn_attr.stVencAttr.u32PicHeight = rk_param_get_int("video.source:uvc_height", 0);
+	venc_chn_attr.stVencAttr.u32VirWidth = rk_param_get_int("video.source:uvc_width", 0);
+	venc_chn_attr.stVencAttr.u32VirHeight = rk_param_get_int("video.source:uvc_height", 0);
+	venc_chn_attr.stVencAttr.u32StreamBufCnt = 5;
+	venc_chn_attr.stVencAttr.u32BufSize = 1 * 1024 * 1024;
+	// venc_chn_attr.stVencAttr.u32Depth = 1;
+	ret = RK_MPI_VENC_CreateChn(VENC_UVC_CHN, &venc_chn_attr);
+	if (ret) {
+		LOG_ERROR("ERROR: create UVC VENC error! ret=%d\n", ret);
+		return -1;
+	}
+	VENC_RC_PARAM_S venc_rc_param;
+	if (!strcmp(uvc_format, "H.264")) {
+		venc_rc_param.s32FirstFrameStartQp = 26;
+		venc_rc_param.stParamH264.u32StepQp = 4;
+		venc_rc_param.stParamH264.u32MinQp = 10;
+		venc_rc_param.stParamH264.u32MaxQp = 51;
+		venc_rc_param.stParamH264.u32MinIQp = 10;
+		venc_rc_param.stParamH264.u32MaxIQp = 51;
+		venc_rc_param.stParamH264.s32DeltIpQp = -2;
+		venc_rc_param.stParamH264.s32MaxReEncodeTimes = 2;
+		venc_rc_param.stParamH264.u32FrmMinQp = 10;
+		venc_rc_param.stParamH264.u32FrmMaxQp = 51;
+		venc_rc_param.stParamH264.u32FrmMinIQp = 10;
+		venc_rc_param.stParamH264.u32FrmMaxIQp = 51;
+	} else {
+		venc_rc_param.s32FirstFrameStartQp = 26;
+		venc_rc_param.stParamH265.u32StepQp = 4;
+		venc_rc_param.stParamH265.u32MinQp = 10;
+		venc_rc_param.stParamH265.u32MaxQp = 51;
+		venc_rc_param.stParamH265.u32MinIQp = 10;
+		venc_rc_param.stParamH265.u32MaxIQp = 51;
+		venc_rc_param.stParamH265.s32DeltIpQp = -2;
+		venc_rc_param.stParamH265.s32MaxReEncodeTimes = 2;
+		venc_rc_param.stParamH265.u32FrmMinQp = 10;
+		venc_rc_param.stParamH265.u32FrmMaxQp = 51;
+		venc_rc_param.stParamH265.u32FrmMinIQp = 10;
+		venc_rc_param.stParamH265.u32FrmMaxIQp = 51;
+	}
+	RK_MPI_VENC_SetRcParam(VENC_UVC_CHN, &venc_rc_param);
+	VENC_RECV_PIC_PARAM_S recv_param = {};
+	recv_param.s32RecvPicNum = -1;
+	ret = RK_MPI_VENC_StartRecvFrame(VENC_UVC_CHN, &recv_param);
+	if (ret)
+		LOG_ERROR("ERROR: start recv frame error! ret=%d\n", ret);
+	LOG_INFO("exit\n");
+	return ret;
+}
+
+static int destroy_uvc_pipe(void) {
+	int ret = 0;
+	LOG_INFO("enter\n");
+	ret = RK_MPI_VI_DisableChn(VI_DEV, VI_UVC_CHN);
+	if (ret)
+		LOG_ERROR("ERROR: RK_MPI_VI_DisableChn VI uvc channel error! ret=%x\n", ret);
+	const char *uvc_format = rk_param_get_string("video.source:uvc_format", NULL);
+	if (!strcmp(uvc_format, "NV12")) {
+		LOG_INFO("exit\n");
+		return ret;
+	}
+	ret = RK_MPI_VENC_StopRecvFrame(VENC_UVC_CHN);
+	if (ret)
+		LOG_ERROR("ERROR: stop recv frame error! ret=%d\n", ret);
+	ret = RK_MPI_VENC_DestroyChn(VENC_UVC_CHN);
+	if (ret)
+		LOG_ERROR("ERROR: destroy VENC error! ret=%d\n", ret);
+	LOG_INFO("exit\n");
+	return ret;
+}
+
+static int bind_uvc_pipe(void) {
+	MPP_CHN_S vi_uvc_chn;
+	MPP_CHN_S venc_uvc_chn;
+	int ret = 0;
+	const char *uvc_format = rk_param_get_string("video.source:uvc_format", NULL);
+	LOG_INFO("enter\n");
+	vi_uvc_chn.enModId = RK_ID_VI;
+	vi_uvc_chn.s32DevId = VI_DEV;
+	vi_uvc_chn.s32ChnId = VI_UVC_CHN;
+	venc_uvc_chn.enModId = RK_ID_VENC;
+	venc_uvc_chn.s32DevId = 0;
+	venc_uvc_chn.s32ChnId = VENC_UVC_CHN;
+
+	if (!strcmp(uvc_format, "H.264") || !strcmp(uvc_format, "H.265")) {
+		ret = RK_MPI_SYS_Bind(&vi_uvc_chn, &venc_uvc_chn);
+		if (ret != RK_SUCCESS) {
+			LOG_ERROR("vi uvc chn bind venc uvc chn fail:%x\n", ret);
+			return ret;
+		}
+	}
+	rk_mode_param.uvc_thread_running = true;
+	pthread_create(&rk_mode_param.uvc_thread, NULL, uvc_get_stream_loop, NULL);
+	LOG_INFO("exit\n");
+	return ret;
+}
+
+static int unbind_uvc_pipe(void) {
+	MPP_CHN_S vi_uvc_chn;
+	MPP_CHN_S venc_uvc_chn;
+	int ret = 0;
+	const char *uvc_format = rk_param_get_string("video.source:uvc_format", NULL);
+	LOG_INFO("enter\n");
+	vi_uvc_chn.enModId = RK_ID_VI;
+	vi_uvc_chn.s32DevId = VI_DEV;
+	vi_uvc_chn.s32ChnId = VI_UVC_CHN;
+	venc_uvc_chn.enModId = RK_ID_VENC;
+	venc_uvc_chn.s32DevId = 0;
+	venc_uvc_chn.s32ChnId = VENC_UVC_CHN;
+
+	rk_mode_param.uvc_thread_running = false;
+	pthread_join(rk_mode_param.uvc_thread, NULL);
+	if (!strcmp(uvc_format, "H.264") || !strcmp(uvc_format, "H.265")) {
+		ret = RK_MPI_SYS_UnBind(&vi_uvc_chn, &venc_uvc_chn);
+		if (ret != RK_SUCCESS)
+			LOG_ERROR("vi uvc chn unbind venc uvc chn fail:%x\n", ret);
+	}
+	LOG_INFO("exit\n");
+	return ret;
+}
+
 static int bind_display_pipe(void) {
 	MPP_CHN_S vi_display_chn;
 	MPP_CHN_S vo_chn;
@@ -1693,6 +1945,9 @@ int rk_video_init(void) {
 		if (ret)
 			LOG_ERROR("ERROR: rk_video_start_record failed! ret=%d\n", ret);
     }
+	ret = rk_enable_usb_function();
+	if (ret)
+		LOG_ERROR("ERROR: rk_enable_usb_function failed! ret=%d\n", ret);
 	LOG_INFO("exit\n");
 	return ret;
 }
@@ -1700,6 +1955,7 @@ int rk_video_init(void) {
 int rk_video_deinit(void) {
 	int ret = 0;
 	LOG_INFO("enter\n");
+	rk_disable_usb_function();
 	if (rk_mode_param.enable_rtsp)
 		rkipc_rtsp_deinit();
 	ret = rk_video_stop_record();
@@ -1884,6 +2140,7 @@ int rk_init_mode(void) {
 	const char *iq_name = NULL;
 	memset(&rk_mode_param, 0, sizeof(rk_mode_param));
 	rk_mode_param.mode = rk_param_get_int("video.source:mode", RK_VIDEO_MODE);
+	rk_mode_param.usb_mode = USB_NORMAL_MODE;
 	rk_mode_param.eis_mode = rk_param_get_int("video.source:eis_mode", RK_EIS_OFF);
 	rk_mode_param.enable_eis_debug = rk_param_get_int("video.source:enable_eis_debug", 0);
 	rk_mode_param.enable_display = rk_param_get_int("video.source:enable_display", 1);
@@ -2320,4 +2577,48 @@ int rk_venc_update_bitrate(void) {
 		return ret;
 	}
 	return ret;
+}
+
+int rk_enable_usb_function(void) {
+	int ret = 0;
+	if (rk_mode_param.usb_mode == USB_UVC_MODE) {
+		ret = init_uvc();
+		if (ret)
+			return ret;
+		ret = create_uvc_pipe();
+		if (ret)
+			return ret;
+		ret = bind_uvc_pipe();
+		if (ret)
+			return ret;
+	} else if(rk_mode_param.mode == USB_STORAGE_MODE) {
+		LOG_ERROR("not support now!\n");
+	}
+	return ret;
+}
+
+int rk_disable_usb_function(void) {
+	if (rk_mode_param.usb_mode == USB_UVC_MODE) {
+		deinit_uvc();
+		unbind_uvc_pipe();
+		destroy_uvc_pipe();
+	} else if(rk_mode_param.mode == USB_STORAGE_MODE) {
+		LOG_INFO("not support now!\n");
+	}
+	return 0;
+}
+
+int rk_set_usb_mode(USB_MODE_E mode) {
+	int ret = 0;
+	if (mode < 0 || mode >= USB_MODE_MAX_NUM) {
+		LOG_ERROR("error usb mode %d\n", mode);
+		return -1;
+	}
+	rk_mode_param.usb_mode = mode;
+	rk_enable_usb_function();
+	return ret;
+}
+
+USB_MODE_E rk_get_usb_mode(void) {
+	return rk_mode_param.usb_mode;
 }
