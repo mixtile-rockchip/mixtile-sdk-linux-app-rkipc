@@ -926,8 +926,15 @@ static int gdc_display_init(void) {
 	gdc_attr.stEisAttr.s32DevNo = IIO_IMU_DEVICE_NO;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
 	if (rk_mode_param.eis_mode == RK_HORIZON_STEADY) {
-		LOG_ERROR("ERROR: horizon steady is not support now!\n");
-		return -1;
+#ifdef BUILDROOT
+		snprintf(gdc_attr.cfgFile, sizeof(gdc_attr.cfgFile),
+		         "/usr/share/rkeis_config_horizon_%dx%d_%dx%d_30fps.json",
+		         display_width, display_height, display_width, display_height);
+#else
+		snprintf(gdc_attr.cfgFile, sizeof(gdc_attr.cfgFile),
+		         "/oem/usr/share/rkeis_config_horizon_%dx%d_%dx%d_30fps.json",
+		         display_width, display_height, display_width, display_height);
+#endif
 	} else if (rk_mode_param.eis_mode == RK_DISTORTION_CORRECTION) {
 		LOG_ERROR("ERROR: distortion correction is not support now!\n");
 		return -1;
@@ -991,8 +998,15 @@ static int gdc_record_init(void) {
 	gdc_attr.stEisAttr.s32DevNo = IIO_IMU_DEVICE_NO;
 	memset(gdc_attr.cfgFile, 0, sizeof(gdc_attr.cfgFile));
 	if (rk_mode_param.eis_mode == RK_HORIZON_STEADY) {
-		LOG_ERROR("ERROR: horizon steady is not support now!\n");
-		return -1;
+#ifdef BUILDROOT
+		snprintf(gdc_attr.cfgFile, sizeof(gdc_attr.cfgFile),
+		         "/usr/share/rkeis_config_horizon_%dx%d_%dx%d_30fps.json",
+		         sensor_width, sensor_height, video_width, video_height);
+#else
+		snprintf(gdc_attr.cfgFile, sizeof(gdc_attr.cfgFile),
+		         "/oem/usr/share/rkeis_config_horizon_%dx%d_%dx%d_30fps.json",
+		         sensor_width, sensor_height, video_width, video_height);
+#endif
 	} else if (rk_mode_param.eis_mode == RK_DISTORTION_CORRECTION) {
 		LOG_ERROR("ERROR: distortion correction is not support now!\n");
 		return -1;
@@ -1099,7 +1113,7 @@ static int venc_init(void) {
 		LOG_DEBUG("photo mode, no need to init venc\n");
 		return 0;
 	}
-	if (rk_mode_param.eis_mode == RK_NORMAL_STEADY && !rk_mode_param.enable_eis_debug) {
+	if (rk_mode_param.eis_mode != RK_EIS_OFF && !rk_mode_param.enable_eis_debug) {
 		video_width = rk_param_get_int("video.0:width", -1);
 		video_height = rk_param_get_int("video.0:height", -1);
 	} else {
@@ -1934,7 +1948,7 @@ int rk_set_eis_mode(RK_EIS_MODE_E eis_mode) {
 		LOG_DEBUG("eis mode is already %d, no need to set eis mode again\n", eis_mode);
 		return 0;
 	}
-	if (eis_mode == RK_DISTORTION_CORRECTION || eis_mode == RK_HORIZON_STEADY) {
+	if (eis_mode == RK_DISTORTION_CORRECTION) {
 		LOG_ERROR("eis mode %d is not support\n", eis_mode);
 		return 0;
 	}
