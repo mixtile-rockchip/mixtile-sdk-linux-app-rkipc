@@ -187,6 +187,7 @@ static void video_uevent(const struct _uevent *event) {
 		} else {
 			printf("delete video...\n");
 			find_video = false;
+			uvc_control_signal();
 			// video_record_deletevideo(id);
 		}
 	}

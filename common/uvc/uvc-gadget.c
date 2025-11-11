@@ -3012,6 +3012,15 @@ static void uvc_events_process(struct uvc_device *dev) {
 		return;
 
 	case UVC_EVENT_STREAMON:
+		/* ... and now UVC streaming.. */
+		if (dev->is_streaming) {
+			printf("stream off before stream on\n");
+			uvc_video_stream(dev, 0);
+			uvc_uninit_device(dev);
+			uvc_video_reqbufs(dev, 0);
+			dev->is_streaming = 0;
+			dev->first_buffer_queued = 0;
+		}
 		if (!dev->bulk)
 			uvc_handle_streamon_event(dev);
 		return;
