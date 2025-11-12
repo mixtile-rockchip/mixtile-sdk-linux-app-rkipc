@@ -90,6 +90,16 @@ EVDEV_ATTR_S *evdev_set_file(const char *dev_name) {
 	evdev_attr->evdev_root_y = 0;
 	evdev_attr->evdev_key_val = 0;
 	evdev_attr->evdev_button = LV_INDEV_STATE_REL;
+	if (NULL != strstr(dev_name, "goodix-ts")) {
+		evdev_attr->tp_width = 720;
+		evdev_attr->tp_height = 1280;
+	} else if (NULL != strstr(dev_name, "hyn_ts")) {
+		evdev_attr->tp_width = 1080;
+		evdev_attr->tp_height = 1920;
+	} else {
+		evdev_attr->tp_width = 1080;
+		evdev_attr->tp_height = 1920;
+	}
 
 	return evdev_attr;
 }
@@ -220,8 +230,8 @@ void evdev_read(EVDEV_ATTR_S *evdev_attr, lv_indev_drv_t *drv, lv_indev_data_t *
 #ifdef RV1126B
 	float true_width = 1080;
 	float true_height = 1920;
-	float width_rate = (float)evdev_attr->evdev_root_x / 720.0;
-	float height_rate = (float)evdev_attr->evdev_root_y / 1280.0;
+	float width_rate = (float)evdev_attr->evdev_root_x / evdev_attr->tp_width;
+	float height_rate = (float)evdev_attr->evdev_root_y / evdev_attr->tp_height;
 	data->point.x = true_width * width_rate;
 	data->point.y = true_height * height_rate;
 #else

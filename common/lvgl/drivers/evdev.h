@@ -34,6 +34,8 @@ typedef struct {
 	int evdev_root_y;
 	int evdev_button;
 	int evdev_key_val;
+	int tp_width;
+	int tp_height;
 } EVDEV_ATTR_S;
 
 /**********************

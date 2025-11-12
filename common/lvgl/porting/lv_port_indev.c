@@ -99,6 +99,8 @@ static void indev_match_device(const char *dev_path) {
 #ifdef LVGL_SUPPORT_TOUCHSCREEN
 		if (NULL != strstr(name, "goodix-ts"))
 			indev_add_device(dev_path, LV_INDEV_TYPE_POINTER);
+		if (NULL != strstr(name, "hyn_ts"))
+			indev_add_device(dev_path, LV_INDEV_TYPE_POINTER);
 #endif
 		close(fd);
 	}
