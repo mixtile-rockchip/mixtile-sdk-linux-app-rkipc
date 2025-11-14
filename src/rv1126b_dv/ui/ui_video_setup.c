@@ -302,7 +302,6 @@ static void video_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_size(video_setup_ctrl.birtate_obj, lv_pct(100), lv_pct(10));
 	video_setup_ctrl.bitrate_label_obj = lv_label_create(video_setup_ctrl.birtate_obj);
 	lv_obj_add_event_cb(video_setup_ctrl.birtate_obj, venc_event_handler, LV_EVENT_CLICKED, NULL);
-	video_setup_ctrl.bitrate_label_obj = lv_label_create(video_setup_ctrl.birtate_obj);
 
 	video_setup_ctrl.memc_obj = lv_checkbox_create(cont_obj);
 	lv_obj_add_flag(video_setup_ctrl.memc_obj, LV_OBJ_FLAG_CHECKABLE);
