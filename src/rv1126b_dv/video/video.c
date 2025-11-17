@@ -2581,6 +2581,7 @@ int rk_venc_update_bitrate(void) {
 
 int rk_enable_usb_function(void) {
 	int ret = 0;
+	char usb_config_cmd[128];
 	if (rk_mode_param.usb_mode == USB_UVC_MODE) {
 		ret = init_uvc();
 		if (ret)
@@ -2591,8 +2592,21 @@ int rk_enable_usb_function(void) {
 		ret = bind_uvc_pipe();
 		if (ret)
 			return ret;
-	} else if(rk_mode_param.mode == USB_STORAGE_MODE) {
-		LOG_ERROR("not support now!\n");
+	} else if(rk_mode_param.usb_mode == USB_STORAGE_MODE) {
+		//system("/etc/init.d/S50usbdevice stop");
+		if (rkipc_storage_dev_mount_status_get() != DISK_MOUNTED) {
+			LOG_ERROR("sd card is not exist!\n");
+			return -1;
+		}
+		memset(usb_config_cmd, 0, sizeof(usb_config_cmd));
+		snprintf(usb_config_cmd, sizeof(usb_config_cmd) - 1
+				, "echo \"ums_block=%s\" >> /tmp/.usb_config"
+				, rk_param_get_string("storage:dev_path", "/dev/mmcblk1p1"));
+		system("echo usb_ums_en > /tmp/.usb_config");
+		system("echo \"ums_block=/dev/mmcblk1p1\" >> /tmp/.usb_config");
+		system("echo \"ums_block_size=8\" >> /tmp/.usb_config");
+		system("echo \"ums_block_type=fat\" >> /tmp/.usb_config");
+		system("/etc/init.d/S50usbdevice restart");
 	}
 	return ret;
 }
@@ -2602,8 +2616,10 @@ int rk_disable_usb_function(void) {
 		deinit_uvc();
 		unbind_uvc_pipe();
 		destroy_uvc_pipe();
-	} else if(rk_mode_param.mode == USB_STORAGE_MODE) {
-		LOG_INFO("not support now!\n");
+	} else if(rk_mode_param.usb_mode == USB_STORAGE_MODE) {
+		//system("/etc/init.d/S50usbdevice stop");
+		system("echo usb_adb_en > /tmp/.usb_config");
+		system("/etc/init.d/S50usbdevice restart");
 	}
 	return 0;
 }

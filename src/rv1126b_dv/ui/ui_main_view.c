@@ -159,9 +159,9 @@ static void usb_config_cb(void *userdata) {
 }
 
 static const ui_option_entry_t usb_options[] = {
-	{"ADB", usb_config_cb, (void *)0},
-	{"USB摄像头", usb_config_cb, (void *)1},
-	{"传输文件", usb_config_cb, (void *)2},
+	{"ADB", usb_config_cb, (void *)USB_NORMAL_MODE},
+	{"USB摄像头", usb_config_cb, (void *)USB_UVC_MODE},
+	{"传输文件", usb_config_cb, (void *)USB_STORAGE_MODE},
 };
 
 static void timer_xcb(lv_timer_t *timer) {
