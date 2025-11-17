@@ -90,16 +90,25 @@ EVDEV_ATTR_S *evdev_set_file(const char *dev_name) {
 	evdev_attr->evdev_root_y = 0;
 	evdev_attr->evdev_key_val = 0;
 	evdev_attr->evdev_button = LV_INDEV_STATE_REL;
-	if (NULL != strstr(dev_name, "goodix-ts")) {
+
+	int32_t fd = open(dev_name, O_RDONLY);
+	char name[256] = {'\0'};
+	if (fd >= 0) {
+		ioctl(fd, EVIOCGNAME(sizeof(name)), name);
+		close(fd);
+	}
+	if (NULL != strstr(name, "goodix-ts")) {
 		evdev_attr->tp_width = 720;
 		evdev_attr->tp_height = 1280;
-	} else if (NULL != strstr(dev_name, "hyn_ts")) {
+	} else if (NULL != strstr(name, "hyn_ts")) {
 		evdev_attr->tp_width = 1080;
 		evdev_attr->tp_height = 1920;
 	} else {
 		evdev_attr->tp_width = 1080;
 		evdev_attr->tp_height = 1920;
 	}
+	printf("init for touchscreen %s %dx%d\n"
+			, name, evdev_attr->tp_width, evdev_attr->tp_height);
 
 	return evdev_attr;
 }
