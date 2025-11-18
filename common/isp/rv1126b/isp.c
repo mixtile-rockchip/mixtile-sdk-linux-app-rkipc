@@ -57,6 +57,8 @@ rk_aiq_sys_ctx_t *rkipc_aiq_get_ctx(int cam_id) {
 
 int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool MultiCam,
                            const char *iq_file_dir) {
+	char entry[128] = {'\0'};
+	memset(entry, 0, sizeof(entry));
 	if (cam_id >= MAX_AIQ_CTX) {
 		LOG_ERROR("%s : cam_id is over 3\n", __FUNCTION__);
 		return -1;
@@ -77,10 +79,25 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 		         aiq_static_info.sensor_info.phyId);
 	}
 
-	LOG_INFO("ID: %d, sensor_name is %s, iqfiles is %s\n", cam_id,
+	LOG_INFO("ID: %d, sensor_name is %s, iq_file_dir is %s\n", cam_id,
 	         aiq_static_info.sensor_info.sensor_name, iq_file_dir);
-	char entry[128] = {'\0'};
-	memset(entry, 0, sizeof(entry));
+
+	if (rk_param_get_int("isp:enable_fpn", 0)) {
+		char check_path[256];
+		if (strstr(aiq_static_info.sensor_info.sensor_name, "sc450ai") != NULL) {
+			snprintf(entry, sizeof(entry), "sc450ai_CRK4F4209_styleTstP1.json");
+		} else if (strstr(aiq_static_info.sensor_info.sensor_name, "sc850sl") != NULL) {
+			snprintf(entry, sizeof(entry), "sc850sl_CMK-OT2115-PC1_30IRC-F16P1.json");
+		}
+		snprintf(check_path, sizeof(check_path), "%s/%s", iq_file_dir, entry);
+		if (FILE_EXISTS(access(check_path, F_OK) == 0)) {
+			LOG_INFO("FPN use IQ file: %s\n", check_path);
+			rk_aiq_uapi2_sysctl_preInit(aiq_static_info.sensor_info.sensor_name, WDRMode, entry);
+		} else {
+			LOG_ERROR("FPN IQ file not found: %s\n", check_path);
+		}
+	}
+
 	snprintf(entry, 127, "isp.%d.adjustment:force_iq_name", cam_id);
 	const char *force_iq_name = rk_param_get_string(entry, NULL);
 	if (force_iq_name) {
@@ -92,6 +109,7 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 		                            force_iq_name);
 		LOG_INFO("preinit hdr mode id %d, iq name is %s\n", force_hdr_mode, force_iq_name);
 	}
+
 	int ret;
 	if (WDRMode == RK_AIQ_WORKING_MODE_NORMAL)
 		ret = rk_aiq_uapi2_sysctl_preInit_scene(aiq_static_info.sensor_info.sensor_name, "normal",
@@ -134,8 +152,8 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 
 	btnr_api_attrib_t btnr_attr;
 	rk_aiq_user_api2_btnr_GetAttrib(aiq_ctx, &btnr_attr);
-	btnr_attr.stAuto.sta.swMemc.sw_btnr_swMemc_en = rk_param_get_int("video.source:enable_memc", 0);
-	btnr_attr.stMan.sta.swMemc.sw_btnr_swMemc_en = rk_param_get_int("video.source:enable_memc", 0);
+	btnr_attr.stAuto.sta.swMemc.sw_btnr_swMemc_en = rk_param_get_int("isp:enable_memc", 0);
+	btnr_attr.stMan.sta.swMemc.sw_btnr_swMemc_en = rk_param_get_int("isp:enable_memc", 0);
 	rk_aiq_user_api2_btnr_SetAttrib(aiq_ctx, &btnr_attr);
 	g_aiq_ctx[cam_id] = aiq_ctx;
 

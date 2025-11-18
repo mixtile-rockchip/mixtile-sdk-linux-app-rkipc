@@ -402,6 +402,15 @@ int rkipc_vi_dev_init() {
 		// 1-3.bind dev/pipe
 		stBindPipe.u32Num = pipe_id_;
 		stBindPipe.PipeId[0] = pipe_id_;
+		if(rk_param_get_int("isp:enable_fpn", 0) ||
+		   rk_param_get_int("isp:enable_memc", 0) ||
+		   rk_param_get_int("isp:enable_ai_remosaic", 0)) {
+			ret = RK_MPI_VI_CtrlRawStream(false);
+			if (ret)
+				LOG_ERROR("RK_MPI_VI_CtrlRawStream set failed %#X\n", ret);
+			else
+				LOG_INFO("rockit not control the raw stream\n");
+		}
 		ret = RK_MPI_VI_SetDevBindPipe(pipe_id_, &stBindPipe);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("RK_MPI_VI_SetDevBindPipe %x\n", ret);
@@ -415,11 +424,14 @@ int rkipc_vi_dev_init() {
 		VI_PARAM_MOD_S stModParam;
 		memset(&stModParam, 0, sizeof(stModParam));
 		stModParam.enViModType = VI_EXT_CHN_MODE;
-		stModParam.stExtChnParam.mirrorCmsc = 0; // 1 is for vpss, 0 is for vi ext
+		// 1 is for vpss, 0 is for vi ext
+		stModParam.stExtChnParam.mirrorCmsc = 0;
 		stModParam.stExtChnParam.extChn[0] = 0;
 		stModParam.stExtChnParam.extChn[1] = 0;
 		stModParam.stExtChnParam.extChn[2] = 0;
 		stModParam.stExtChnParam.extChn[3] = 0;
+		stModParam.stExtChnParam.extChn[4] = 1;
+		stModParam.stExtChnParam.extChn[5] = 1;
 		ret = RK_MPI_VI_SetModParam(&stModParam);
 		if (ret)
 			LOG_ERROR("RK_MPI_VI_SetModParam fail:%#X\n", ret);

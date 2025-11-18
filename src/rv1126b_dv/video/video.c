@@ -679,6 +679,7 @@ static int vi_dev_init(void) {
 	int ret = 0;
 	VI_DEV_ATTR_S vi_dev_attr = {};
 	VI_DEV_BIND_PIPE_S vi_dev_pipe = {};
+	VI_PARAM_MOD_S vi_mod_param = {};
 	// 0. get dev config status
 	ret = RK_MPI_VI_GetDevAttr(VI_DEV, &vi_dev_attr);
 	if (ret == RK_ERR_VI_NOT_CONFIG) {
@@ -703,6 +704,18 @@ static int vi_dev_init(void) {
 		// 1-3.bind dev/pipe
 		vi_dev_pipe.u32Num = VI_DEV;
 		vi_dev_pipe.PipeId[0] = VI_DEV;
+		// INFO: MEMC must running in AIQ readback mode
+		if(rk_param_get_int("isp:enable_memc", 0)) {
+			ret = RK_MPI_VI_CtrlRawStream(false);
+			if (ret)
+				LOG_ERROR("RK_MPI_VI_CtrlRawStream failed %#X\n", ret);
+			else
+				LOG_INFO("rockit not control the raw stream\n");
+		} else {
+			ret = RK_MPI_VI_CtrlRawStream(true);
+			if (ret)
+				LOG_ERROR("RK_MPI_VI_CtrlRawStream failed %#X\n", ret);
+		}
 		ret = RK_MPI_VI_SetDevBindPipe(VI_DEV, &vi_dev_pipe);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("RK_MPI_VI_SetDevBindPipe %x\n", ret);
@@ -711,8 +724,6 @@ static int vi_dev_init(void) {
 	} else {
 		LOG_ERROR("RK_MPI_VI_EnableDev already\n");
 	}
-	// INFO: DO NOT MODIFIED THESE CODE! Just for RV1126B.
-	VI_PARAM_MOD_S vi_mod_param;
 	if (rk_param_get_int("video.source:enable_isp_offline", 0)) {
 		memset(&vi_mod_param, 0, sizeof(vi_mod_param));
 		vi_mod_param.enViModType = VI_DEV_PIPE_MODE;
@@ -2149,7 +2160,7 @@ int rk_init_mode(void) {
 	rk_mode_param.enable_osd = rk_param_get_int("video.source:enable_osd", 0);
 	rk_mode_param.max_photo_num = 5;
 	rk_mode_param.hdr_mode = RK_LINEAR_MODE;
-	rk_mode_param.enable_memc = rk_param_get_int("video.source:enable_memc", 0);
+	rk_mode_param.enable_memc = rk_param_get_int("isp:enable_memc", 0);
 	set_camera_format_by_mode();
 	return 0;
 }
@@ -2324,7 +2335,7 @@ int rk_set_memc_mode(bool enable) {
 	rk_video_deinit();
 	rk_isp_deinit(0);
 	rk_mode_param.enable_memc = enable;
-	rk_param_set_int("video.source:enable_memc", enable);
+	rk_param_set_int("isp:enable_memc", enable);
 	ret = rk_isp_init(0, rkipc_iq_file_path_);
 	if (ret) {
 		LOG_ERROR("ERROR: rk_isp_init failed! ret=%d\n", ret);
