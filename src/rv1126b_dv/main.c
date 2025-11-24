@@ -90,9 +90,9 @@ void rkipc_get_opt(int argc, char *argv[]) {
 static void *wait_key_event(void *arg) {
 	int ret;
 	int key_fd;
-	key_fd = open("/dev/input/event1", O_RDONLY);
+	key_fd = open("/dev/input/by-path/platform-gpio-keys-event", O_RDONLY);
 	if (key_fd < 0) {
-		LOG_ERROR("can't open /dev/input/event1\n");
+		LOG_ERROR("can't open /dev/input/by-path/platform-gpio-keys-event\n");
 		return NULL;
 	}
 	fd_set rfds;
