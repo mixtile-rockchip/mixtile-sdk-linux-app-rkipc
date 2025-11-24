@@ -90,7 +90,7 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 			snprintf(entry, sizeof(entry), "sc850sl_CMK-OT2115-PC1_30IRC-F16P1.json");
 		}
 		snprintf(check_path, sizeof(check_path), "%s/%s", iq_file_dir, entry);
-		if (FILE_EXISTS(access(check_path, F_OK) == 0)) {
+		if (access(check_path, F_OK) == 0) {
 			LOG_INFO("FPN use IQ file: %s\n", check_path);
 			rk_aiq_uapi2_sysctl_preInit(aiq_static_info.sensor_info.sensor_name, WDRMode, entry);
 		} else {
