@@ -695,17 +695,15 @@ static int vi_dev_init(void) {
 	// 1.get dev enable status
 	ret = RK_MPI_VI_GetDevIsEnable(VI_DEV);
 	if (ret != RK_SUCCESS) {
-		// 1-2.enable dev
-		ret = RK_MPI_VI_EnableDev(VI_DEV);
-		if (ret != RK_SUCCESS) {
-			LOG_ERROR("RK_MPI_VI_EnableDev %x\n", ret);
-			return -1;
-		}
-		// 1-3.bind dev/pipe
-		vi_dev_pipe.u32Num = VI_DEV;
-		vi_dev_pipe.PipeId[0] = VI_DEV;
 		// INFO: MEMC must running in AIQ readback mode
-		if(rk_param_get_int("isp:enable_memc", 0)) {
+		const char* aiq_rdbk = getenv("normal_no_read_back");
+		if (aiq_rdbk && !strcmp(aiq_rdbk, "0")) {
+			ret = RK_MPI_VI_CtrlRawStream(false);
+			if (ret)
+				LOG_ERROR("RK_MPI_VI_CtrlRawStream failed %#X\n", ret);
+			else
+				LOG_INFO("rockit not control the raw stream\n");
+		} else if(rk_param_get_int("isp:enable_memc", 0)) {
 			ret = RK_MPI_VI_CtrlRawStream(false);
 			if (ret)
 				LOG_ERROR("RK_MPI_VI_CtrlRawStream failed %#X\n", ret);
@@ -716,6 +714,15 @@ static int vi_dev_init(void) {
 			if (ret)
 				LOG_ERROR("RK_MPI_VI_CtrlRawStream failed %#X\n", ret);
 		}
+		// 1-2.enable dev
+		ret = RK_MPI_VI_EnableDev(VI_DEV);
+		if (ret != RK_SUCCESS) {
+			LOG_ERROR("RK_MPI_VI_EnableDev %x\n", ret);
+			return -1;
+		}
+		// 1-3.bind dev/pipe
+		vi_dev_pipe.u32Num = VI_DEV;
+		vi_dev_pipe.PipeId[0] = VI_DEV;
 		ret = RK_MPI_VI_SetDevBindPipe(VI_DEV, &vi_dev_pipe);
 		if (ret != RK_SUCCESS) {
 			LOG_ERROR("RK_MPI_VI_SetDevBindPipe %x\n", ret);
