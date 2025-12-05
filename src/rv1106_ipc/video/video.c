@@ -898,6 +898,9 @@ int rkipc_pipe_0_init() {
 	memset(&stVencChnRefBufShare, 0, sizeof(VENC_CHN_REF_BUF_SHARE_S));
 	stVencChnRefBufShare.bEnable = rk_param_get_int("video.0:enable_refer_buffer_share", 0);
 	RK_MPI_VENC_SetChnRefBufShareAttr(VIDEO_PIPE_0, &stVencChnRefBufShare);
+#ifdef RKIPC_RV1103B
+	RK_MPI_VENC_SetRotationBitmap(VIDEO_PIPE_0, 0xF);
+#endif
 	if (rotation == 0) {
 		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_0, ROTATION_0);
 	} else if (rotation == 90) {
@@ -1138,6 +1141,9 @@ int rkipc_pipe_1_init() {
 	memset(&stVencChnRefBufShare, 0, sizeof(VENC_CHN_REF_BUF_SHARE_S));
 	stVencChnRefBufShare.bEnable = rk_param_get_int("video.1:enable_refer_buffer_share", 0);
 	RK_MPI_VENC_SetChnRefBufShareAttr(VIDEO_PIPE_1, &stVencChnRefBufShare);
+#ifdef RKIPC_RV1103B
+	RK_MPI_VENC_SetRotationBitmap(VIDEO_PIPE_1, 0xF);
+#endif
 	if (rotation == 0) {
 		RK_MPI_VENC_SetChnRotation(VIDEO_PIPE_1, ROTATION_0);
 	} else if (rotation == 90) {
@@ -1463,6 +1469,9 @@ int rkipc_pipe_jpeg_init() {
 	memset(&stJpegParam, 0, sizeof(stJpegParam));
 	stJpegParam.u32Qfactor = rk_param_get_int("video.jpeg:jpeg_qfactor", 70);
 	RK_MPI_VENC_SetJpegParam(JPEG_VENC_CHN, &stJpegParam);
+#ifdef RKIPC_RV1103B
+	RK_MPI_VENC_SetRotationBitmap(JPEG_VENC_CHN, 0xF);
+#endif
 	if (rotation == 0) {
 		RK_MPI_VENC_SetChnRotation(JPEG_VENC_CHN, ROTATION_0);
 	} else if (rotation == 90) {
