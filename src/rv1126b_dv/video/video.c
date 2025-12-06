@@ -926,7 +926,7 @@ static int vo_init(void) {
 		LOG_ERROR("create %d layer %d ch vo failed!\n", vo_layer, vo_chn_id);
 		return ret;
 	}
-	RK_MPI_VO_SetLayerFlush(vo_layer);
+	RK_MPI_VO_SetLayerCleanMode(vo_layer, VO_LAYER_CLEAN_MODE_ONCE);
 	LOG_INFO("vo init success\n");
 	return ret;
 }
@@ -2093,7 +2093,7 @@ int rk_resume_preview(void) {
 		ret = RK_MPI_VO_SetChnAttr(vo_layer, vo_chn_id, &vo_chn_attr);
 		if (ret)
 			LOG_ERROR("RK_MPI_VO_SetChnAttr failed %#X\n", ret);
-		RK_MPI_VO_SetLayerFlush(vo_layer);
+		RK_MPI_VO_SetLayerCleanMode(vo_layer, VO_LAYER_CLEAN_MODE_ONCE);
 		if (rk_mode_param.eis_mode == RK_EIS_OFF) {
 			ret = RK_MPI_SYS_Bind(&vi_display_chn, &vo_chn);
 			if (ret != RK_SUCCESS) {
@@ -2154,7 +2154,7 @@ int rk_pause_preview(void) {
 		ret = RK_MPI_VO_SetChnAttr(vo_layer, vo_chn_id, &vo_chn_attr);
 		if (ret)
 			LOG_ERROR("RK_MPI_VO_SetChnAttr failed %#X\n", ret);
-		RK_MPI_VO_SetLayerFlush(vo_layer);
+		RK_MPI_VO_SetLayerCleanMode(vo_layer, VO_LAYER_CLEAN_MODE_ONCE);
 	}
 	LOG_INFO("exit\n");
 	return ret;

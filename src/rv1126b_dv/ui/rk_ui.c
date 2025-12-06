@@ -466,12 +466,12 @@ void rk_disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *c
 	if (rotation == ROTATION_0 || rotation == ROTATION_180) {
 		if (disp_dev.width == area_width &&
 		    disp_dev.height == area_height) {
-			RK_MPI_VO_SetLayerFlush(display_layer);
+			RK_MPI_VO_SetLayerCleanMode(display_layer, VO_LAYER_CLEAN_MODE_ONCE);
 		}
 	} else {
 		if (disp_dev.height == area_width &&
 		    disp_dev.width == area_height) {
-			RK_MPI_VO_SetLayerFlush(display_layer);
+			RK_MPI_VO_SetLayerCleanMode(display_layer, VO_LAYER_CLEAN_MODE_ONCE);
 		}
 	}
 }

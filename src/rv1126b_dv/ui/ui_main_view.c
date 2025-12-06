@@ -206,7 +206,7 @@ static void timer_xcb(lv_timer_t *timer) {
 	}
 	lv_label_set_text(main_view_ctrl.bat_status_obj, LV_SYMBOL_BATTERY_FULL);
 	if (!rk_param_get_int("video.source:enable_display", 1))
-		RK_MPI_VO_SetLayerFlush(rk_param_get_int("display:layer_id", 0));
+		RK_MPI_VO_SetLayerCleanMode(rk_param_get_int("display:layer_id", 0), VO_LAYER_CLEAN_MODE_ONCE);
 }
 
 static void capture_xcb(lv_timer_t *timer) {
