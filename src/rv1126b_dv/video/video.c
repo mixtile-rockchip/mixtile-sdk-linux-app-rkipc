@@ -58,6 +58,7 @@ static struct {
 	RK_EIS_MODE_E eis_mode;
 	RK_HDR_MODE_E hdr_mode;
 	USB_MODE_E usb_mode;
+	RK_PREVIEW_MODE_E prev_mode;
 	bool enable_memc;
 	bool enable_eis_debug;
 	bool enable_smart_ae;
@@ -76,6 +77,10 @@ static struct {
 	bool uvc_thread_running;
 	int64_t start_record_pts;
 	int debug_frame_cnt;
+	uint32_t prev_offset_x;
+	uint32_t prev_offset_y;
+	uint32_t prev_width;
+	uint32_t prev_height;
 	FILE *vi_debug_file;  // eis debug info
 	FILE *imu_debug_file; // eis debug info
 } rk_mode_param;
@@ -324,18 +329,20 @@ static void *normal_video_loop(void *arg) {
 				fflush(fp);
 			}
 
-			if (rk_mode_param.enable_rtsp)
+			if (rk_mode_param.enable_rtsp) {
 				rkipc_rtsp_write_video_frame(rk_muxer_id, data, video_stream.pstPack->u32Len,
 			                             video_stream.pstPack->u64PTS);
-			if ((video_stream.pstPack->DataType.enH264EType == H264E_NALU_IDRSLICE) ||
-			    (video_stream.pstPack->DataType.enH264EType == H264E_NALU_ISLICE) ||
-			    (video_stream.pstPack->DataType.enH265EType == H265E_NALU_IDRSLICE) ||
-			    (video_stream.pstPack->DataType.enH265EType == H265E_NALU_ISLICE)) {
-				rk_storage_write_video_frame(rk_muxer_id, data, video_stream.pstPack->u32Len,
-				                             video_stream.pstPack->u64PTS, 1);
 			} else {
-				rk_storage_write_video_frame(rk_muxer_id, data, video_stream.pstPack->u32Len,
-				                             video_stream.pstPack->u64PTS, 0);
+				if ((video_stream.pstPack->DataType.enH264EType == H264E_NALU_IDRSLICE) ||
+					(video_stream.pstPack->DataType.enH264EType == H264E_NALU_ISLICE) ||
+					(video_stream.pstPack->DataType.enH265EType == H265E_NALU_IDRSLICE) ||
+					(video_stream.pstPack->DataType.enH265EType == H265E_NALU_ISLICE)) {
+					rk_storage_write_video_frame(rk_muxer_id, data, video_stream.pstPack->u32Len,
+												 video_stream.pstPack->u64PTS, 1);
+				} else {
+					rk_storage_write_video_frame(rk_muxer_id, data, video_stream.pstPack->u32Len,
+												 video_stream.pstPack->u64PTS, 0);
+				}
 			}
 			packet_cnt++;
 			if ((packet_cnt % cal_fps_step) == 0) {
@@ -788,11 +795,11 @@ static int vi_chn_init(void) {
 	vi_chn_attr.stIspOpt.u32BufCount = 4;
 	vi_chn_attr.stIspOpt.enMemoryType = VI_V4L2_MEMORY_TYPE_DMABUF;
 	if (rotation == ROTATION_90 || rotation == ROTATION_270) {
-		vi_chn_attr.stSize.u32Width = rk_param_get_int("display:vo_rect_h", 1920);
-		vi_chn_attr.stSize.u32Height = rk_param_get_int("display:vo_rect_w", 1080);
+		vi_chn_attr.stSize.u32Width = rk_mode_param.prev_height;
+		vi_chn_attr.stSize.u32Height = rk_mode_param.prev_width;
 	} else {
-		vi_chn_attr.stSize.u32Width = rk_param_get_int("display:vo_rect_w", 1080);
-		vi_chn_attr.stSize.u32Height = rk_param_get_int("display:vo_rect_h", 1920);
+		vi_chn_attr.stSize.u32Width = rk_mode_param.prev_width;
+		vi_chn_attr.stSize.u32Height = rk_mode_param.prev_height;
 	}
 	vi_chn_attr.enPixelFormat = RK_FMT_YUV420SP;
 	vi_chn_attr.u32Depth = 0;
@@ -908,10 +915,10 @@ static int vo_init(void) {
 	ret = RK_MPI_VO_SetLayerCSC(vo_layer, &vo_csc);
 	vo_chn_attr.bDeflicker = RK_FALSE;
 	vo_chn_attr.u32Priority = vo_chn_priority;
-	vo_chn_attr.stRect.s32X = rk_param_get_int("display:vo_rect_x", 0);
-	vo_chn_attr.stRect.s32Y = rk_param_get_int("display:vo_rect_y", 0);
-	vo_chn_attr.stRect.u32Width = rk_param_get_int("display:vo_rect_w", vo_width);
-	vo_chn_attr.stRect.u32Height = rk_param_get_int("display:vo_rect_h", vo_height);
+	vo_chn_attr.stRect.s32X = rk_mode_param.prev_offset_x;
+	vo_chn_attr.stRect.s32Y = rk_mode_param.prev_offset_y;
+	vo_chn_attr.stRect.u32Width = rk_mode_param.prev_width;
+	vo_chn_attr.stRect.u32Height = rk_mode_param.prev_height;
 	vo_chn_attr.enRotation = vo_rotation;
 	ret = RK_MPI_VO_SetChnAttr(vo_layer, vo_chn_id, &vo_chn_attr);
 	ret = RK_MPI_VO_EnableChn(vo_layer, vo_chn_id);
@@ -949,8 +956,8 @@ static int vo_deinit(void) {
 
 static int gdc_display_init(void) {
 	int ret = 0;
-	int display_width = rk_param_get_int("display:vo_rect_w", 1080);
-	int display_height = rk_param_get_int("display:vo_rect_h", 1920);
+	int display_width = rk_mode_param.prev_width;
+	int display_height = rk_mode_param.prev_height;
 	int rotation = rk_param_get_int("display:rotation", 1);
 	long long before_time = rkipc_get_curren_time_ms();
 	GDC_CHN_ATTR_S gdc_attr = {0};
@@ -2079,10 +2086,10 @@ int rk_resume_preview(void) {
 
 	if (rk_mode_param.enable_display) {
 		ret = RK_MPI_VO_GetChnAttr(vo_layer, vo_chn_id, &vo_chn_attr);
-		vo_chn_attr.stRect.s32X = rk_param_get_int("display:vo_rect_x", 0);
-		vo_chn_attr.stRect.s32Y = rk_param_get_int("display:vo_rect_y", 0);
-		vo_chn_attr.stRect.u32Width = rk_param_get_int("display:vo_rect_w", 0);
-		vo_chn_attr.stRect.u32Height = rk_param_get_int("display:vo_rect_h", 0);
+		vo_chn_attr.stRect.s32X = rk_mode_param.prev_offset_x;
+		vo_chn_attr.stRect.s32Y = rk_mode_param.prev_offset_y;
+		vo_chn_attr.stRect.u32Width = rk_mode_param.prev_width;
+		vo_chn_attr.stRect.u32Height = rk_mode_param.prev_height;
 		ret = RK_MPI_VO_SetChnAttr(vo_layer, vo_chn_id, &vo_chn_attr);
 		if (ret)
 			LOG_ERROR("RK_MPI_VO_SetChnAttr failed %#X\n", ret);
@@ -2166,8 +2173,25 @@ int rk_init_mode(void) {
 	rk_mode_param.enable_smart_ae = rk_param_get_int("video.source:enable_smart_ae", 1);
 	rk_mode_param.enable_osd = rk_param_get_int("video.source:enable_osd", 0);
 	rk_mode_param.max_photo_num = 5;
-	rk_mode_param.hdr_mode = RK_LINEAR_MODE;
+	rk_mode_param.hdr_mode = rk_param_get_int("isp:hdr_mode", RK_LINEAR_MODE);;
 	rk_mode_param.enable_memc = rk_param_get_int("isp:enable_memc", 0);
+	rk_mode_param.prev_mode = rk_param_get_int("video.source:prev_mode", PREVIEW_MODE_320x240);
+	if (rk_mode_param.prev_mode == PREVIEW_MODE_320x240) {
+		rk_mode_param.prev_offset_x = 420;
+		rk_mode_param.prev_offset_y = 800;
+		rk_mode_param.prev_width = 240;
+		rk_mode_param.prev_height = 320;
+	} else if (rk_mode_param.prev_mode == PREVIEW_MODE_1440x1080) {
+		rk_mode_param.prev_offset_x = 0;
+		rk_mode_param.prev_offset_y = 240;
+		rk_mode_param.prev_width = 1080;
+		rk_mode_param.prev_height = 1440;
+	} else {
+		rk_mode_param.prev_offset_x = 0;
+		rk_mode_param.prev_offset_y = 0;
+		rk_mode_param.prev_width = 1080;
+		rk_mode_param.prev_height = 1920;
+	}
 	set_camera_format_by_mode();
 	return 0;
 }
@@ -2304,6 +2328,7 @@ int rk_set_hdr(RK_HDR_MODE_E hdr_mode) {
 	rk_video_deinit();
 	rk_isp_deinit(0);
 	rk_mode_param.hdr_mode = hdr_mode;
+	rk_param_set_int("isp:hdr_mode", hdr_mode);
 	ret = set_camera_format_by_mode();
 	if (ret) {
 		LOG_ERROR("ERROR: set_camera_format failed! ret=%d\n", ret);
@@ -2655,4 +2680,33 @@ int rk_set_usb_mode(USB_MODE_E mode) {
 
 USB_MODE_E rk_get_usb_mode(void) {
 	return rk_mode_param.usb_mode;
+}
+
+int rk_set_prev_mode(RK_PREVIEW_MODE_E mode) {
+	if (mode == rk_mode_param.prev_mode)
+		return 0;
+	rk_mode_param.prev_mode = mode;
+	rk_param_set_int("video.source:prev_mode", mode);
+	if (rk_mode_param.prev_mode == PREVIEW_MODE_320x240) {
+		rk_mode_param.prev_offset_x = 420;
+		rk_mode_param.prev_offset_y = 800;
+		rk_mode_param.prev_width = 240;
+		rk_mode_param.prev_height = 320;
+	} else if (rk_mode_param.prev_mode == PREVIEW_MODE_1440x1080) {
+		rk_mode_param.prev_offset_x = 0;
+		rk_mode_param.prev_offset_y = 240;
+		rk_mode_param.prev_width = 1080;
+		rk_mode_param.prev_height = 1440;
+	} else {
+		rk_mode_param.prev_offset_x = 0;
+		rk_mode_param.prev_offset_y = 0;
+		rk_mode_param.prev_width = 1080;
+		rk_mode_param.prev_height = 1920;
+	}
+	rk_video_restart();
+	return 0;
+}
+
+RK_PREVIEW_MODE_E rk_get_prev_mode(void) {
+	return rk_mode_param.prev_mode;
 }

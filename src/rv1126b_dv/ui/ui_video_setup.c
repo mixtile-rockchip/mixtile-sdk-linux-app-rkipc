@@ -209,14 +209,18 @@ static void photo_event_handler(lv_event_t *e) {
 	}
 }
 
+#define HIGH_BITRATE 90000
+#define NORMAL_BITRATE 50000
+#define LOW_BITRATE 15000
+
 static void bitrate_config_cb(void *userdata) {
 	int mode = (int)(size_t)userdata;
 	if (mode == 0)
-		rk_param_set_int("video.0:max_rate", 50000); // normal mode
+		rk_param_set_int("video.0:max_rate", NORMAL_BITRATE); // normal mode
 	else if (mode == 1)
-		rk_param_set_int("video.0:max_rate", 90000); // high bitrate mode
+		rk_param_set_int("video.0:max_rate", HIGH_BITRATE); // high bitrate mode
 	else if (mode == 2)
-		rk_param_set_int("video.0:max_rate", 8000); // low bitrate mode
+		rk_param_set_int("video.0:max_rate", LOW_BITRATE); // low bitrate mode
 	rk_venc_update_bitrate();
 	LOG_INFO("set bitrate %dkbps\n", rk_param_get_int("video.0:max_rate", 50000));
 }
@@ -233,9 +237,9 @@ static void venc_event_handler(lv_event_t *e) {
 	if (code == LV_EVENT_CLICKED) {
 		int bitrate = rk_param_get_int("video.0:max_rate", 50000);
 		int index = 0;
-		if (bitrate == 100000)
+		if (bitrate == HIGH_BITRATE)
 			index = 1;
-		else if (bitrate == 8000)
+		else if (bitrate == LOW_BITRATE)
 			index = 2;
 		create_select_box("码率配置", bitrate_options, sizeof(bitrate_options) / sizeof(bitrate_options[0])
 			, index);

@@ -44,6 +44,8 @@ typedef struct {
 	lv_obj_t *exit_obj;
 	lv_obj_t *exit_label_obj;
 	lv_obj_t *rtsp_enable_obj;
+	lv_obj_t *prev_mode_obj;
+	lv_obj_t *prev_label_obj;
 	lv_group_t *group;
 
 } UI_ADVANCED_SETUP_CONTROL_S;
@@ -52,14 +54,27 @@ static UI_ADVANCED_SETUP_CONTROL_S advanced_setup_ctrl;
 
 extern lv_ft_info_t ttf_info_32;
 
-static void return_event_handler(lv_event_t *e) {
-	lv_event_code_t code = lv_event_get_code(e);
-	lv_obj_t *obj = lv_event_get_target(e);
+static void ui_dialog_create_func(void *msg) {
+	ui_dialog_create("WARNING", (const char *)msg);
+}
 
-	if (code == LV_EVENT_CLICKED) {
-		ui_page_pop_page();
+static void prev_config_cb(void *userdata) {
+	int ret = 0;
+	RK_PREVIEW_MODE_E mode = (RK_PREVIEW_MODE_E)(size_t)userdata;
+	ret = rk_set_prev_mode(mode);
+	if (ret != 0) {
+		lv_async_call(ui_dialog_create_func, "切换预览分辨率失败!");
+	} else {
+		lv_async_call(ui_dialog_create_func, "切换预览分辨率成功!");
 	}
 }
+
+static const ui_option_entry_t prev_options[] = {
+	{"320x240", prev_config_cb, (void *)PREVIEW_MODE_320x240},
+	{"1440x1080", prev_config_cb, (void *)PREVIEW_MODE_1440x1080},
+	{"1920x1080", prev_config_cb, (void *)PREVIEW_MODE_1920x1080},
+};
+
 
 static void event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
@@ -73,6 +88,9 @@ static void event_handler(lv_event_t *e) {
 			}
 		} else if (obj == advanced_setup_ctrl.exit_obj) {
 			ui_page_pop_page();
+		} else if (obj == advanced_setup_ctrl.prev_mode_obj) {
+			create_select_box("预览分辨率配置", prev_options, sizeof(prev_options) / sizeof(prev_options[0])
+				, rk_get_prev_mode());
 		} else {
 			LOG_ERROR("unknown event\n");
 		}
@@ -96,7 +114,7 @@ static void advanced_setup_create_ctrl(lv_obj_t *page_obj) {
 
 	advanced_setup_ctrl.exit_obj = lv_btn_create(page_obj);
 	lv_obj_set_style_bg_opa(advanced_setup_ctrl.exit_obj, LV_OPA_TRANSP, 0);
-	lv_obj_add_event_cb(advanced_setup_ctrl.exit_obj, return_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(advanced_setup_ctrl.exit_obj, event_handler, LV_EVENT_CLICKED, NULL);
 	advanced_setup_ctrl.exit_label_obj = lv_label_create(advanced_setup_ctrl.exit_obj);
 
 	advanced_setup_ctrl.container_obj = cont_obj = lv_obj_create(page_obj);
@@ -110,6 +128,11 @@ static void advanced_setup_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_size(obj, lv_pct(100), lv_pct(10));
 	lv_obj_add_event_cb(obj, event_handler, LV_EVENT_CLICKED, NULL);
 
+
+	advanced_setup_ctrl.prev_mode_obj = lv_btn_create(cont_obj);
+	lv_obj_set_size(advanced_setup_ctrl.prev_mode_obj, lv_pct(100), lv_pct(10));
+	lv_obj_add_event_cb(advanced_setup_ctrl.prev_mode_obj, event_handler, LV_EVENT_CLICKED, NULL);
+	advanced_setup_ctrl.prev_label_obj = lv_label_create(advanced_setup_ctrl.prev_mode_obj);
 }
 
 static void advanced_setup_set_text() {
@@ -180,9 +203,19 @@ static void advanced_setup_set_text() {
 	lv_obj_set_style_radius(advanced_setup_ctrl.rtsp_enable_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
 	if (rk_get_rtsp())
 		lv_obj_add_state(advanced_setup_ctrl.rtsp_enable_obj, LV_STATE_CHECKED);
+
+	lv_obj_add_style(advanced_setup_ctrl.prev_mode_obj, &option_style, 0);
+	lv_obj_add_style(advanced_setup_ctrl.prev_mode_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_label_set_text(advanced_setup_ctrl.prev_label_obj, "预览分辨率设置");
 }
 
 static void advanced_setup_destroy_ctrl(void) {
+	if (NULL != advanced_setup_ctrl.prev_mode_obj) {
+		ui_common_remove_style_all(advanced_setup_ctrl.prev_mode_obj);
+		lv_obj_del(advanced_setup_ctrl.prev_mode_obj);
+		advanced_setup_ctrl.prev_mode_obj = NULL;
+	}
 	if (NULL != advanced_setup_ctrl.rtsp_enable_obj) {
 		ui_common_remove_style_all(advanced_setup_ctrl.rtsp_enable_obj);
 		lv_obj_del(advanced_setup_ctrl.rtsp_enable_obj);
@@ -213,6 +246,7 @@ static void advanced_setup_add_indev(void) {
 		return;
 	lv_group_add_obj(group, advanced_setup_ctrl.exit_obj);
 	lv_group_add_obj(group, advanced_setup_ctrl.rtsp_enable_obj);
+	lv_group_add_obj(group, advanced_setup_ctrl.prev_mode_obj);
 	advanced_setup_ctrl.group = group;
 }
 

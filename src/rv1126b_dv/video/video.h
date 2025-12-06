@@ -50,6 +50,12 @@ typedef enum {
 	USB_MODE_MAX_NUM
 } USB_MODE_E;
 
+typedef enum {
+	PREVIEW_MODE_320x240 = 0,
+	PREVIEW_MODE_1440x1080,
+	PREVIEW_MODE_1920x1080,
+} RK_PREVIEW_MODE_E;
+
 int rk_init_mode(void);
 int rk_set_mode(RK_MODE_E mode);
 RK_MODE_E rk_get_mode(void);
@@ -73,6 +79,9 @@ int rk_get_smart_ae(void);
 
 int rk_set_rtsp(bool enable);
 int rk_get_rtsp(void);
+
+int rk_set_prev_mode(RK_PREVIEW_MODE_E mode);
+RK_PREVIEW_MODE_E rk_get_prev_mode(void);
 
 int rk_video_start_record(void);
 int rk_video_stop_record(void);
