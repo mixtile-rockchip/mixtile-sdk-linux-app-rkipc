@@ -2170,7 +2170,7 @@ int rk_init_mode(void) {
 	rk_mode_param.enable_eis_debug = rk_param_get_int("video.source:enable_eis_debug", 0);
 	rk_mode_param.enable_display = rk_param_get_int("video.source:enable_display", 1);
 	rk_mode_param.enable_rtsp = rk_param_get_int("video.source:enable_rtsp", 0);
-	rk_mode_param.enable_smart_ae = rk_param_get_int("video.source:enable_smart_ae", 1);
+	rk_mode_param.enable_smart_ae = rk_param_get_int("isp:enable_smart_ae", 1);
 	rk_mode_param.enable_osd = rk_param_get_int("video.source:enable_osd", 0);
 	rk_mode_param.max_photo_num = 5;
 	rk_mode_param.hdr_mode = rk_param_get_int("isp:hdr_mode", RK_LINEAR_MODE);;
@@ -2396,7 +2396,7 @@ int rk_set_smart_ae(bool enable) {
 	rk_video_deinit();
 	rk_isp_deinit(0);
 	rk_mode_param.enable_smart_ae = enable;
-	rk_param_set_int("video.source:enable_smart_ae", enable);
+	rk_param_set_int("isp:enable_smart_ae", enable);
 	rk_isp_init(0, rkipc_iq_file_path_);
 	rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));
 	rk_video_init();
