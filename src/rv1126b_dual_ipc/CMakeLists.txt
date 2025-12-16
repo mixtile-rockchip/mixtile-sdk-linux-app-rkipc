@@ -33,6 +33,7 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/common/event SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/region_clip SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/sysutil SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/venc SRCS)
+aux_source_directory(${PROJECT_SOURCE_DIR}/common/uvc SRCS)
 
 include_directories(video
 					server
@@ -54,6 +55,7 @@ include_directories(video
 					${PROJECT_SOURCE_DIR}/common/region_clip
 					${PROJECT_SOURCE_DIR}/common/sysutil
 					${PROJECT_SOURCE_DIR}/common/venc
+					${PROJECT_SOURCE_DIR}/common/uvc
 					)
 
 message(STATUS "RK_APP_CHIP is ${RK_APP_CHIP}")
@@ -88,5 +90,6 @@ install(FILES rkipc-dual-600w.ini DESTINATION share)
 install(FILES ../../common/speaker_test.wav DESTINATION share)
 install(PROGRAMS RkLunch.sh DESTINATION bin)
 install(PROGRAMS RkLunch-stop.sh DESTINATION bin)
+install(PROGRAMS ${PROJECT_SOURCE_DIR}/common/uvc/rkipc_usb_config.sh DESTINATION bin)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/image.bmp DESTINATION share)
 install(FILES ${PROJECT_SOURCE_DIR}/common/osd/rkipc_en.ttf DESTINATION share)

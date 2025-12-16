@@ -5,6 +5,7 @@
 #include "video.h"
 #include "audio.h"
 #include "rockiva.h"
+#include "uvc_control.h"
 
 #ifdef LOG_TAG
 #undef LOG_TAG
@@ -80,6 +81,7 @@ static void *rkipc_get_venc_0(void *arg) {
 	VI_CHN_STATUS_S stChnStatus;
 	int loopCount = 0;
 	int ret = 0;
+	int enable_uvc = rk_param_get_int("avs:enable_uvc", 0);
 	// FILE *fp = fopen("/data/venc.h265", "wb");
 	stFrame.pstPack = malloc(sizeof(VENC_PACK_S));
 
@@ -93,6 +95,8 @@ static void *rkipc_get_venc_0(void *arg) {
 			// LOG_INFO("Count:%d, Len:%d, PTS is %" PRId64", enH264EType is %d,seq is %d\n",
 			// loopCount, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS,
 			// stFrame.pstPack->DataType.enH264EType, stFrame.u32Seq);
+			if (enable_uvc)
+				uvc_read_camera_buffer(data, -1, stFrame.pstPack->u32Len, NULL, 0);
 
 			rkipc_rtsp_write_video_frame(0, data, stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS);
 			if ((stFrame.pstPack->DataType.enH264EType == H264E_NALU_IDRSLICE) ||
