@@ -76,7 +76,13 @@ post_chk()
 	# if /data/rkipc not exist, cp /usr/share
 	rkipc_ini=/userdata/rkipc.ini
 	default_rkipc_ini=/tmp/rkipc-factory-config.ini
-	ln -s -f /oem/usr/share/rkipc-dual-600w.ini $default_rkipc_ini
+	result=`ls -l /proc/rkisp* | wc -l`
+	if [ "$result"x == "2"x ] ;then
+		ln -s -f /oem/usr/share/rkipc-2x.ini $default_rkipc_ini
+	fi
+	if [ "$result"x == "4"x ] ;then
+		ln -s -f /oem/usr/share/rkipc-4x.ini $default_rkipc_ini
+	fi
 
 	tmp_md5=/tmp/.rkipc-ini.md5sum
 	data_md5=/userdata/.rkipc-default.md5sum

@@ -66,7 +66,7 @@ static int rga_ready_cnt = 0;
 static int rga_pre_process_ok = 0;
 static uint64_t tmp_pts;
 
-static MPP_CHN_S vi_chn[2], venc_chn[2], avs_in_chn[2], avs_out_chn[2], ivs_chn, vi_for_vo_chn[2],
+static MPP_CHN_S vi_chn[4], venc_chn[4], avs_in_chn[4], avs_out_chn[4], ivs_chn, vi_for_vo_chn[2],
     vo_chn[2], vpss_in_chn, vpss_out_chn[4];
 
 typedef enum rkCOLOR_INDEX_E {
@@ -619,6 +619,8 @@ int rkipc_bind_init() {
 				LOG_ERROR("bind error %#x: vi [%d, %d] -> avs [%d, %d]\n", ret, vi_chn[i].s32DevId,
 				          vi_chn[i].s32ChnId, avs_in_chn[i].s32DevId, avs_in_chn[i].s32ChnId);
 			}
+			LOG_INFO("bind success vi [%d, %d] -> avs [%d, %d]\n", vi_chn[i].s32DevId,
+				          vi_chn[i].s32ChnId, avs_in_chn[i].s32DevId, avs_in_chn[i].s32ChnId);
 		}
 	}
 
@@ -3106,6 +3108,7 @@ int rk_video_init() {
 	g_vo_layer_id = rk_param_get_int("avs:vo_layer_id", 0);
 	enable_npu = rk_param_get_int("avs:enable_npu", 0);
 	enable_wrap = rk_param_get_int("avs:enable_wrap", 0);
+	g_sensor_num = rk_param_get_int("avs:sensor_num", 2);
 
 	enable_osd = rk_param_get_int("osd.common:enable_osd", 0);
 	LOG_DEBUG("g_vi_chn_id is %d, g_enable_vo is %d, g_vo_dev_id is %d, g_vo_layer_id is %d, "
