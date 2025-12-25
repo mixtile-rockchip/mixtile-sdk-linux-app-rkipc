@@ -80,9 +80,11 @@ static void audio_event_handler(lv_event_t *e) {
 			}
 			if (lv_obj_has_state(obj, LV_STATE_CHECKED)) {
 				rk_param_set_int("audio.0:enable_vqe", 1);
+				rk_param_set_int("audio.0:channels", 1);
 				LOG_INFO("enable vqe\n");
 			} else {
 				rk_param_set_int("audio.0:enable_vqe", 0);
+				rk_param_set_int("audio.0:channels", 2);
 				LOG_INFO("disable vqe\n");
 			}
 			rk_audio_restart();
