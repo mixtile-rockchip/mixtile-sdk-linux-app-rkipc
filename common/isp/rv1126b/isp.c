@@ -94,7 +94,8 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 			LOG_INFO("FPN use IQ file: %s\n", check_path);
 			rk_aiq_uapi2_sysctl_preInit(aiq_static_info.sensor_info.sensor_name, WDRMode, entry);
 		} else {
-			LOG_ERROR("FPN IQ file not found: %s\n", check_path);
+			LOG_ERROR("FPN IQ file %s not found, close FPN\n", check_path);
+			rk_param_set_int("isp:enable_fpn", 0);
 		}
 	}
 
