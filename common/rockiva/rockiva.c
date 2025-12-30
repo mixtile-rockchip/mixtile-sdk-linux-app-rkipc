@@ -207,13 +207,13 @@ int rkipc_rockiva_init() {
 	globalParams.coreMask = 0x04;
 	globalParams.logLevel = ROCKIVA_LOG_ERROR;
 	if (!strcmp(model_type, "small") || !strcmp(model_type, "medium")) {
-		globalParams.detModel |= ROCKIVA_DET_MODEL_PFP;
+		globalParams.detModel = ROCKIVA_DET_MODEL_PFP;
 	} else if (!strcmp(model_type, "big")) {
 #if defined(RKIPC_RK3588)
 #warning "FIXME: need add cls8 support for rk3588 platform"
-		globalParams.detModel |= ROCKIVA_DET_MODEL_CLS7;
+		globalParams.detModel = ROCKIVA_DET_MODEL_CLS7;
 #else
-		globalParams.detModel |= ROCKIVA_DET_MODEL_CLS8;
+		globalParams.detModel = ROCKIVA_DET_MODEL_CLS8;
 #endif
 	}
 	LOG_INFO("globalParams.detModel is %d\n", globalParams.detModel);
