@@ -82,23 +82,6 @@ int sample_common_isp_init(int cam_id, rk_aiq_working_mode_t WDRMode, bool Multi
 	LOG_INFO("ID: %d, sensor_name is %s, iq_file_dir is %s\n", cam_id,
 	         aiq_static_info.sensor_info.sensor_name, iq_file_dir);
 
-	if (rk_param_get_int("isp:enable_fpn", 0)) {
-		char check_path[256];
-		if (strstr(aiq_static_info.sensor_info.sensor_name, "sc450ai") != NULL) {
-			snprintf(entry, sizeof(entry), "sc450ai_CRK4F4209_styleTstP1.json");
-		} else if (strstr(aiq_static_info.sensor_info.sensor_name, "sc850sl") != NULL) {
-			snprintf(entry, sizeof(entry), "sc850sl_CMK-OT2115-PC1_30IRC-F16P1.json");
-		}
-		snprintf(check_path, sizeof(check_path), "%s/%s", iq_file_dir, entry);
-		if (access(check_path, F_OK) == 0) {
-			LOG_INFO("FPN use IQ file: %s\n", check_path);
-			rk_aiq_uapi2_sysctl_preInit(aiq_static_info.sensor_info.sensor_name, WDRMode, entry);
-		} else {
-			LOG_ERROR("FPN IQ file %s not found, close FPN\n", check_path);
-			rk_param_set_int("isp:enable_fpn", 0);
-		}
-	}
-
 	snprintf(entry, 127, "isp.%d.adjustment:force_iq_name", cam_id);
 	const char *force_iq_name = rk_param_get_string(entry, NULL);
 	if (force_iq_name) {
