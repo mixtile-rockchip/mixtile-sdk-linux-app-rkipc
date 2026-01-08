@@ -393,17 +393,6 @@ int rkipc_vi_dev_init() {
 	// 1.get dev enable status
 	ret = RK_MPI_VI_GetDevIsEnable(pipe_id_);
 	if (ret != RK_SUCCESS) {
-		const char* aiq_rdbk = getenv("normal_no_read_back");
-		if(rk_param_get_int("isp:enable_fpn", 0) ||
-		   rk_param_get_int("isp:enable_memc", 0) ||
-		   rk_param_get_int("isp:enable_ai_remosaic", 0) ||
-		   (aiq_rdbk && !strcmp(aiq_rdbk, "0"))) {
-			ret = RK_MPI_VI_CtrlRawStream(false);
-			if (ret)
-				LOG_ERROR("RK_MPI_VI_CtrlRawStream set failed %#X\n", ret);
-			else
-				LOG_INFO("rockit not control the raw stream\n");
-		}
 		// 1-2.enable dev
 		ret = RK_MPI_VI_EnableDev(pipe_id_);
 		if (ret != RK_SUCCESS) {

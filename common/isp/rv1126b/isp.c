@@ -168,6 +168,13 @@ int sample_common_isp_run(int cam_id) {
 		g_aiq_ctx[cam_id] = NULL;
 		return -1;
 	}
+	if (rk_aiq_uapi2_judgeNeedRawPipeCtrl(g_aiq_ctx[cam_id])) {
+		RK_MPI_VI_CtrlRawStream(false);
+		LOG_INFO("raw stream control by rkaiq\n");
+	} else {
+		RK_MPI_VI_CtrlRawStream(true);
+		LOG_INFO("raw stream control by rockit\n");
+	}
 	LOG_INFO("rk_aiq_uapi2_sysctl_init/prepare succeed\n");
 	if (rk_aiq_uapi2_sysctl_start(g_aiq_ctx[cam_id])) {
 		LOG_ERROR("rk_aiq_uapi2_sysctl_start  failed\n");
