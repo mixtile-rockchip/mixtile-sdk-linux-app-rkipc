@@ -18,10 +18,12 @@
 #endif
 #define LOG_TAG "ui_settings.c"
 
+#include <linux/input.h>
 #include "ui_settings.h"
 #include "common.h"
 #include "evdev.h"
 #include "lvgl/porting/lv_port_indev.h"
+#include "media_ctrl.h"
 #include "storage.h"
 #include "ui_common.h"
 #include "ui_dialog.h"
@@ -30,10 +32,8 @@
 #include "ui_page_manager.h"
 #include "ui_player.h"
 #include "ui_resource_manager.h"
-#include "video.h"
-#include <linux/input.h>
 
-typedef struct {
+static struct {
 	lv_obj_t *container_obj;
 
 	lv_obj_t *exit_obj;
@@ -72,21 +72,19 @@ typedef struct {
 
 	lv_group_t *group;
 
-} UI_SETTINGS_CONTROL_S;
-
-static UI_SETTINGS_CONTROL_S settings_ctrl;
+} settings_ctrl;
 extern lv_ft_info_t ttf_info_32;
 
 static void setting_set_text(void);
 
 static void mode_update(void) {
-	if (rk_get_mode() == RK_PHOTO_MODE) {
+	if (rk_media_get_mode() == RK_PHOTO_MODE) {
 		lv_img_set_src(settings_ctrl.mode_img_obj, icon_photo_mode);
 		lv_label_set_text(settings_ctrl.mode_label_obj, "拍照模式");
-	} else if (rk_get_mode() == RK_SLOW_MOTION_MODE) {
+	} else if (rk_media_get_mode() == RK_SLOW_MOTION_MODE) {
 		lv_img_set_src(settings_ctrl.mode_img_obj, icon_slowmotion_mode);
 		lv_label_set_text(settings_ctrl.mode_label_obj, "慢动作");
-	} else if (rk_get_mode() == RK_VIDEO_MODE) {
+	} else if (rk_media_get_mode() == RK_VIDEO_MODE) {
 		lv_img_set_src(settings_ctrl.mode_img_obj, icon_video_mode);
 		lv_label_set_text(settings_ctrl.mode_label_obj, "录像模式");
 	} else {
@@ -127,7 +125,7 @@ static void mode_switch_result_cb(void *msg) {
 
 static void mode_config_cb(void *userdata) {
 	RK_MODE_E mode = (RK_MODE_E)(size_t)userdata;
-	int ret = rk_set_mode(mode);
+	int ret = rk_media_change_mode(mode);
 	if (ret != 0)
 		lv_async_call(mode_switch_result_cb, "切换模式失败!");
 	else
@@ -135,19 +133,18 @@ static void mode_config_cb(void *userdata) {
 }
 
 static const ui_option_entry_t mode_options[] = {
-	{"录像模式", mode_config_cb, (void *)RK_VIDEO_MODE},
-	{"拍照模式", mode_config_cb, (void *)RK_PHOTO_MODE},
-	{"慢动作", mode_config_cb, (void *)RK_SLOW_MOTION_MODE},
-	{"延时摄影", mode_config_cb, (void *)RK_TIME_LAPSE_MODE},
+    {"录像模式", mode_config_cb, (void *)RK_VIDEO_MODE},
+    {"拍照模式", mode_config_cb, (void *)RK_PHOTO_MODE},
+    {"慢动作", mode_config_cb, (void *)RK_SLOW_MOTION_MODE},
+    {"延时摄影", mode_config_cb, (void *)RK_TIME_LAPSE_MODE},
 };
 
 static void mode_event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
 	if (code == LV_EVENT_CLICKED)
-		create_select_box("模式配置", mode_options,
-		                  sizeof(mode_options) / sizeof(mode_options[0]),
-		                  rk_get_mode());
+		create_select_box("模式配置", mode_options, sizeof(mode_options) / sizeof(mode_options[0]),
+		                  rk_media_get_mode());
 }
 
 static void video_event_handler(lv_event_t *e) {
@@ -272,6 +269,7 @@ static void setting_create_ctrl(lv_obj_t *page_obj) {
 	lv_disp_set_bg_opa(NULL, LV_OPA_TRANSP);
 	lv_obj_set_style_bg_opa(page_obj, LV_OPA_COVER, 0);
 	lv_obj_set_style_bg_color(page_obj, bg_color, 0);
+	lv_obj_clear_flag(page_obj, LV_OBJ_FLAG_SCROLLABLE);
 
 	settings_ctrl.exit_obj = lv_btn_create(page_obj);
 	lv_obj_set_style_bg_opa(settings_ctrl.exit_obj, LV_OPA_TRANSP, 0);
@@ -289,9 +287,9 @@ static void setting_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_size(imgbtn_obj, lv_pct(20), lv_pct(20));
 	settings_ctrl.mode_img_obj = img_obj = lv_img_create(imgbtn_obj);
 	lv_obj_align(img_obj, LV_ALIGN_CENTER, 0, 0);
-	if (rk_get_mode() == RK_PHOTO_MODE)
+	if (rk_media_get_mode() == RK_PHOTO_MODE)
 		lv_img_set_src(img_obj, icon_photo_mode);
-	else if (rk_get_mode() == RK_VIDEO_MODE)
+	else if (rk_media_get_mode() == RK_VIDEO_MODE)
 		lv_img_set_src(img_obj, icon_video_mode);
 	else
 		lv_img_set_src(img_obj, icon_slowmotion_mode);
@@ -422,8 +420,8 @@ static void setting_set_text() {
 	lv_obj_add_style(settings_ctrl.exit_obj, &symbol_style, 0);
 	lv_obj_add_style(settings_ctrl.exit_obj, &symbol_focus_style, LV_STATE_FOCUSED);
 	// INFO: set align to the left of the parent after set text
-	lv_obj_align_to(settings_ctrl.container_obj
-		, settings_ctrl.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
+	lv_obj_align_to(settings_ctrl.container_obj, settings_ctrl.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT,
+	                0, 0);
 
 	// add style for button
 	lv_obj_add_style(settings_ctrl.mode_imgbtn_obj, &btn_style, 0);
@@ -442,11 +440,11 @@ static void setting_set_text() {
 	lv_obj_add_style(settings_ctrl.test_imgbtn_obj, &btn_focus_style, LV_STATE_FOCUSED);
 
 	// add style for text
-	if (rk_get_mode() == RK_VIDEO_MODE)
+	if (rk_media_get_mode() == RK_VIDEO_MODE)
 		lv_label_set_text(settings_ctrl.mode_label_obj, "录像模式");
-	else if (rk_get_mode() == RK_PHOTO_MODE)
+	else if (rk_media_get_mode() == RK_PHOTO_MODE)
 		lv_label_set_text(settings_ctrl.mode_label_obj, "拍照模式");
-	else if (rk_get_mode() == RK_SLOW_MOTION_MODE)
+	else if (rk_media_get_mode() == RK_SLOW_MOTION_MODE)
 		lv_label_set_text(settings_ctrl.mode_label_obj, "慢动作");
 	else
 		lv_label_set_text(settings_ctrl.mode_label_obj, "延时摄影");

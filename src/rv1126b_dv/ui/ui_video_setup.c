@@ -21,6 +21,7 @@
 #include "common.h"
 #include "evdev.h"
 #include "lvgl/porting/lv_port_indev.h"
+#include "media_ctrl.h"
 #include "storage.h"
 #include "ui_common.h"
 #include "ui_dialog.h"
@@ -29,10 +30,9 @@
 #include "ui_page_manager.h"
 #include "ui_player.h"
 #include "ui_resource_manager.h"
-#include "video.h"
 #include <linux/input.h>
 
-typedef struct {
+static struct {
 	lv_obj_t *container_obj;
 
 	lv_obj_t *exit_obj;
@@ -53,25 +53,23 @@ typedef struct {
 	lv_obj_t *smart_ae_obj;
 	lv_obj_t *enable_osd_obj;
 	lv_obj_t *memc_obj;
-
 	lv_group_t *group;
-
-} UI_VIDEO_SETUP_CONTROL_S;
-static UI_VIDEO_SETUP_CONTROL_S video_setup_ctrl;
+	bool need_reinit;
+} video_setup_ctrl;
 
 extern lv_ft_info_t ttf_info_32;
 
-static void return_event_handler(lv_event_t *e) {
-	lv_event_code_t code = lv_event_get_code(e);
-	lv_obj_t *obj = lv_event_get_target(e);
-	if (code == LV_EVENT_CLICKED) {
-		ui_page_pop_page();
-	}
+static void update_setting_func(void *arg) {
+	int ret = rk_media_reinit();
+	if (ret < 0)
+		LOG_ERROR("rk_media_reinit failed\n");
+	else
+		LOG_INFO("rk_media_reinit success\n");
 }
 
-static void ui_dialog_create_func(void *msg) {
-	ui_dialog_create("WARNING", (const char *)msg);
-}
+static void exit_func(void *userdata) { ui_page_pop_page(); }
+
+static void ui_dialog_create_func(void *msg) { ui_dialog_create("WARNING", (const char *)msg); }
 
 static void eis_config_cb(void *userdata) {
 	int ret = 0;
@@ -81,36 +79,16 @@ static void eis_config_cb(void *userdata) {
 		lv_async_call(ui_dialog_create_func, "切换EIS模式失败!");
 	} else {
 		lv_async_call(ui_dialog_create_func, "切换EIS模式成功!");
+		video_setup_ctrl.need_reinit = true;
 	}
 }
 
 static const ui_option_entry_t eis_options[] = {
-	{"关闭防抖", eis_config_cb, (void *)RK_EIS_OFF},
-	{"普通防抖", eis_config_cb, (void *)RK_NORMAL_STEADY},
-	{"地平线防抖", eis_config_cb, (void *)RK_HORIZON_STEADY},
-	{"畸变校正", eis_config_cb, (void *)RK_DISTORTION_CORRECTION},
+    {"关闭防抖", eis_config_cb, (void *)RK_EIS_OFF},
+    {"普通防抖", eis_config_cb, (void *)RK_NORMAL_STEADY},
+    {"地平线防抖", eis_config_cb, (void *)RK_HORIZON_STEADY},
+    {"畸变校正", eis_config_cb, (void *)RK_DISTORTION_CORRECTION},
 };
-
-
-static void eis_event_handler(lv_event_t *e) {
-	lv_event_code_t code = lv_event_get_code(e);
-	lv_obj_t *obj = lv_event_get_target(e);
-	if (code == LV_EVENT_CLICKED) {
-		create_select_box("EIS配置", eis_options, sizeof(eis_options) / sizeof(eis_options[0])
-			, rk_get_eis_mode());
-	}
-}
-
-static void memc_event_handler(lv_event_t *e) {
-	lv_event_code_t code = lv_event_get_code(e);
-	lv_obj_t *obj = lv_event_get_target(e);
-	if (code == LV_EVENT_CLICKED) {
-		if (lv_obj_has_state(obj, LV_STATE_CHECKED))
-			rk_set_memc_mode(true);
-		else
-			rk_set_memc_mode(false);
-	}
-}
 
 static void hdr_config_cb(void *userdata) {
 	int ret = 0, len = 0;
@@ -128,86 +106,28 @@ static void hdr_config_cb(void *userdata) {
 	else
 		len += snprintf(msg + ret, sizeof(msg) - len, "当前模式: 线性模式");
 	lv_async_call(ui_dialog_create_func, msg);
+	if (!ret)
+		video_setup_ctrl.need_reinit = true;
 }
 
 static const ui_option_entry_t hdr_options[] = {
-	{"线性模式", hdr_config_cb, (void *)RK_LINEAR_MODE},
-	{"DAG HDR", hdr_config_cb, (void *)RK_HDR_DAG_MODE},
-	{"STAGGERED HDR", hdr_config_cb, (void *)RK_HDR_STAGGERED_MODE},
+    {"线性模式", hdr_config_cb, (void *)RK_LINEAR_MODE},
+    {"DAG HDR", hdr_config_cb, (void *)RK_HDR_DAG_MODE},
+    {"STAGGERED HDR", hdr_config_cb, (void *)RK_HDR_STAGGERED_MODE},
 };
-
-static void hdr_event_handler(lv_event_t *e) {
-	lv_event_code_t code = lv_event_get_code(e);
-	lv_obj_t *obj = lv_event_get_target(e);
-	if (code == LV_EVENT_CLICKED) {
-		create_select_box("HDR配置", hdr_options, sizeof(hdr_options) / sizeof(hdr_options[0])
-			, rk_get_hdr());
-	}
-}
-
-static void debug_event_handler(lv_event_t *e) {
-	lv_event_code_t code = lv_event_get_code(e);
-	lv_obj_t *obj = lv_event_get_target(e);
-	if (code == LV_EVENT_CLICKED) {
-		if (lv_obj_has_state(obj, LV_STATE_CHECKED))
-			rk_set_eis_debug(true);
-		else
-			rk_set_eis_debug(false);
-	}
-}
-
-static void smart_ae_event_handler(lv_event_t *e) {
-	lv_event_code_t code = lv_event_get_code(e);
-	lv_obj_t *obj = lv_event_get_target(e);
-	if (code == LV_EVENT_CLICKED) {
-		if (lv_obj_has_state(obj, LV_STATE_CHECKED))
-			rk_set_smart_ae(true);
-		else
-			rk_set_smart_ae(false);
-	}
-}
-
-static void osd_event_handler(lv_event_t *e) {
-	lv_event_code_t code = lv_event_get_code(e);
-	lv_obj_t *obj = lv_event_get_target(e);
-	if (code == LV_EVENT_CLICKED) {
-		if (lv_obj_has_state(obj, LV_STATE_CHECKED))
-			rk_param_set_int("video.source:enable_osd", 1);
-		else
-			rk_param_set_int("video.source:enable_osd", 0);
-	}
-}
 
 static void photo_config_cb(void *userdata) {
 	int capture_num = (int)(size_t)userdata;
 	rk_photo_set_max_num(capture_num);
+	video_setup_ctrl.need_reinit = true;
 }
 
 static const ui_option_entry_t photo_options[] = {
-	{"1F1S", photo_config_cb, (void *)1},
-	{"5F1S", photo_config_cb, (void *)5},
-	{"10F1S", photo_config_cb, (void *)10},
-	{"20F2S", photo_config_cb, (void *)20},
+    {"1F1S", photo_config_cb, (void *)1},
+    {"5F1S", photo_config_cb, (void *)5},
+    {"10F1S", photo_config_cb, (void *)10},
+    {"20F2S", photo_config_cb, (void *)20},
 };
-
-static void photo_event_handler(lv_event_t *e) {
-	lv_event_code_t code = lv_event_get_code(e);
-	lv_obj_t *obj = lv_event_get_target(e);
-	if (code == LV_EVENT_CLICKED) {
-		int index = 0;
-		int num = rk_photo_get_max_num();
-		if (num == 1)
-			index = 0;
-		else if (num == 5)
-			index = 1;
-		else if (num == 10)
-			index = 2;
-		else if (num == 20)
-			index = 3;
-		create_select_box("拍照配置", photo_options, sizeof(photo_options) / sizeof(photo_options[0])
-			, index);
-	}
-}
 
 #define HIGH_BITRATE 90000
 #define NORMAL_BITRATE 50000
@@ -226,30 +146,104 @@ static void bitrate_config_cb(void *userdata) {
 }
 
 static const ui_option_entry_t bitrate_options[] = {
-	{"标准", bitrate_config_cb, (void *)0},
-	{"高码率", bitrate_config_cb, (void *)1},
-	{"超低码率(用于RTSP)", bitrate_config_cb, (void *)2},
+    {"标准", bitrate_config_cb, (void *)0},
+    {"高码率", bitrate_config_cb, (void *)1},
+    {"超低码率(用于RTSP)", bitrate_config_cb, (void *)2},
 };
 
-static void venc_event_handler(lv_event_t *e) {
+static void lv_obj_inverse_state(lv_obj_t *obj, lv_state_t state) {
+	if (lv_obj_has_state(obj, state))
+		lv_obj_clear_state(obj, state);
+	else
+		lv_obj_add_state(obj, state);
+}
+
+static void event_handler(lv_event_t *e) {
+	int ret = 0;
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
 	if (code == LV_EVENT_CLICKED) {
-		int bitrate = rk_param_get_int("video.0:max_rate", 50000);
-		int index = 0;
-		if (bitrate == HIGH_BITRATE)
-			index = 1;
-		else if (bitrate == LOW_BITRATE)
-			index = 2;
-		create_select_box("码率配置", bitrate_options, sizeof(bitrate_options) / sizeof(bitrate_options[0])
-			, index);
+		if (obj == video_setup_ctrl.exit_obj) {
+			if (video_setup_ctrl.need_reinit)
+				ui_start_async_task(update_setting_func, NULL, exit_func, NULL);
+			else
+				ui_page_pop_page();
+		} else if (obj == video_setup_ctrl.eis_obj) {
+			create_select_box("EIS配置", eis_options, sizeof(eis_options) / sizeof(eis_options[0]),
+							rk_get_eis_mode());
+		} else if (obj == video_setup_ctrl.hdr_obj) {
+			create_select_box("HDR配置", hdr_options, sizeof(hdr_options) / sizeof(hdr_options[0]),
+							rk_get_hdr());
+		} else if (obj == video_setup_ctrl.photo_obj) {
+			int index = 0;
+			int num = rk_photo_get_max_num();
+			if (num == 1)
+				index = 0;
+			else if (num == 5)
+				index = 1;
+			else if (num == 10)
+				index = 2;
+			else if (num == 20)
+				index = 3;
+			create_select_box("拍照配置", photo_options,
+							sizeof(photo_options) / sizeof(photo_options[0]), index);
+		} else if (obj == video_setup_ctrl.birtate_obj) {
+			int bitrate = rk_param_get_int("video.0:max_rate", 50000);
+			int index = 0;
+			if (bitrate == HIGH_BITRATE)
+				index = 1;
+			else if (bitrate == LOW_BITRATE)
+				index = 2;
+			create_select_box("码率配置", bitrate_options,
+							sizeof(bitrate_options) / sizeof(bitrate_options[0]), index);
+		} else if (obj == video_setup_ctrl.debug_obj) {
+			if (lv_obj_has_state(obj, LV_STATE_CHECKED))
+				ret = rk_set_eis_debug(true);
+			else
+				ret = rk_set_eis_debug(false);
+			if (!ret) {
+				video_setup_ctrl.need_reinit = true;
+			} else {
+				lv_async_call(ui_dialog_create_func, "切换开发者模式失败!");
+				lv_obj_inverse_state(obj, LV_STATE_CHECKED);
+			}
+		} else if (obj == video_setup_ctrl.smart_ae_obj) {
+			if (lv_obj_has_state(obj, LV_STATE_CHECKED))
+				ret = rk_set_smart_ae(true);
+			else
+				ret = rk_set_smart_ae(false);
+			if (!ret) {
+				video_setup_ctrl.need_reinit = true;
+			} else {
+				lv_async_call(ui_dialog_create_func, "设置smart AE失败!");
+				lv_obj_inverse_state(obj, LV_STATE_CHECKED);
+			}
+		} else if (obj == video_setup_ctrl.enable_osd_obj) {
+			if (lv_obj_has_state(obj, LV_STATE_CHECKED))
+				rk_param_set_int("video.source:enable_osd", 1);
+			else
+				rk_param_set_int("video.source:enable_osd", 0);
+			video_setup_ctrl.need_reinit = true;
+		} else if (obj == video_setup_ctrl.memc_obj) {
+			if (lv_obj_has_state(obj, LV_STATE_CHECKED))
+				ret = rk_set_memc_mode(true);
+			else
+				ret = rk_set_memc_mode(false);
+			if (!ret) {
+				video_setup_ctrl.need_reinit = true;
+			} else {
+				lv_async_call(ui_dialog_create_func, "设置MEMC失败!");
+				lv_obj_inverse_state(obj, LV_STATE_CHECKED);
+			}
+		}
 	}
+
 }
 
 static void video_setup_layout(lv_obj_t *page_obj) {
 	lv_obj_set_flex_flow(video_setup_ctrl.container_obj, LV_FLEX_FLOW_COLUMN);
-	lv_obj_set_flex_align(video_setup_ctrl.container_obj, LV_FLEX_ALIGN_START,
-	                      LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+	lv_obj_set_flex_align(video_setup_ctrl.container_obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+	                      LV_FLEX_ALIGN_CENTER);
 	lv_obj_set_scrollbar_mode(video_setup_ctrl.container_obj, LV_SCROLLBAR_MODE_OFF);
 }
 
@@ -263,7 +257,7 @@ static void video_setup_create_ctrl(lv_obj_t *page_obj) {
 
 	video_setup_ctrl.exit_obj = lv_btn_create(page_obj);
 	lv_obj_set_style_bg_opa(video_setup_ctrl.exit_obj, LV_OPA_TRANSP, 0);
-	lv_obj_add_event_cb(video_setup_ctrl.exit_obj, return_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(video_setup_ctrl.exit_obj, event_handler, LV_EVENT_CLICKED, NULL);
 	video_setup_ctrl.exit_label_obj = lv_label_create(video_setup_ctrl.exit_obj);
 
 	video_setup_ctrl.container_obj = cont_obj = lv_obj_create(page_obj);
@@ -274,43 +268,44 @@ static void video_setup_create_ctrl(lv_obj_t *page_obj) {
 
 	video_setup_ctrl.eis_obj = lv_btn_create(cont_obj);
 	lv_obj_set_size(video_setup_ctrl.eis_obj, lv_pct(100), lv_pct(10));
-	lv_obj_add_event_cb(video_setup_ctrl.eis_obj, eis_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(video_setup_ctrl.eis_obj, event_handler, LV_EVENT_CLICKED, NULL);
 	video_setup_ctrl.eis_label_obj = lv_label_create(video_setup_ctrl.eis_obj);
 
 	video_setup_ctrl.hdr_obj = lv_btn_create(cont_obj);
 	lv_obj_set_size(video_setup_ctrl.hdr_obj, lv_pct(100), lv_pct(10));
-	lv_obj_add_event_cb(video_setup_ctrl.hdr_obj, hdr_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(video_setup_ctrl.hdr_obj, event_handler, LV_EVENT_CLICKED, NULL);
 	video_setup_ctrl.hdr_label_obj = lv_label_create(video_setup_ctrl.hdr_obj);
 
 	video_setup_ctrl.debug_obj = lv_checkbox_create(cont_obj);
 	lv_obj_add_flag(video_setup_ctrl.debug_obj, LV_OBJ_FLAG_CHECKABLE);
 	lv_obj_set_size(video_setup_ctrl.debug_obj, lv_pct(100), lv_pct(10));
-	lv_obj_add_event_cb(video_setup_ctrl.debug_obj, debug_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(video_setup_ctrl.debug_obj, event_handler, LV_EVENT_CLICKED, NULL);
 
 	video_setup_ctrl.smart_ae_obj = lv_checkbox_create(cont_obj);
 	lv_obj_add_flag(video_setup_ctrl.smart_ae_obj, LV_OBJ_FLAG_CHECKABLE);
 	lv_obj_set_size(video_setup_ctrl.smart_ae_obj, lv_pct(100), lv_pct(10));
-	lv_obj_add_event_cb(video_setup_ctrl.smart_ae_obj, smart_ae_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(video_setup_ctrl.smart_ae_obj, event_handler, LV_EVENT_CLICKED,
+	                    NULL);
 
 	video_setup_ctrl.enable_osd_obj = lv_checkbox_create(cont_obj);
 	lv_obj_add_flag(video_setup_ctrl.enable_osd_obj, LV_OBJ_FLAG_CHECKABLE);
 	lv_obj_set_size(video_setup_ctrl.enable_osd_obj, lv_pct(100), lv_pct(10));
-	lv_obj_add_event_cb(video_setup_ctrl.enable_osd_obj, osd_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(video_setup_ctrl.enable_osd_obj, event_handler, LV_EVENT_CLICKED, NULL);
 
 	video_setup_ctrl.photo_obj = lv_btn_create(cont_obj);
 	lv_obj_set_size(video_setup_ctrl.photo_obj, lv_pct(100), lv_pct(10));
-	lv_obj_add_event_cb(video_setup_ctrl.photo_obj, photo_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(video_setup_ctrl.photo_obj, event_handler, LV_EVENT_CLICKED, NULL);
 	video_setup_ctrl.photo_label_obj = lv_label_create(video_setup_ctrl.photo_obj);
 
 	video_setup_ctrl.birtate_obj = lv_btn_create(cont_obj);
 	lv_obj_set_size(video_setup_ctrl.birtate_obj, lv_pct(100), lv_pct(10));
 	video_setup_ctrl.bitrate_label_obj = lv_label_create(video_setup_ctrl.birtate_obj);
-	lv_obj_add_event_cb(video_setup_ctrl.birtate_obj, venc_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(video_setup_ctrl.birtate_obj, event_handler, LV_EVENT_CLICKED, NULL);
 
 	video_setup_ctrl.memc_obj = lv_checkbox_create(cont_obj);
 	lv_obj_add_flag(video_setup_ctrl.memc_obj, LV_OBJ_FLAG_CHECKABLE);
 	lv_obj_set_size(video_setup_ctrl.memc_obj, lv_pct(100), lv_pct(10));
-	lv_obj_add_event_cb(video_setup_ctrl.memc_obj, memc_event_handler, LV_EVENT_CLICKED, NULL);
+	lv_obj_add_event_cb(video_setup_ctrl.memc_obj, event_handler, LV_EVENT_CLICKED, NULL);
 }
 
 static void video_setup_set_text() {
@@ -372,8 +367,8 @@ static void video_setup_set_text() {
 	lv_obj_add_style(video_setup_ctrl.exit_obj, &symbol_focus_style, LV_STATE_FOCUSED);
 
 	// INFO: set align to the left of the parent after set text
-	lv_obj_align_to(video_setup_ctrl.container_obj
-		, video_setup_ctrl.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
+	lv_obj_align_to(video_setup_ctrl.container_obj, video_setup_ctrl.exit_obj,
+	                LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
 
 	lv_obj_add_style(video_setup_ctrl.eis_obj, &option_style, 0);
 	lv_obj_add_style(video_setup_ctrl.eis_obj, &option_focus_style,
@@ -484,7 +479,6 @@ static void video_setup_destroy_ctrl(void) {
 }
 
 static void video_setup_page_create(lv_obj_t *page_obj) {
-
 	video_setup_create_ctrl(page_obj);
 	video_setup_layout(page_obj);
 	video_setup_set_text();
@@ -514,7 +508,10 @@ static void video_setup_delete_indev(void) {
 	}
 }
 
-static void video_setup_page_enter(lv_obj_t *page_obj) { video_setup_add_indev(); }
+static void video_setup_page_enter(lv_obj_t *page_obj) {
+	video_setup_ctrl.need_reinit = false;
+	video_setup_add_indev();
+}
 
 static void video_setup_page_exit(lv_obj_t *page_obj) {}
 
@@ -524,10 +521,10 @@ static void video_setup_page_destroy(lv_obj_t *page_obj) {
 }
 
 static UI_PAGE_HANDLER_T video_setup_page = {.name = "video_setup",
-                                                .init = NULL,
-                                                .create = video_setup_page_create,
-                                                .enter = video_setup_page_enter,
-                                                .destroy = video_setup_page_destroy,
-                                                .exit = video_setup_page_exit};
+                                             .init = NULL,
+                                             .create = video_setup_page_create,
+                                             .enter = video_setup_page_enter,
+                                             .destroy = video_setup_page_destroy,
+                                             .exit = video_setup_page_exit};
 
 UI_PAGE_REGISTER(video_setup_page)

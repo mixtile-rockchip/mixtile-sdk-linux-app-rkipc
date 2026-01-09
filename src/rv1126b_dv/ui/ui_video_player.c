@@ -27,9 +27,9 @@
 
 #include "common.h"
 #include "evdev.h"
+#include "media_ctrl.h"
 #include "player.h"
 #include "storage.h"
-#include "video.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -144,7 +144,7 @@ static void player_event_handler(RK_PLAYER_EVENT enEvent) {
 
 static void player_event_cb(RK_PLAYER_EVENT enEvent) { player_ctx.event = enEvent; }
 
-static void slider_event_cb(lv_event_t * e) {
+static void slider_event_cb(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
 	lv_obj_t *obj = lv_event_get_target(e);
 

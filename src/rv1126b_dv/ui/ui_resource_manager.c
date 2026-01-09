@@ -96,7 +96,6 @@ static int32_t ui_font_init(lv_ft_info_t *info, uint32_t weight) {
 	return 0;
 }
 
-
 static void ui_font_release(void) {
 	if (NULL != ttf_info_32.font) {
 		lv_ft_font_destroy(ttf_info_32.font);

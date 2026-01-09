@@ -1,17 +1,18 @@
 #include <getopt.h>
+#include <linux/input.h>
+#include <rk_mpi_amix.h>
+#include <rk_mpi_sys.h>
+#include <stdlib.h>
 
 #include "audio.h"
 #include "common.h"
 #include "isp.h"
 #include "log.h"
+#include "media_ctrl.h"
 #include "param.h"
 #include "player.h"
 #include "storage.h"
 #include "system.h"
-#include "video.h"
-#include <linux/input.h>
-#include <rk_mpi_amix.h>
-#include <stdlib.h>
 
 #ifdef LOG_TAG
 #undef LOG_TAG
@@ -119,8 +120,8 @@ static void *wait_key_event(void *arg) {
 		if (FD_ISSET(key_fd, &rfds)) {
 			read(key_fd, &key_event, sizeof(key_event));
 			LOG_DEBUG("[timeval:sec:%ld,usec:%ld,type:%d,code:%d,value:%d]\n",
-			         key_event.input_event_sec, key_event.input_event_usec, key_event.type,
-			         key_event.code, key_event.value);
+			          key_event.input_event_sec, key_event.input_event_usec, key_event.type,
+			          key_event.code, key_event.value);
 			if ((key_event.code == KEY_POWER) && key_event.value) {
 				if (!exit_sleep) {
 					LOG_INFO("enter sleep now\n");
@@ -151,8 +152,6 @@ int main(int argc, char **argv) {
 	rkipc_version_dump();
 	signal(SIGINT, sig_proc);
 	signal(SIGTERM, sig_proc);
-	// FIXME: Avoid rockit force set isp online mode
-	setenv("rt_vi_rawstream_en", "0", 1);
 	rkipc_get_opt(argc, argv);
 	LOG_INFO("rkipc_ini_path_ is %s, rkipc_iq_file_path_ is %s, rkipc_log_level "
 	         "is %d\n",
@@ -162,19 +161,12 @@ int main(int argc, char **argv) {
 	rkipc_camera_id_ = rk_param_get_int("video.source:camera_id", 0); // need rk_param_init
 
 	RK_MPI_SYS_Init();
-	rk_init_mode();
-	rk_storage_init();
-	rk_isp_init(0, "/etc/iqfiles");
-	rk_isp_set_frame_rate_without_ini(0, rk_param_get_int("isp.0.adjustment:fps", 30));
-	if (rk_param_get_int("video.source:enable_display", 1)) {
+	if (rk_param_get_int("video.source:enable_display", 1))
 		rk_display_init();
+	rk_media_init();
+	if (rk_param_get_int("video.source:enable_display", 1))
 		ui_init();
-	}
-	rk_video_init();
-	if (rk_param_get_int("audio.0:enable", 0)) {
-		rkipc_audio_init();
-	}
-
+	rk_storage_init();
 	pthread_create(&key_chk, NULL, wait_key_event, NULL);
 	while (g_main_run_) {
 		if (rk_param_get_int("video.source:enable_display", 1))
@@ -183,15 +175,13 @@ int main(int argc, char **argv) {
 			usleep(100000); // 100ms
 	}
 	pthread_join(key_chk, NULL);
-	if (rk_param_get_int("audio.0:enable", 0))
-		rkipc_audio_deinit();
-	rk_video_deinit();
-	if (rk_param_get_int("video.source:enable_display", 1)) {
-		ui_deinit();
-		rk_display_deinit();
-	}
-	rk_isp_deinit(0);
 	rk_storage_deinit();
+	if (rk_param_get_int("video.source:enable_display", 1))
+		ui_deinit();
+	rk_media_deinit();
+	if (rk_param_get_int("video.source:enable_display", 1))
+		rk_display_deinit();
+
 	rk_param_deinit();
 	LOG_INFO("rkipc deinit over\n");
 

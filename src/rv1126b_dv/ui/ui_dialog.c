@@ -19,9 +19,9 @@
 #define LOG_TAG "ui_dialog.c"
 
 #include "ui_dialog.h"
+#include "common.h"
 #include "lvgl/porting/lv_port_indev.h"
 #include "ui_common.h"
-#include "common.h"
 #include <pthread.h>
 
 /**********************
@@ -150,11 +150,7 @@ static void close_event_handler(lv_event_t *e) {
 }
 
 static struct {
-	enum TASK_STATE {
-		TASK_IDLE,
-		TASK_RUNNING,
-		TASK_DONE
-	} task_state;
+	enum TASK_STATE { TASK_IDLE, TASK_RUNNING, TASK_DONE } task_state;
 	pthread_t task_id;
 	UI_TASK_TYPE func;
 	void *func_arg;
@@ -227,9 +223,7 @@ int ui_start_async_task(UI_TASK_TYPE func, void *func_arg, UI_TASK_TYPE dtor, vo
 	lv_timer_ready(timer);
 }
 
-bool ui_async_task_is_running(void) {
-	return (ui_async_task.task_state == TASK_RUNNING);
-}
+bool ui_async_task_is_running(void) { return (ui_async_task.task_state == TASK_RUNNING); }
 
 static struct {
 	lv_group_t *group;
@@ -251,9 +245,7 @@ static void select_box_doing_func(void *arg) {
 	}
 }
 
-static void select_box_done_func(void *arg) {
-	destroy_select_box();
-}
+static void select_box_done_func(void *arg) { destroy_select_box(); }
 
 static void btn_event_cb(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
@@ -281,7 +273,7 @@ static void btn_event_cb(lv_event_t *e) {
 static lv_obj_t *create_dialog(lv_obj_t *parent) {
 	lv_color_t text_color = lv_color_make(0XFF, 0XFF, 0XFF);
 	lv_color_t dialog_color = {
-		.full = 0xFF222D30,
+	    .full = 0xFF222D30,
 	};
 	static lv_style_t style;
 	lv_style_reset(&style);
@@ -354,7 +346,8 @@ static void create_buttons(lv_obj_t *parent, lv_group_t *g) {
 	lv_group_focus_obj(btn);
 }
 
-void create_select_box(const char *title, const ui_option_entry_t *option_array, int option_num, int focus_idx) {
+void create_select_box(const char *title, const ui_option_entry_t *option_array, int option_num,
+                       int focus_idx) {
 	lv_color_t color = lv_color_hex(0xFF000000);
 	lv_obj_t *dialog = NULL;
 	if (!option_array || option_num <= 0 || focus_idx < 0 || focus_idx >= option_num || !title) {
@@ -376,8 +369,7 @@ void create_select_box(const char *title, const ui_option_entry_t *option_array,
 	lv_obj_set_style_border_color(config_box.dialog, color, 0);
 	lv_obj_set_style_radius(config_box.dialog, 0, 0);
 	lv_obj_set_style_bg_opa(config_box.dialog, LV_OPA_50, 0);
-	lv_obj_add_event_cb(config_box.dialog, btn_event_cb, LV_EVENT_CLICKED,
-	                    NULL);
+	lv_obj_add_event_cb(config_box.dialog, btn_event_cb, LV_EVENT_CLICKED, NULL);
 	lv_group_add_obj(config_box.group, config_box.dialog);
 
 	dialog = create_dialog(config_box.dialog);

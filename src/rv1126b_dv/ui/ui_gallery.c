@@ -18,28 +18,24 @@
 #endif
 #define LOG_TAG "ui_gallery.c"
 
-#include <linux/input.h>
-
-#include "common.h"
-#include "evdev.h"
-#include "lvgl/porting/lv_port_indev.h"
-#include "storage.h"
-#include "ui_common.h"
-#include "ui_page_manager.h"
-#include "ui_player.h"
-#include "ui_resource_manager.h"
-#include "video.h"
-
 #include <limits.h>
+#include <linux/input.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
-/**********************
- *  STATIC PROTOTYPES
- **********************/
-typedef struct {
+#include "common.h"
+#include "evdev.h"
+#include "lvgl/porting/lv_port_indev.h"
+#include "media_ctrl.h"
+#include "storage.h"
+#include "ui_common.h"
+#include "ui_page_manager.h"
+#include "ui_player.h"
+#include "ui_resource_manager.h"
+
+static struct {
 	lv_group_t *group;
 	lv_obj_t *exit_obj;
 	lv_obj_t *exit_label_obj;
@@ -56,11 +52,9 @@ typedef struct {
 	lv_obj_t *photo_btn_obj;
 	lv_obj_t *photo_icon_obj;
 	lv_obj_t *photo_label_obj;
-} ui_gallery_context_t;
+} gallery_ctx;
 
 extern lv_ft_info_t ttf_info_32;
-
-static ui_gallery_context_t gallery_ctx;
 
 static void return_event_handler(lv_event_t *e) {
 	lv_event_code_t code = lv_event_get_code(e);
@@ -78,9 +72,9 @@ static void btn_event_handler(lv_event_t *e) {
 	if (code == LV_EVENT_CLICKED) {
 		ui_page_push_page("playlist", (void *)mode);
 	} else if (code == LV_EVENT_FOCUSED) {
-		lv_obj_set_size(obj, lv_pct(40), lv_pct(40));
+		lv_obj_set_size(obj, lv_pct(40), lv_pct(50));
 	} else if (code == LV_EVENT_DEFOCUSED) {
-		lv_obj_set_size(obj, lv_pct(30), lv_pct(30));
+		lv_obj_set_size(obj, lv_pct(30), lv_pct(40));
 	}
 }
 
@@ -90,6 +84,7 @@ static void gallery_create_ctrl(lv_obj_t *page_obj) {
 
 	lv_obj_set_style_bg_opa(page_obj, LV_OPA_COVER, 0);
 	lv_obj_set_style_bg_color(page_obj, bg_color, 0);
+	lv_obj_clear_flag(page_obj, LV_OBJ_FLAG_SCROLLABLE);
 
 	gallery_ctx.exit_obj = lv_btn_create(page_obj);
 	lv_obj_set_style_bg_opa(gallery_ctx.exit_obj, LV_OPA_TRANSP, 0);
@@ -99,7 +94,7 @@ static void gallery_create_ctrl(lv_obj_t *page_obj) {
 	gallery_ctx.exit_label_obj = lv_label_create(gallery_ctx.exit_obj);
 
 	gallery_ctx.container_obj = cont_obj = lv_obj_create(page_obj);
-	lv_obj_set_size(cont_obj, lv_pct(100), lv_pct(100));
+	lv_obj_set_size(cont_obj, lv_pct(100), lv_pct(80));
 	lv_obj_set_style_bg_opa(gallery_ctx.container_obj, LV_OPA_TRANSP, 0);
 	lv_obj_set_style_border_opa(cont_obj, LV_OPA_TRANSP, 0);
 	lv_obj_set_style_radius(cont_obj, 0, 0);
@@ -108,7 +103,7 @@ static void gallery_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_CLICKED, (void *)RK_VIDEO_MODE);
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_FOCUSED, (void *)RK_VIDEO_MODE);
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_DEFOCUSED, (void *)RK_VIDEO_MODE);
-	lv_obj_set_size(btn_obj, lv_pct(30), lv_pct(30));
+	lv_obj_set_size(btn_obj, lv_pct(30), lv_pct(40));
 	gallery_ctx.video_label_obj = label_obj = lv_label_create(btn_obj);
 	gallery_ctx.video_icon_obj = lv_img_create(btn_obj);
 	lv_obj_align(gallery_ctx.video_icon_obj, LV_ALIGN_CENTER, 0, 0);
@@ -118,7 +113,7 @@ static void gallery_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_CLICKED, (void *)RK_PHOTO_MODE);
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_FOCUSED, (void *)RK_PHOTO_MODE);
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_DEFOCUSED, (void *)RK_PHOTO_MODE);
-	lv_obj_set_size(btn_obj, lv_pct(30), lv_pct(30));
+	lv_obj_set_size(btn_obj, lv_pct(30), lv_pct(40));
 	gallery_ctx.photo_label_obj = label_obj = lv_label_create(btn_obj);
 	gallery_ctx.photo_icon_obj = lv_img_create(btn_obj);
 	lv_obj_align(gallery_ctx.photo_icon_obj, LV_ALIGN_CENTER, 0, 0);
@@ -129,7 +124,7 @@ static void gallery_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_FOCUSED, (void *)RK_SLOW_MOTION_MODE);
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_DEFOCUSED,
 	                    (void *)RK_SLOW_MOTION_MODE);
-	lv_obj_set_size(btn_obj, lv_pct(30), lv_pct(30));
+	lv_obj_set_size(btn_obj, lv_pct(30), lv_pct(40));
 	gallery_ctx.slowmotion_label_obj = label_obj = lv_label_create(btn_obj);
 	gallery_ctx.slowmotion_icon_obj = lv_img_create(btn_obj);
 	lv_obj_align(gallery_ctx.slowmotion_icon_obj, LV_ALIGN_CENTER, 0, 0);
@@ -139,7 +134,7 @@ static void gallery_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_CLICKED, (void *)RK_TIME_LAPSE_MODE);
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_FOCUSED, (void *)RK_TIME_LAPSE_MODE);
 	lv_obj_add_event_cb(btn_obj, btn_event_handler, LV_EVENT_DEFOCUSED, (void *)RK_TIME_LAPSE_MODE);
-	lv_obj_set_size(btn_obj, lv_pct(30), lv_pct(30));
+	lv_obj_set_size(btn_obj, lv_pct(30), lv_pct(40));
 	gallery_ctx.timelapse_label_obj = label_obj = lv_label_create(btn_obj);
 	gallery_ctx.timelapse_icon_obj = lv_img_create(btn_obj);
 	lv_obj_align(gallery_ctx.timelapse_icon_obj, LV_ALIGN_CENTER, 0, 0);
@@ -155,8 +150,7 @@ static void gallery_layout(void) {
 }
 
 static void gallery_set_text(void) {
-	static lv_style_t text_style, btn_style, btn_focus_style, symbol_style,
-	    symbol_focus_style;
+	static lv_style_t text_style, btn_style, btn_focus_style, symbol_style, symbol_focus_style;
 	lv_color_t text_color = lv_color_hex(0xFFFFFF);
 
 	lv_style_reset(&btn_style);
@@ -205,8 +199,8 @@ static void gallery_set_text(void) {
 	lv_obj_add_style(gallery_ctx.exit_obj, &symbol_focus_style, LV_STATE_FOCUSED);
 
 	// INFO: set align to the left of the parent after set text
-	lv_obj_align_to(gallery_ctx.container_obj
-		, gallery_ctx.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
+	lv_obj_align_to(gallery_ctx.container_obj, gallery_ctx.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0,
+	                0);
 
 	lv_obj_add_style(gallery_ctx.video_btn_obj, &btn_style, 0);
 	lv_obj_add_style(gallery_ctx.video_btn_obj, &btn_focus_style, LV_STATE_FOCUSED);

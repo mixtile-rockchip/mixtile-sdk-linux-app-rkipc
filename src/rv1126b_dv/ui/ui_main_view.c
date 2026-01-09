@@ -14,20 +14,24 @@
  *  limitations under the License.
  */
 
-#include <errno.h>
-#include <fcntl.h>
-#include <string.h>
-#include <unistd.h>
 #ifdef LOG_TAG
 #undef LOG_TAG
 #endif
 #define LOG_TAG "ui_main_view.c"
 
+#include <errno.h>
+#include <fcntl.h>
 #include <linux/input.h>
+#include <rk_mpi_vo.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "evdev.h"
 #include "lvgl/porting/lv_port_indev.h"
+#include "media_ctrl.h"
 #include "storage.h"
 #include "ui_common.h"
 #include "ui_dialog.h"
@@ -35,14 +39,7 @@
 #include "ui_page_manager.h"
 #include "ui_player.h"
 #include "ui_resource_manager.h"
-#include "video.h"
 
-#include <stdio.h>
-#include <time.h>
-
-/**********************
- *  STATIC PROTOTYPES
- **********************/
 typedef enum {
 	MSG_PREVIEW_OPEN = 0,
 	MSG_PREVIEW_CLOSE,
@@ -55,13 +52,13 @@ typedef enum {
 	CAPTURE_15P3S,
 } CAPTURE_MODE;
 
-typedef struct {
+static struct {
 	uint32_t disp_cnt;
 	uint32_t disp_index;
 	rkipc_mount_status disk_state;
-} UI_VIEW_CONTEXT_S;
+} main_view_ctx;
 
-typedef struct {
+static struct {
 	lv_obj_t *rec_obj;
 	lv_obj_t *status_bar;
 	lv_obj_t *bat_status_obj;
@@ -77,35 +74,14 @@ typedef struct {
 
 	lv_group_t *group;
 
-} UI_VIEW_CONTROL_S;
+} main_view_ctrl;
 
-/**********************
- *  STATIC VARIABLES
- **********************/
-static UI_VIEW_CONTEXT_S main_view_ctx;
-static UI_VIEW_CONTROL_S main_view_ctrl;
 static time_t record_start_time;
 extern lv_ft_info_t ttf_info_32;
 
-/**********************
- *      MACROS
- **********************/
-
-/**********************
- *   GLOBAL FUNCTIONS
- **********************/
 static void media_event_handler(lv_event_t *e);
 static void set_event_handler(lv_event_t *e);
 static void record_event_handler(lv_event_t *e);
-
-/**********************s
- *   STATIC FUNCTIONS
- **********************/
-static bool rk_record_is_active() {
-	int value = 0;
-	rk_storage_record_statue_get(0, &value);
-	return (value == 1);
-}
 
 static int check_usb_state(int *state) {
 	// Check usb-phy state
@@ -154,19 +130,19 @@ static int get_bat_capacity(void) {
 }
 
 static void usb_config_cb(void *userdata) {
-	USB_MODE_E mode = (USB_MODE_E)(size_t)userdata;
+	RK_USB_MODE_E mode = (RK_USB_MODE_E)(size_t)userdata;
 	rk_set_usb_mode(mode);
 }
 
 static const ui_option_entry_t usb_options[] = {
-	{"ADB", usb_config_cb, (void *)USB_NORMAL_MODE},
-	{"USB摄像头", usb_config_cb, (void *)USB_UVC_MODE},
-	{"传输文件", usb_config_cb, (void *)USB_STORAGE_MODE},
+    {"ADB", usb_config_cb, (void *)USB_NORMAL_MODE},
+    {"USB摄像头", usb_config_cb, (void *)USB_UVC_MODE},
+    {"传输文件", usb_config_cb, (void *)USB_STORAGE_MODE},
 };
 
 static void timer_xcb(lv_timer_t *timer) {
-	time_t timep;
-	struct tm *p;
+	time_t real_time, rec_time;
+	struct tm real_tm, rec_tm;
 	static bool flag = true;
 	static int old_usb_state = -1;
 	int ret = 0, current_usb_state = -1;
@@ -174,39 +150,56 @@ static void timer_xcb(lv_timer_t *timer) {
 
 	if (old_usb_state == -1) {
 		check_usb_state(&old_usb_state);
-		create_select_box("USB模式", usb_options, sizeof(usb_options) / sizeof(usb_options[0])
-			, index);
+		create_select_box("USB模式", usb_options, sizeof(usb_options) / sizeof(usb_options[0]),
+		                  index);
 	} else {
 		check_usb_state(&current_usb_state);
 		if (old_usb_state != current_usb_state) {
 			LOG_INFO("usb state change %d -> %d\n", old_usb_state, current_usb_state);
 			old_usb_state = current_usb_state;
 			if (current_usb_state)
-				create_select_box("USB模式", usb_options, sizeof(usb_options) / sizeof(usb_options[0])
-					, index);
+				create_select_box("USB模式", usb_options,
+				                  sizeof(usb_options) / sizeof(usb_options[0]), index);
 			else
 				rk_disable_usb_function(); // Disable usb function like uvc when usb is disconnected
 		}
 	}
 
-	time(&timep);
-	if (rk_record_is_active()) {
-		timep -= record_start_time;
-		p = gmtime(&timep);
-		lv_label_set_text_fmt(main_view_ctrl.time_bar, "%02d:%02d:%02d              ", p->tm_hour,
-		                      p->tm_min, p->tm_sec);
+	time(&real_time);
+	if (rk_video_record_is_running()) {
+		real_time -= record_start_time;
+		gmtime_r(&real_time, &real_tm);
 		flag = !flag;
 		lv_img_set_src(main_view_ctrl.rec_obj, flag ? icon_record_stat_run : icon_record_stat_idle);
+		if (rk_media_get_mode() == RK_TIME_LAPSE_MODE) {
+			// FIEMX: not fix value
+			rec_time = real_time / 120;
+			gmtime_r(&rec_time, &rec_tm);
+			lv_label_set_text_fmt(main_view_ctrl.time_bar, "%02d:%02d:%02d | %02d:%02d:%02d", real_tm.tm_hour,
+								real_tm.tm_min, real_tm.tm_sec, rec_tm.tm_hour, rec_tm.tm_min, rec_tm.tm_sec
+							);
+		} else if (rk_media_get_mode() == RK_SLOW_MOTION_MODE) {
+			// FIEMX: not fix value
+			rec_time = real_time * 4;
+			gmtime_r(&rec_time, &rec_tm);
+			lv_label_set_text_fmt(main_view_ctrl.time_bar, "%02d:%02d:%02d | %02d:%02d:%02d", real_tm.tm_hour,
+								real_tm.tm_min, real_tm.tm_sec, rec_tm.tm_hour, rec_tm.tm_min, rec_tm.tm_sec
+							);
+		} else {
+			lv_label_set_text_fmt(main_view_ctrl.time_bar, "%02d:%02d:%02d              ", real_tm.tm_hour,
+								real_tm.tm_min, real_tm.tm_sec);
+		}
 	} else {
-		p = gmtime(&timep);
+		gmtime_r(&real_time, &real_tm);
 		lv_label_set_text_fmt(main_view_ctrl.time_bar, "%4d-%02d-%02d %02d:%02d:%02d",
-		                      1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday, p->tm_hour, p->tm_min,
-		                      p->tm_sec);
+		                      1900 + real_tm.tm_year, 1 + real_tm.tm_mon, real_tm.tm_mday, real_tm.tm_hour, real_tm.tm_min,
+		                      real_tm.tm_sec);
 		lv_img_set_src(main_view_ctrl.rec_obj, icon_record_stat_idle);
 	}
 	lv_label_set_text(main_view_ctrl.bat_status_obj, LV_SYMBOL_BATTERY_FULL);
 	if (!rk_param_get_int("video.source:enable_display", 1))
-		RK_MPI_VO_SetLayerCleanMode(rk_param_get_int("display:layer_id", 0), VO_LAYER_CLEAN_MODE_ONCE);
+		RK_MPI_VO_SetLayerCleanMode(rk_param_get_int("display:layer_id", 0),
+		                            VO_LAYER_CLEAN_MODE_ONCE);
 }
 
 static void capture_xcb(lv_timer_t *timer) {
@@ -216,7 +209,7 @@ static void capture_xcb(lv_timer_t *timer) {
 		lv_label_set_text_fmt(main_view_ctrl.cap_obj, " ");
 		// safe ops, just set the flag.
 		lv_timer_pause(main_view_ctrl.capture_timer);
-		rk_photo_stop();
+		rk_photo_stop_capture();
 	} else {
 		lv_label_set_text_fmt(main_view_ctrl.cap_obj, "capture %2d/%2d", done_num, total_num);
 	}
@@ -290,7 +283,7 @@ static void capture_event_handler(lv_event_t *e) {
 			break;
 		case DISK_MOUNTED:
 			lv_timer_resume(main_view_ctrl.capture_timer);
-			rk_photo_start();
+			rk_photo_start_capture();
 			break;
 		default:
 			break;
@@ -316,7 +309,7 @@ static void record_event_handler(lv_event_t *e) {
 			ui_scansdcard_dialog_create();
 			break;
 		case DISK_MOUNTED:
-			if (rk_record_is_active()) {
+			if (rk_video_record_is_running()) {
 				rk_video_stop_record();
 				record_start_time = 0;
 				lv_imgbtn_set_src(obj, LV_IMGBTN_STATE_RELEASED, NULL, icon_record_start, NULL);
@@ -376,26 +369,23 @@ static void main_view_create_ctrl(lv_obj_t *page_obj) {
 	lv_obj_set_size(main_view_ctrl.status_bar, lv_pct(100), LV_SIZE_CONTENT);
 
 	main_view_ctrl.rec_obj = lv_img_create(main_view_ctrl.status_bar);
-	//lv_img_set_src(main_view_ctrl.rec_obj, index_icon_record_nor);
+	// lv_img_set_src(main_view_ctrl.rec_obj, index_icon_record_nor);
 
 	main_view_ctrl.menu_bar = lv_obj_create(page_obj);
 	lv_obj_set_size(main_view_ctrl.menu_bar, lv_pct(100), LV_SIZE_CONTENT);
 
 	main_view_ctrl.media_obj = lv_imgbtn_create(main_view_ctrl.menu_bar);
-	lv_imgbtn_set_src(main_view_ctrl.media_obj, LV_IMGBTN_STATE_RELEASED, NULL, icon_media,
-	                  NULL);
-	lv_imgbtn_set_src(main_view_ctrl.media_obj, LV_IMGBTN_STATE_PRESSED, NULL, icon_media,
-	                  NULL);
-	lv_obj_set_size(main_view_ctrl.media_obj, icon_media->header.w,
-	                icon_media->header.h);
+	lv_imgbtn_set_src(main_view_ctrl.media_obj, LV_IMGBTN_STATE_RELEASED, NULL, icon_media, NULL);
+	lv_imgbtn_set_src(main_view_ctrl.media_obj, LV_IMGBTN_STATE_PRESSED, NULL, icon_media, NULL);
+	lv_obj_set_size(main_view_ctrl.media_obj, icon_media->header.w, icon_media->header.h);
 	lv_obj_add_event_cb(main_view_ctrl.media_obj, media_event_handler, LV_EVENT_CLICKED, NULL);
 
 	main_view_ctrl.record_obj = lv_imgbtn_create(main_view_ctrl.menu_bar);
-	if (rk_get_mode() == RK_PHOTO_MODE) {
-		lv_imgbtn_set_src(main_view_ctrl.record_obj, LV_IMGBTN_STATE_RELEASED, NULL,
-		                  icon_photo, NULL);
-		lv_imgbtn_set_src(main_view_ctrl.record_obj, LV_IMGBTN_STATE_PRESSED, NULL,
-		                  icon_photo, NULL);
+	if (rk_media_get_mode() == RK_PHOTO_MODE) {
+		lv_imgbtn_set_src(main_view_ctrl.record_obj, LV_IMGBTN_STATE_RELEASED, NULL, icon_photo,
+		                  NULL);
+		lv_imgbtn_set_src(main_view_ctrl.record_obj, LV_IMGBTN_STATE_PRESSED, NULL, icon_photo,
+		                  NULL);
 		lv_obj_add_event_cb(main_view_ctrl.record_obj, capture_event_handler, LV_EVENT_CLICKED,
 		                    NULL);
 	} else {
@@ -406,7 +396,7 @@ static void main_view_create_ctrl(lv_obj_t *page_obj) {
 		lv_obj_add_event_cb(main_view_ctrl.record_obj, record_event_handler, LV_EVENT_CLICKED,
 		                    NULL);
 		lv_obj_set_size(main_view_ctrl.record_obj, icon_record_start->header.w,
-						icon_record_start->header.h);
+		                icon_record_start->header.h);
 	}
 
 	main_view_ctrl.setting_obj = lv_imgbtn_create(main_view_ctrl.menu_bar);
@@ -414,8 +404,7 @@ static void main_view_create_ctrl(lv_obj_t *page_obj) {
 	                  NULL);
 	lv_imgbtn_set_src(main_view_ctrl.setting_obj, LV_IMGBTN_STATE_PRESSED, NULL, icon_setting,
 	                  NULL);
-	lv_obj_set_size(main_view_ctrl.setting_obj, icon_setting->header.w,
-	                icon_setting->header.h);
+	lv_obj_set_size(main_view_ctrl.setting_obj, icon_setting->header.w, icon_setting->header.h);
 	lv_obj_add_event_cb(main_view_ctrl.setting_obj, set_event_handler, LV_EVENT_CLICKED, NULL);
 	lv_obj_add_event_cb(main_view_ctrl.setting_obj, set_event_handler, LV_EVENT_FOCUSED, NULL);
 	lv_obj_add_event_cb(main_view_ctrl.setting_obj, set_event_handler, LV_EVENT_DEFOCUSED, NULL);
@@ -471,13 +460,11 @@ static void main_view_delete_indev(void) {
 	}
 }
 
-static void main_view_page_enter(lv_obj_t *page_obj) {
-	main_view_add_indev();
-}
+static void main_view_page_enter(lv_obj_t *page_obj) { main_view_add_indev(); }
 
 static void main_view_page_exit(lv_obj_t *page_obj) {
 	main_view_delete_indev();
-	if (rk_record_is_active())
+	if (rk_video_record_is_running())
 		rk_video_stop_record();
 }
 

@@ -22,15 +22,13 @@
 #define DRAW_USE_CPU 0
 
 #include <fcntl.h>
+#include <lvgl.h>
+#include <rga/im2d.h>
+#include <rga/rga.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <rga/im2d.h>
-#include <rga/rga.h>
-#include "common.h"
-#include "disp.h"
-#include <lvgl.h>
 
 #include <rk_mpi_mb.h>
 #include <rk_mpi_mmz.h>
@@ -42,17 +40,15 @@
 #include <rk_mpi_vo.h>
 #include <rk_mpi_vpss.h>
 
+#include "common.h"
+#include "disp.h"
+#include "media_ctrl.h"
+
 #define DIV_ROUND_UP(n, d) (((n) + (d)-1) / (d))
 
 #define UPALIGNED_16(x) (((x) + 15) & ~15)
 #define DOWNALIGNED_16(x) ((x) & ~15)
 #define UPALIGNED_64(x) (((x) + 63) & ~63)
-
-#define VO_DEV_ID 0
-#define VO_UI_LAYER 1
-#define VO_UI_CHN 0
-#define VO_UI_FPS 10
-#define VO_UI_LAYER_PRIORITY 1
 
 struct disp_dev {
 	lv_disp_rot_t rot;
@@ -94,7 +90,7 @@ static int32_t rk_disp_setup(void) {
 	vo_layer_attr.stImageSize.u32Width = display_width;
 	vo_layer_attr.stImageSize.u32Height = display_height;
 	LOG_INFO("vo_layer_attr W=%d, H=%d\n", vo_layer_attr.stDispRect.u32Width,
-			 vo_layer_attr.stDispRect.u32Height);
+	         vo_layer_attr.stDispRect.u32Height);
 
 	// INFO: Not use RGA/GPU to composite, just send frame to VOP
 	vo_layer_attr.bBypassFrame = true;
@@ -215,10 +211,9 @@ static int32_t rk_disp_setup_buffers(void) {
 		viraddr = RK_MPI_MB_Handle2VirAddr(blk);
 		memset(viraddr, 0x00, size);
 		LOG_INFO("mb blk %p, width %d, height %d, viraddr %p\n",
-				 disp_dev.display_bufs[i].stVFrame.pMbBlk,
-				 disp_dev.display_bufs[i].stVFrame.u32Width,
-				 disp_dev.display_bufs[i].stVFrame.u32Height,
-				 viraddr);
+		         disp_dev.display_bufs[i].stVFrame.pMbBlk,
+		         disp_dev.display_bufs[i].stVFrame.u32Width,
+		         disp_dev.display_bufs[i].stVFrame.u32Height, viraddr);
 	}
 	disp_dev.active_buf = &disp_dev.display_bufs[0];
 	disp_dev.free_buf = &disp_dev.display_bufs[1];
@@ -269,7 +264,7 @@ void rk_disp_exit(void) {
 }
 
 static void draw_buf_rotate_90(lv_color_t *color_p, const lv_area_t *area, lv_color_t *dst_buf,
-							   lv_coord_t canvas_w, lv_coord_t canvas_h) {
+                               lv_coord_t canvas_w, lv_coord_t canvas_h) {
 	lv_coord_t area_w = (area->x2 - area->x1 + 1);
 	lv_coord_t area_h = (area->y2 - area->y1 + 1);
 	uint32_t initial_i = area->x1 * canvas_w + (canvas_w - area->y1 - 1);
@@ -295,20 +290,20 @@ static void rga_copy(VIDEO_FRAME_INFO_S *src_frame, VIDEO_FRAME_INFO_S *dst_fram
 	rga_buffer_t src_img = {}, dst_img = {};
 	rga_buffer_handle_t src_handle = 0, dst_handle = 0;
 	im_handle_param_t src_handle_param = {
-		.width = src_width,
-		.height = src_height,
-		.format = RK_FORMAT_BGRA_8888,
+	    .width = src_width,
+	    .height = src_height,
+	    .format = RK_FORMAT_BGRA_8888,
 	};
 	im_handle_param_t dst_handle_param = {
-		.width = dst_width,
-		.height = dst_height,
-		.format = RK_FORMAT_BGRA_8888,
+	    .width = dst_width,
+	    .height = dst_height,
+	    .format = RK_FORMAT_BGRA_8888,
 	};
 	src_handle = importbuffer_fd(src_fd, &src_handle_param);
 	dst_handle = importbuffer_fd(dst_fd, &dst_handle_param);
 	if (src_handle == 0 || dst_handle == 0) {
 		LOG_ERROR("importbuffer failed!\n");
-		return ;
+		return;
 	}
 
 	src_img = wrapbuffer_handle(src_handle, src_width, src_height, src_format);
@@ -327,8 +322,8 @@ static void rga_copy(VIDEO_FRAME_INFO_S *src_frame, VIDEO_FRAME_INFO_S *dst_fram
 		releasebuffer_handle(dst_handle);
 }
 
-static void rga_copy_area(VIDEO_FRAME_INFO_S *dst_frame, const lv_area_t *area,
-						lv_color_t *color_p, int rotation) {
+static void rga_copy_area(VIDEO_FRAME_INFO_S *dst_frame, const lv_area_t *area, lv_color_t *color_p,
+                          int rotation) {
 	int ret = 0;
 	int fg_width, fg_height, fg_format;
 	int bg_width, bg_height, bg_format;
@@ -359,7 +354,7 @@ static void rga_copy_area(VIDEO_FRAME_INFO_S *dst_frame, const lv_area_t *area,
 	bg_handle = importbuffer_fd(bg_fd, &bg_handle_param);
 	if (fg_handle == 0 || bg_handle == 0) {
 		LOG_ERROR("importbuffer failed!\n");
-		return ;
+		return;
 	}
 
 	fg_img = wrapbuffer_handle(fg_handle, fg_width, fg_height, fg_format);
@@ -411,12 +406,12 @@ void rk_disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *c
 	VIDEO_FRAME_INFO_S *dst_frame = disp_dev.free_buf;
 
 	LOG_DEBUG("x %d:%d y %d:%d area_width %d area_height %d\n", area->x1, area->x2, area->y1,
-			  area->y2, area_width, area_height);
+	          area->y2, area_width, area_height);
 
-	void *dst_virtual_addr =
-	    RK_MPI_MB_Handle2VirAddr(dst_frame->stVFrame.pMbBlk);
+	void *dst_virtual_addr = RK_MPI_MB_Handle2VirAddr(dst_frame->stVFrame.pMbBlk);
 	void *src_virtual_addr = RK_MPI_MB_Handle2VirAddr(disp_dev.active_buf->stVFrame.pMbBlk);
-	memcpy(dst_virtual_addr, src_virtual_addr, disp_dev.width * disp_dev.height * (LV_COLOR_SIZE / 8));
+	memcpy(dst_virtual_addr, src_virtual_addr,
+	       disp_dev.width * disp_dev.height * (LV_COLOR_SIZE / 8));
 	if (disp_dev.rot == LV_DISP_ROT_90 || disp_dev.rot == LV_DISP_ROT_270) {
 		draw_buf_rotate_90(color_p, area, dst_virtual_addr, disp_dev.width, disp_dev.height);
 	} else {
@@ -449,7 +444,7 @@ void rk_disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *c
 	VIDEO_FRAME_INFO_S *dst_frame = disp_dev.free_buf;
 
 	LOG_DEBUG("x %d:%d y %d:%d area_width %d area_height %d\n", area->x1, area->x2, area->y1,
-			  area->y2, area_width, area_height);
+	          area->y2, area_width, area_height);
 
 	rga_copy(disp_dev.active_buf, disp_dev.free_buf);
 	rga_copy_area(disp_dev.free_buf, area, color_p, rotation);
@@ -464,13 +459,11 @@ void rk_disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *c
 	lv_disp_flush_ready(disp_drv);
 	// INFO: Flush layer to make sure the display is updated.
 	if (rotation == ROTATION_0 || rotation == ROTATION_180) {
-		if (disp_dev.width == area_width &&
-		    disp_dev.height == area_height) {
+		if (disp_dev.width == area_width && disp_dev.height == area_height) {
 			RK_MPI_VO_SetLayerCleanMode(display_layer, VO_LAYER_CLEAN_MODE_ONCE);
 		}
 	} else {
-		if (disp_dev.height == area_width &&
-		    disp_dev.width == area_height) {
+		if (disp_dev.height == area_width && disp_dev.width == area_height) {
 			RK_MPI_VO_SetLayerCleanMode(display_layer, VO_LAYER_CLEAN_MODE_ONCE);
 		}
 	}
@@ -491,8 +484,8 @@ void rk_disp_get_sizes(lv_coord_t *width, lv_coord_t *height, uint32_t *dpi) {
 }
 
 disp_ops_t rk_ui_ops = {
-	rk_disp_init,
-	rk_disp_exit,
-	rk_disp_get_sizes,
-	rk_disp_flush,
+    rk_disp_init,
+    rk_disp_exit,
+    rk_disp_get_sizes,
+    rk_disp_flush,
 };

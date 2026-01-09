@@ -24,12 +24,12 @@
 #include "evdev.h"
 #include "filelist.h"
 #include "lvgl/porting/lv_port_indev.h"
+#include "media_ctrl.h"
 #include "storage.h"
 #include "ui_common.h"
 #include "ui_page_manager.h"
 #include "ui_player.h"
 #include "ui_resource_manager.h"
-#include "video.h"
 
 #include <limits.h>
 #include <stdio.h>

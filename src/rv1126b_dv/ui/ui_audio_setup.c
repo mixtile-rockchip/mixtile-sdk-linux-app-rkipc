@@ -18,13 +18,17 @@
 #endif
 #define LOG_TAG "ui_audio_setup.c"
 
+#include <linux/input.h>
 #include <rk_mpi_ai.h>
-#include <rk_mpi_ao.h>
 #include <rk_mpi_amix.h>
+#include <rk_mpi_ao.h>
+#include <rk_mpi_vo.h>
 
+#include "audio.h"
 #include "common.h"
 #include "evdev.h"
 #include "lvgl/porting/lv_port_indev.h"
+#include "media_ctrl.h"
 #include "storage.h"
 #include "ui_common.h"
 #include "ui_dialog.h"
@@ -33,13 +37,8 @@
 #include "ui_page_manager.h"
 #include "ui_player.h"
 #include "ui_resource_manager.h"
-#include "audio.h"
-#include <linux/input.h>
 
-/**********************
- *  STATIC PROTOTYPES
- **********************/
-typedef struct {
+static struct {
 	lv_obj_t *container_obj;
 	lv_obj_t *exit_obj;
 	lv_obj_t *exit_label_obj;
@@ -50,9 +49,7 @@ typedef struct {
 	lv_obj_t *play_volume_obj;
 	lv_obj_t *play_slider_obj;
 	lv_group_t *group;
-} UI_AUDIO_SETUP_CONTROL_S;
-
-static UI_AUDIO_SETUP_CONTROL_S audio_setup_ctrl;
+} audio_setup_ctrl;
 
 extern lv_ft_info_t ttf_info_32;
 
@@ -69,6 +66,15 @@ static void audio_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 	if (code == LV_EVENT_CLICKED) {
 		if (obj == audio_setup_ctrl.audio_anr_obj) {
+			if (rk_media_get_mode() != RK_VIDEO_MODE) {
+				ui_dialog_create("WARNING", "仅录像模式下支持ANR!");
+				// restore focus status
+				if (lv_obj_has_state(obj, LV_STATE_CHECKED))
+					lv_obj_clear_state(obj, LV_STATE_CHECKED);
+				else
+					lv_obj_add_state(obj, LV_STATE_CHECKED);
+				return;
+			}
 			if (!rk_param_get_int("audio.0:enable", 0)) {
 				ui_dialog_create("WARNING", "请先打开录音功能!");
 				// restore focus status
@@ -76,7 +82,7 @@ static void audio_event_handler(lv_event_t *e) {
 					lv_obj_clear_state(obj, LV_STATE_CHECKED);
 				else
 					lv_obj_add_state(obj, LV_STATE_CHECKED);
-				return ;
+				return;
 			}
 			if (lv_obj_has_state(obj, LV_STATE_CHECKED)) {
 				rk_param_set_int("audio.0:enable_vqe", 1);
@@ -89,6 +95,15 @@ static void audio_event_handler(lv_event_t *e) {
 			}
 			rk_audio_restart();
 		} else if (obj == audio_setup_ctrl.audio_enable_obj) {
+			if (rk_media_get_mode() != RK_VIDEO_MODE) {
+				ui_dialog_create("WARNING", "仅录像模式下支持音频!");
+				// restore focus status
+				if (lv_obj_has_state(obj, LV_STATE_CHECKED))
+					lv_obj_clear_state(obj, LV_STATE_CHECKED);
+				else
+					lv_obj_add_state(obj, LV_STATE_CHECKED);
+				return;
+			}
 			if (lv_obj_has_state(obj, LV_STATE_CHECKED)) {
 				rk_param_set_int("audio.0:enable", 1);
 				rkipc_audio_init();
@@ -117,8 +132,8 @@ static void audio_event_handler(lv_event_t *e) {
 
 static void audio_setup_layout(lv_obj_t *page_obj) {
 	lv_obj_set_flex_flow(audio_setup_ctrl.container_obj, LV_FLEX_FLOW_COLUMN);
-	lv_obj_set_flex_align(audio_setup_ctrl.container_obj, LV_FLEX_ALIGN_START,
-	                      LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+	lv_obj_set_flex_align(audio_setup_ctrl.container_obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+	                      LV_FLEX_ALIGN_CENTER);
 	lv_obj_set_scrollbar_mode(audio_setup_ctrl.container_obj, LV_SCROLLBAR_MODE_OFF);
 }
 
@@ -229,32 +244,37 @@ static void audio_setup_set_text() {
 	lv_obj_add_style(audio_setup_ctrl.exit_obj, &symbol_focus_style, LV_STATE_FOCUSED);
 
 	// INFO: set align to the left of the parent after set text
-	lv_obj_align_to(audio_setup_ctrl.container_obj
-		, audio_setup_ctrl.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
+	lv_obj_align_to(audio_setup_ctrl.container_obj, audio_setup_ctrl.exit_obj,
+	                LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
 
 	lv_checkbox_set_text(audio_setup_ctrl.audio_enable_obj, "音频录制");
 	lv_obj_add_style(audio_setup_ctrl.audio_enable_obj, &option_style, 0);
-	lv_obj_add_style(audio_setup_ctrl.audio_enable_obj, &option_focus_style, LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_obj_add_style(audio_setup_ctrl.audio_enable_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_obj_set_style_radius(audio_setup_ctrl.audio_enable_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
 	if (rk_param_get_int("audio.0:enable", 0))
 		lv_obj_add_state(audio_setup_ctrl.audio_enable_obj, LV_STATE_CHECKED);
 
 	lv_checkbox_set_text(audio_setup_ctrl.audio_anr_obj, "AI音频降噪");
 	lv_obj_add_style(audio_setup_ctrl.audio_anr_obj, &option_style, 0);
-	lv_obj_add_style(audio_setup_ctrl.audio_anr_obj, &option_focus_style, LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_obj_add_style(audio_setup_ctrl.audio_anr_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_obj_set_style_radius(audio_setup_ctrl.audio_anr_obj, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
 	if (rk_param_get_int("audio.0:enable_vqe", 0))
 		lv_obj_add_state(audio_setup_ctrl.audio_anr_obj, LV_STATE_CHECKED);
 
 	lv_label_set_text(audio_setup_ctrl.record_volume_obj, "录音音量");
 	lv_obj_add_style(audio_setup_ctrl.record_volume_obj, &option_style, 0);
-	lv_obj_add_style(audio_setup_ctrl.record_volume_obj, &option_focus_style, LV_PART_MAIN | LV_STATE_FOCUSED);
-	lv_obj_set_style_text_align(audio_setup_ctrl.record_volume_obj, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+	lv_obj_add_style(audio_setup_ctrl.record_volume_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_obj_set_style_text_align(audio_setup_ctrl.record_volume_obj, LV_TEXT_ALIGN_LEFT,
+	                            LV_PART_MAIN);
 	lv_obj_set_style_pad_left(audio_setup_ctrl.record_volume_obj, 55, 0);
 
 	lv_label_set_text(audio_setup_ctrl.play_volume_obj, "播放音量");
 	lv_obj_add_style(audio_setup_ctrl.play_volume_obj, &option_style, 0);
-	lv_obj_add_style(audio_setup_ctrl.play_volume_obj, &option_focus_style, LV_PART_MAIN | LV_STATE_FOCUSED);
+	lv_obj_add_style(audio_setup_ctrl.play_volume_obj, &option_focus_style,
+	                 LV_PART_MAIN | LV_STATE_FOCUSED);
 	lv_obj_set_style_text_align(audio_setup_ctrl.play_volume_obj, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
 	lv_obj_set_style_pad_left(audio_setup_ctrl.play_volume_obj, 55, 0);
 }
@@ -328,10 +348,10 @@ static void audio_setup_page_destroy(lv_obj_t *page_obj) {
 }
 
 static UI_PAGE_HANDLER_T audio_setup_page = {.name = "audio_setup",
-                                                .init = NULL,
-                                                .create = audio_setup_page_create,
-                                                .enter = audio_setup_page_enter,
-                                                .destroy = audio_setup_page_destroy,
-                                                .exit = audio_setup_page_exit};
+                                             .init = NULL,
+                                             .create = audio_setup_page_create,
+                                             .enter = audio_setup_page_enter,
+                                             .destroy = audio_setup_page_destroy,
+                                             .exit = audio_setup_page_exit};
 
 UI_PAGE_REGISTER(audio_setup_page)

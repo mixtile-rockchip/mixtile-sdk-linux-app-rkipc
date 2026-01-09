@@ -37,7 +37,8 @@ typedef struct ui_option_entry {
 	void *userdata;
 } ui_option_entry_t;
 
-void create_select_box(const char *title, const ui_option_entry_t *option_array, int option_num, int focus_idx);
+void create_select_box(const char *title, const ui_option_entry_t *option_array, int option_num,
+                       int focus_idx);
 
 #ifdef __cplusplus
 } /* end of extern "C" */

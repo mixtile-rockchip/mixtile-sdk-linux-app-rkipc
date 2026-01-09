@@ -76,7 +76,7 @@ void ui_storage_status_dialog_create(void) {
 	lv_color_t color;
 	lv_color_t text_color;
 	lv_color_t dialog_color = {
-		.full = 0xFF222D30,
+	    .full = 0xFF222D30,
 	};
 	static lv_style_t style;
 

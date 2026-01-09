@@ -18,28 +18,32 @@
 #endif
 #define LOG_TAG "ui_photo_player.c"
 
+#include <limits.h>
+#include <linux/input.h>
+#include <stdio.h>
+#include <time.h>
+
+#include <rk_debug.h>
+#include <rk_mpi_mb.h>
+#include <rk_mpi_mmz.h>
+#include <rk_mpi_rgn.h>
+#include <rk_mpi_sys.h>
+#include <rk_mpi_vo.h>
+
 #include "evdev.h"
 #include "lvgl/porting/lv_port_indev.h"
 #include "ui/common/ui_common.h"
 #include "ui/common/ui_page_manager.h"
 #include "ui_player.h"
 #include "ui_resource_manager.h"
-#include <linux/input.h>
 
 #include "common.h"
 #include "filelist.h"
+#include "media_ctrl.h"
 #include "player.h"
 #include "storage.h"
-#include "video.h"
 
-#include <limits.h>
-#include <stdio.h>
-#include <time.h>
-
-/**********************
- *  STATIC PROTOTYPES
- **********************/
-typedef struct {
+static struct {
 	player_file_info_t file_info;
 	lv_img_dsc_t img_data;
 
@@ -55,26 +59,9 @@ typedef struct {
 	lv_group_t *group;
 	size_t cur_file_index;
 	struct file_list list;
-} ui_photo_player_context_t;
+} photo_player_ctx;
 
 typedef enum { UI_CTRL_ESC = 0, UI_CTRL_PREV, UI_CTRL_NEXT, UI_CTRL_BUTT } UI_CTRL_ID_E;
-
-/**********************
- *  STATIC VARIABLES
- **********************/
-static ui_photo_player_context_t photo_player_ctx;
-
-/**********************
- *      MACROS
- **********************/
-
-/**********************
- *   GLOBAL FUNCTIONS
- **********************/
-
-/**********************
- *   STATIC FUNCTIONS
- **********************/
 
 static int32_t photo_play(void) {
 	int ret = 0;

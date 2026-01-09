@@ -19,14 +19,11 @@
 #define LOG_TAG "ui_test.c"
 
 #define _GNU_SOURCE
-#include <stdio.h>
-#include <linux/input.h>
-#include <time.h>
-#include <unistd.h>
 #include "audio.h"
 #include "common.h"
 #include "evdev.h"
 #include "lvgl/porting/lv_port_indev.h"
+#include "media_ctrl.h"
 #include "player.h"
 #include "storage.h"
 #include "ui_common.h"
@@ -36,7 +33,10 @@
 #include "ui_page_manager.h"
 #include "ui_player.h"
 #include "ui_resource_manager.h"
-#include "video.h"
+#include <linux/input.h>
+#include <stdio.h>
+#include <time.h>
+#include <unistd.h>
 
 /**********************
  *  STATIC PROTOTYPES
@@ -104,7 +104,7 @@ static void create_test_dialog(const char *title) {
 	lv_color_t color;
 	lv_color_t text_color;
 	lv_color_t dialog_color = {
-		.full = 0xFF222D30,
+	    .full = 0xFF222D30,
 	};
 	static lv_style_t style;
 
@@ -168,7 +168,8 @@ static void create_test_dialog(const char *title) {
 }
 
 static void test_timer_func(lv_timer_t *timer) {
-	if (test_total_count == (test_total_success_count + test_total_fail_count) && test_total_count > 0) {
+	if (test_total_count == (test_total_success_count + test_total_fail_count) &&
+	    test_total_count > 0) {
 		if (test_status_obj) {
 			lv_obj_del(test_status_obj);
 			test_status_obj = NULL;
@@ -188,13 +189,13 @@ static void test_timer_func(lv_timer_t *timer) {
 	}
 	if (test_status_obj) {
 		static char info[64];
-		snprintf(info, sizeof(info), "TOTAL: %d, SUCCESS: %d, FAIL: %d",
-		         test_total_count, test_total_success_count, test_total_fail_count);
+		snprintf(info, sizeof(info), "TOTAL: %d, SUCCESS: %d, FAIL: %d", test_total_count,
+		         test_total_success_count, test_total_fail_count);
 		lv_label_set_text(test_status_obj, info);
 	}
 }
 
-static int clean_directory(const char* dir_name, bool need_del_self) {
+static int clean_directory(const char *dir_name, bool need_del_self) {
 	DIR *dir = opendir(dir_name);
 	if (dir == NULL) {
 		LOG_ERROR("open directory %s failed\n", dir_name);
@@ -229,18 +230,20 @@ static void video_test_routine(int fd) {
 	int count = rk_param_get_int("auto_test:video_test_loop_count", 30);
 	int success_count = 0, fail_count = 0;
 	char msg[256] = {'\0'};
-	rk_set_mode(RK_VIDEO_MODE);
+	rk_media_change_mode(RK_VIDEO_MODE);
 	for (int i = 0; i < count; i++) {
 		ret = rk_video_start_record();
 		if (ret != 0) {
 			++test_total_fail_count;
 			++fail_count;
 			memset(msg, 0, sizeof(msg));
-			len = snprintf(msg, sizeof(msg), "[VIDEO TEST] loop %d failed, rk_video_start_record failed %#X\n"
-					, i, ret);
+			len =
+			    snprintf(msg, sizeof(msg),
+			             "[VIDEO TEST] loop %d failed, rk_video_start_record failed %#X\n", i, ret);
 			write(fd, msg, len);
 			fsync(fd);
-			LOG_ERROR("[VIDEO TEST] loop %d test failed, rk_video_start_record failed %#X\n", i, ret);
+			LOG_ERROR("[VIDEO TEST] loop %d test failed, rk_video_start_record failed %#X\n", i,
+			          ret);
 			continue;
 		}
 		usleep(5000 * 1000);
@@ -249,11 +252,13 @@ static void video_test_routine(int fd) {
 			++test_total_fail_count;
 			++fail_count;
 			memset(msg, 0, sizeof(msg));
-			len = snprintf(msg, sizeof(msg), "[VIDEO TEST] loop %d failed, rk_video_stop_record failed %#X\n"
-					, i, ret);
+			len =
+			    snprintf(msg, sizeof(msg),
+			             "[VIDEO TEST] loop %d failed, rk_video_stop_record failed %#X\n", i, ret);
 			write(fd, msg, len);
 			fsync(fd);
-			LOG_ERROR("[VIDEO TEST] loop %d test failed, rk_video_stop_record failed %#X\n", i, ret);
+			LOG_ERROR("[VIDEO TEST] loop %d test failed, rk_video_stop_record failed %#X\n", i,
+			          ret);
 			continue;
 		}
 		if (i > 0 && (i % 100) == 0) {
@@ -264,8 +269,8 @@ static void video_test_routine(int fd) {
 		LOG_ERROR("[VIDEO TEST] loop %d test success\n", i);
 	}
 	memset(msg, 0, sizeof(msg));
-	len = snprintf(msg, sizeof(msg), "[VIDEO TEST] success count %d, failed count %d\n"
-		, success_count, fail_count);
+	len = snprintf(msg, sizeof(msg), "[VIDEO TEST] success count %d, failed count %d\n",
+	               success_count, fail_count);
 	write(fd, msg, len);
 	fsync(fd);
 	clean_directory("/mnt/sdcard/video0", false);
@@ -276,34 +281,38 @@ static void photo_test_routine(int fd) {
 	int ret = 0, len = 0, success_count = 0, fail_count = 0;
 	char file_name[256] = {'\0'};
 	char msg[256] = {'\0'};
-	rk_set_mode(RK_PHOTO_MODE);
+	rk_media_change_mode(RK_PHOTO_MODE);
 	for (int i = 0; i < count; i++) {
-		ret = rk_photo_start();
+		ret = rk_photo_start_capture();
 		if (ret != 0) {
 			++test_total_fail_count;
 			++fail_count;
 			memset(msg, 0, sizeof(msg));
-			len = snprintf(msg, sizeof(msg), "[PHOTO TEST] loop %d failed, rk_photo_start failed %#X\n"
-					, i, ret);
+			len = snprintf(msg, sizeof(msg),
+			               "[PHOTO TEST] loop %d failed, rk_photo_start_capture failed %#X\n", i,
+			               ret);
 			write(fd, msg, len);
 			fsync(fd);
-			LOG_ERROR("[PHOTO TEST] loop %d test failed, rk_photo_start failed %#X\n", i, ret);
+			LOG_ERROR("[PHOTO TEST] loop %d test failed, rk_photo_start_capture failed %#X\n", i,
+			          ret);
 			continue;
 		}
 		while (rk_photo_get_done_num() != rk_photo_get_max_num()) {
 			sleep(1);
 			LOG_ERROR("[PHOTO TEST] wait for all photo done\n");
 		}
-		ret = rk_photo_stop();
+		ret = rk_photo_stop_capture();
 		if (ret != 0) {
 			++test_total_fail_count;
 			++fail_count;
 			memset(msg, 0, sizeof(msg));
-			len = snprintf(msg, sizeof(msg), "[PHOTO TEST] loop %d failed, rk_photo_stop failed %#X\n"
-					, i, ret);
+			len =
+			    snprintf(msg, sizeof(msg),
+			             "[PHOTO TEST] loop %d failed, rk_photo_stop_capture failed %#X\n", i, ret);
 			write(fd, msg, len);
 			fsync(fd);
-			LOG_ERROR("[PHOTO TEST] loop %d test failed, rk_photo_stop failed %#X\n", i, ret);
+			LOG_ERROR("[PHOTO TEST] loop %d test failed, rk_photo_stop_capture failed %#X\n", i,
+			          ret);
 			continue;
 		}
 		if (i > 0 && (i % 500) == 0) {
@@ -314,8 +323,8 @@ static void photo_test_routine(int fd) {
 		LOG_ERROR("[PHOTO TEST] loop %d test success\n", i);
 	}
 	memset(msg, 0, sizeof(msg));
-	len = snprintf(msg, sizeof(msg), "[VIDEO TEST] success count %d, failed count %d\n"
-		, success_count, fail_count);
+	len = snprintf(msg, sizeof(msg), "[VIDEO TEST] success count %d, failed count %d\n",
+	               success_count, fail_count);
 	write(fd, msg, len);
 	fsync(fd);
 	clean_directory("/mnt/sdcard/photo", false);
@@ -326,13 +335,13 @@ static void restart_test_routine(int fd) {
 	int ret = 0, len = 0, success_count = 0, fail_count = 0;
 	char msg[256] = {'\0'};
 	for (int i = 0; i < count; i++) {
-		ret = rk_video_restart();
+		ret = rk_media_reinit();
 		if (ret != 0) {
 			++test_total_fail_count;
 			++fail_count;
 			memset(msg, 0, sizeof(msg));
-			len = snprintf(msg, sizeof(msg), "[RESTART TEST] loop %d failed, rk_video_restart failed %#X\n"
-					, i, ret);
+			len = snprintf(msg, sizeof(msg),
+			               "[RESTART TEST] loop %d failed, rk_media_reinit failed %#X\n", i, ret);
 			write(fd, msg, len);
 			fsync(fd);
 			LOG_ERROR("[RESTART TEST] loop %d test failed %#X\n", i, ret);
@@ -343,8 +352,8 @@ static void restart_test_routine(int fd) {
 		LOG_ERROR("[RESTART TEST] loop %d test success\n", i);
 	}
 	memset(msg, 0, sizeof(msg));
-	len = snprintf(msg, sizeof(msg), "[RESTART TEST] success count %d, failed count %d\n"
-		, success_count, fail_count);
+	len = snprintf(msg, sizeof(msg), "[RESTART TEST] success count %d, failed count %d\n",
+	               success_count, fail_count);
 	write(fd, msg, len);
 	fsync(fd);
 }
@@ -354,14 +363,14 @@ static void mode_switch_test_routine(int fd) {
 	int ret = 0, mode = RK_PHOTO_MODE, len = 0, success_count = 0, fail_count = 0;
 	char msg[256] = {'\0'};
 	for (int i = 0; i < count; i++) {
-		mode = i % 2;
-		ret = rk_set_mode(mode);
+		mode = i % RK_MODE_NUM;
+		ret = rk_media_change_mode(mode);
 		if (ret != 0) {
 			++test_total_fail_count;
 			++fail_count;
 			memset(msg, 0, sizeof(msg));
-			len = snprintf(msg, sizeof(msg), "[MODE TEST] loop %d failed, rk_set_mode failed %#X\n"
-					, i, ret);
+			len = snprintf(msg, sizeof(msg),
+			               "[MODE TEST] loop %d failed, rk_media_change_mode failed %#X\n", i, ret);
 			write(fd, msg, len);
 			fsync(fd);
 			LOG_ERROR("[MODE TEST] loop %d test failed %#X\n", i, ret);
@@ -372,8 +381,8 @@ static void mode_switch_test_routine(int fd) {
 		LOG_ERROR("[MODE TEST] loop %d test success\n", i);
 	}
 	memset(msg, 0, sizeof(msg));
-	len = snprintf(msg, sizeof(msg), "[MODE TEST] success count %d, failed count %d\n"
-		, success_count, fail_count);
+	len = snprintf(msg, sizeof(msg), "[MODE TEST] success count %d, failed count %d\n",
+	               success_count, fail_count);
 	write(fd, msg, len);
 	fsync(fd);
 }
@@ -385,7 +394,7 @@ static void player_test_routine(int fd) {
 	char msg[256] = {'\0'};
 	if (!file_path) {
 		LOG_ERROR("[PLAYER TEST] file path is NULL, please set auto_test:player_test_file_path\n");
-		return ;
+		return;
 	}
 	for (int i = 0; i < count; i++) {
 		RK_PLAYER_CONFIG_S config = {};
@@ -396,8 +405,8 @@ static void player_test_routine(int fd) {
 			++test_total_fail_count;
 			++fail_count;
 			memset(msg, 0, sizeof(msg));
-			len = snprintf(msg, sizeof(msg), "[PLAYER TEST] loop %d failed, rk_pause_preview failed %#X\n"
-					, i, ret);
+			len = snprintf(msg, sizeof(msg),
+			               "[PLAYER TEST] loop %d failed, rk_pause_preview failed %#X\n", i, ret);
 			write(fd, msg, len);
 			fsync(fd);
 			LOG_ERROR("[PLAYER TEST] loop %d test failed %#X\n", i, ret);
@@ -408,8 +417,8 @@ static void player_test_routine(int fd) {
 			++test_total_fail_count;
 			++fail_count;
 			memset(msg, 0, sizeof(msg));
-			len = snprintf(msg, sizeof(msg), "[PLAYER TEST] loop %d failed, rk_player_create failed %#X\n"
-					, i, ret);
+			len = snprintf(msg, sizeof(msg),
+			               "[PLAYER TEST] loop %d failed, rk_player_create failed %#X\n", i, ret);
 			write(fd, msg, len);
 			fsync(fd);
 			LOG_ERROR("[PLAYER TEST] loop %d test failed %#X\n", i, ret);
@@ -420,8 +429,8 @@ static void player_test_routine(int fd) {
 			++test_total_fail_count;
 			++fail_count;
 			memset(msg, 0, sizeof(msg));
-			len = snprintf(msg, sizeof(msg), "[PLAYER TEST] loop %d failed, rk_player_set_file failed %#X\n"
-					, i, ret);
+			len = snprintf(msg, sizeof(msg),
+			               "[PLAYER TEST] loop %d failed, rk_player_set_file failed %#X\n", i, ret);
 			write(fd, msg, len);
 			fsync(fd);
 			LOG_ERROR("[PLAYER TEST] loop %d test failed %#X\n", i, ret);
@@ -436,8 +445,8 @@ static void player_test_routine(int fd) {
 			++test_total_fail_count;
 			++fail_count;
 			memset(msg, 0, sizeof(msg));
-			len = snprintf(msg, sizeof(msg), "[PLAYER TEST] loop %d failed, rk_player_play failed %#X\n"
-					, i, ret);
+			len = snprintf(msg, sizeof(msg),
+			               "[PLAYER TEST] loop %d failed, rk_player_play failed %#X\n", i, ret);
 			write(fd, msg, len);
 			fsync(fd);
 			LOG_ERROR("[PLAYER TEST] loop %d test failed %#X\n", i, ret);
@@ -451,8 +460,8 @@ static void player_test_routine(int fd) {
 				++test_total_fail_count;
 				++fail_count;
 				memset(msg, 0, sizeof(msg));
-				len = snprintf(msg, sizeof(msg), "[PLAYER TEST] loop %d failed, player seek failed %#X\n"
-						, i, ret);
+				len = snprintf(msg, sizeof(msg),
+				               "[PLAYER TEST] loop %d failed, player seek failed %#X\n", i, ret);
 				write(fd, msg, len);
 				fsync(fd);
 				LOG_ERROR("[PLAYER TEST] loop %d test failed %#X\n", i, ret);
@@ -463,15 +472,15 @@ static void player_test_routine(int fd) {
 		++test_total_success_count;
 		++success_count;
 		LOG_ERROR("[PLAYER TEST] loop %d test success\n", i);
-__player_test_failed:
+	__player_test_failed:
 		RK_MPI_VO_SetLayerPriority(0, 0);
 		RK_MPI_VO_SetLayerPriority(1, 1);
 		rk_player_destroy(&config);
 		rk_resume_preview();
 	}
 	memset(msg, 0, sizeof(msg));
-	len = snprintf(msg, sizeof(msg), "[PLAYER TEST] success count %d, failed count %d\n"
-		, success_count, fail_count);
+	len = snprintf(msg, sizeof(msg), "[PLAYER TEST] success count %d, failed count %d\n",
+	               success_count, fail_count);
 	write(fd, msg, len);
 	fsync(fd);
 }
@@ -490,13 +499,13 @@ static void sleep_test_routine(int fd) {
 		LOG_ERROR("[SLEEP TEST] loop %d test success\n", i);
 	}
 	memset(msg, 0, sizeof(msg));
-	len = snprintf(msg, sizeof(msg), "[SLEEP TEST] success count %d, failed count %d\n"
-		, success_count, fail_count);
+	len = snprintf(msg, sizeof(msg), "[SLEEP TEST] success count %d, failed count %d\n",
+	               success_count, fail_count);
 	write(fd, msg, len);
 	fsync(fd);
 }
 
-static void* test_func(void *arg) {
+static void *test_func(void *arg) {
 	int ret = 0, fd = -1;
 	char file_name[256] = {'\0'};
 	char thread_name[16] = {'\0'};
@@ -507,43 +516,43 @@ static void* test_func(void *arg) {
 	LOG_INFO("enter %s, test_type: %d\n", __func__, test_type);
 	if (test_type == TEST_TYPE_RESTART) {
 		test_total_count = rk_param_get_int("auto_test:restart_test_loop_count", 30);
-		snprintf(file_name, sizeof(file_name)
-			, "/userdata/test_result_restart_%d%02d%02d%02d%02d%02d.txt"
-			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+		snprintf(file_name, sizeof(file_name),
+		         "/userdata/test_result_restart_%d%02d%02d%02d%02d%02d.txt", tm.tm_year + 1900,
+		         tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	} else if (test_type == TEST_TYPE_MODE_SWITCH) {
 		test_total_count = rk_param_get_int("auto_test:mode_test_loop_count", 30);
-		snprintf(file_name, sizeof(file_name)
-			, "/userdata/test_result_mode_%d%02d%02d%02d%02d%02d.txt"
-			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+		snprintf(file_name, sizeof(file_name),
+		         "/userdata/test_result_mode_%d%02d%02d%02d%02d%02d.txt", tm.tm_year + 1900,
+		         tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	} else if (test_type == TEST_TYPE_VIDEO) {
 		test_total_count = rk_param_get_int("auto_test:video_test_loop_count", 30);
-		snprintf(file_name, sizeof(file_name)
-			, "/userdata/test_result_video_%d%02d%02d%02d%02d%02d.txt"
-			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+		snprintf(file_name, sizeof(file_name),
+		         "/userdata/test_result_video_%d%02d%02d%02d%02d%02d.txt", tm.tm_year + 1900,
+		         tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	} else if (test_type == TEST_TYPE_PHOTO) {
 		test_total_count = rk_param_get_int("auto_test:photo_test_loop_count", 30);
-		snprintf(file_name, sizeof(file_name)
-			, "/userdata/test_result_photo_%d%02d%02d%02d%02d%02d.txt"
-			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+		snprintf(file_name, sizeof(file_name),
+		         "/userdata/test_result_photo_%d%02d%02d%02d%02d%02d.txt", tm.tm_year + 1900,
+		         tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	} else if (test_type == TEST_TYPE_PLAYER) {
 		test_total_count = rk_param_get_int("auto_test:player_test_loop_count", 30);
-		snprintf(file_name, sizeof(file_name)
-			, "/userdata/test_result_player_%d%02d%02d%02d%02d%02d.txt"
-			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+		snprintf(file_name, sizeof(file_name),
+		         "/userdata/test_result_player_%d%02d%02d%02d%02d%02d.txt", tm.tm_year + 1900,
+		         tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	} else if (test_type == TEST_TYPE_SLEEP) {
 		test_total_count = rk_param_get_int("auto_test:sleep_test_loop_count", 30);
-		snprintf(file_name, sizeof(file_name)
-			, "/userdata/test_result_sleep_%d%02d%02d%02d%02d%02d.txt"
-			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+		snprintf(file_name, sizeof(file_name),
+		         "/userdata/test_result_sleep_%d%02d%02d%02d%02d%02d.txt", tm.tm_year + 1900,
+		         tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	} else if (test_type == TEST_TYPE_ALL) {
 		test_total_count = 0;
 		test_total_count += rk_param_get_int("auto_test:restart_test_loop_count", 30);
 		test_total_count += rk_param_get_int("auto_test:mode_test_loop_count", 30);
 		test_total_count += rk_param_get_int("auto_test:video_test_loop_count", 30);
 		test_total_count += rk_param_get_int("auto_test:photo_test_loop_count", 30);
-		snprintf(file_name, sizeof(file_name)
-			, "/userdata/test_result_all_%d%02d%02d%02d%02d%02d.txt"
-			, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+		snprintf(file_name, sizeof(file_name),
+		         "/userdata/test_result_all_%d%02d%02d%02d%02d%02d.txt", tm.tm_year + 1900,
+		         tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	}
 	fd = open(file_name, O_RDWR | O_CREAT, 0666);
 	if (fd < 0) {
@@ -570,14 +579,17 @@ static void* test_func(void *arg) {
 	}
 	memset(test_result_msg, 0, sizeof(test_result_msg));
 	if (test_type == TEST_TYPE_RESTART) {
-		snprintf(test_result_msg, sizeof(test_result_msg), "反初始化测试完成, SUCCESS: %d, FAIL: %d",
-		         test_total_success_count, test_total_fail_count);
+		snprintf(test_result_msg, sizeof(test_result_msg),
+		         "反初始化测试完成, SUCCESS: %d, FAIL: %d", test_total_success_count,
+		         test_total_fail_count);
 	} else if (test_type == TEST_TYPE_MODE_SWITCH) {
-		snprintf(test_result_msg, sizeof(test_result_msg), "模式切换测试完成, SUCCESS: %d, FAIL: %d",
-		         test_total_success_count, test_total_fail_count);
+		snprintf(test_result_msg, sizeof(test_result_msg),
+		         "模式切换测试完成, SUCCESS: %d, FAIL: %d", test_total_success_count,
+		         test_total_fail_count);
 	} else if (test_type == TEST_TYPE_VIDEO) {
-		snprintf(test_result_msg, sizeof(test_result_msg), "视频录制测试完成, SUCCESS: %d, FAIL: %d",
-		         test_total_success_count, test_total_fail_count);
+		snprintf(test_result_msg, sizeof(test_result_msg),
+		         "视频录制测试完成, SUCCESS: %d, FAIL: %d", test_total_success_count,
+		         test_total_fail_count);
 	} else if (test_type == TEST_TYPE_PHOTO) {
 		snprintf(test_result_msg, sizeof(test_result_msg), "拍照测试完成, SUCCESS: %d, FAIL: %d",
 		         test_total_success_count, test_total_fail_count);
@@ -585,8 +597,9 @@ static void* test_func(void *arg) {
 		snprintf(test_result_msg, sizeof(test_result_msg), "播放测试完成, SUCCESS: %d, FAIL: %d",
 		         test_total_success_count, test_total_fail_count);
 	} else if (test_type == TEST_TYPE_SLEEP) {
-		snprintf(test_result_msg, sizeof(test_result_msg), "休眠唤醒测试完成, SUCCESS: %d, FAIL: %d",
-		         test_total_success_count, test_total_fail_count);
+		snprintf(test_result_msg, sizeof(test_result_msg),
+		         "休眠唤醒测试完成, SUCCESS: %d, FAIL: %d", test_total_success_count,
+		         test_total_fail_count);
 	} else if (test_type == TEST_TYPE_ALL) {
 		snprintf(test_result_msg, sizeof(test_result_msg), "全流程测试完成, SUCCESS: %d, FAIL: %d",
 		         test_total_success_count, test_total_fail_count);
@@ -645,8 +658,8 @@ static void event_handler(lv_event_t *e) {
 
 static void auto_test_layout(lv_obj_t *page_obj) {
 	lv_obj_set_flex_flow(auto_test_ctrl.container_obj, LV_FLEX_FLOW_COLUMN);
-	lv_obj_set_flex_align(auto_test_ctrl.container_obj, LV_FLEX_ALIGN_START,
-	                      LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+	lv_obj_set_flex_align(auto_test_ctrl.container_obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+	                      LV_FLEX_ALIGN_CENTER);
 	lv_obj_set_scrollbar_mode(auto_test_ctrl.container_obj, LV_SCROLLBAR_MODE_OFF);
 }
 
@@ -764,8 +777,8 @@ static void auto_test_set_text() {
 	lv_obj_add_style(auto_test_ctrl.exit_obj, &symbol_focus_style, LV_STATE_FOCUSED);
 
 	// INFO: set align to the left of the parent after set text
-	lv_obj_align_to(auto_test_ctrl.container_obj
-		, auto_test_ctrl.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
+	lv_obj_align_to(auto_test_ctrl.container_obj, auto_test_ctrl.exit_obj, LV_ALIGN_OUT_BOTTOM_LEFT,
+	                0, 0);
 
 	lv_obj_add_style(auto_test_ctrl.restart_test_obj, &option_style, 0);
 	lv_obj_add_style(auto_test_ctrl.restart_test_obj, &option_focus_style,
@@ -890,10 +903,10 @@ static void auto_test_page_destroy(lv_obj_t *page_obj) {
 }
 
 static UI_PAGE_HANDLER_T auto_test_page = {.name = "auto_test",
-                                                .init = NULL,
-                                                .create = auto_test_page_create,
-                                                .enter = auto_test_page_enter,
-                                                .destroy = auto_test_page_destroy,
-                                                .exit = auto_test_page_exit};
+                                           .init = NULL,
+                                           .create = auto_test_page_create,
+                                           .enter = auto_test_page_enter,
+                                           .destroy = auto_test_page_destroy,
+                                           .exit = auto_test_page_exit};
 
 UI_PAGE_REGISTER(auto_test_page)
