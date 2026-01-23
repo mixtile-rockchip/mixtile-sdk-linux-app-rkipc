@@ -38,6 +38,11 @@
 #define STREAM_ID_FOR_SLOWMOTION 1
 #define STREAM_ID_FOR_TIMELAPSE 2
 
+#define STORAGE_SDCARD_DEV_PATH "/dev/mmcblk1p1"
+#define STORAGE_SDCARD_MOUNT_PATH "/mnt/sdcard"
+#define STORAGE_INTERNAL_DEV_PATH "/dev/mmcblk0p7"
+#define STORAGE_INTERNAL_MOUNT_PATH "/userdata"
+
 /**
  * Mode definitions
 
@@ -113,10 +118,23 @@ typedef enum {
 } RK_PREVIEW_MODE_E;
 
 /**
+ * Storage type definitions
+
+ * @RK_STORAGE_EXTERNAL: use external sdcard storage
+ * @RK_STORAGE_INTERNAL: use internal emmc storage
+ */
+typedef enum {
+	RK_STORAGE_EXTERNAL = 0,
+	RK_STORAGE_INTERNAL,
+	RK_STORAGE_MAX_NUM,
+} RK_STORAGE_TYPE_E;
+
+/**
  * Mode parameters
  *
  * @eis_mode: EIS mode
  * @hdr_mode: HDR mode
+ * @storage_type: use external storage or internal storage
  * @sensor_width: Sensor output width
  * @sensor_height: Sensor output height
  * @sensor_fps: Sensor output frame rate
@@ -343,3 +361,6 @@ int rk_enable_usb_function(void);
 int rk_disable_usb_function(void);
 int rk_set_usb_mode(RK_USB_MODE_E mode);
 RK_USB_MODE_E rk_get_usb_mode(void);
+
+RK_STORAGE_TYPE_E rk_get_storage_type(void);
+int rk_set_storage_type(RK_STORAGE_TYPE_E type);

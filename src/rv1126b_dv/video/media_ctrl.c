@@ -40,6 +40,7 @@ static struct {
 	RK_USB_MODE_E usb_mode;
 	RK_EIS_MODE_E eis_mode;
 	RK_HDR_MODE_E hdr_mode;
+	RK_STORAGE_TYPE_E storage_type;
 	VO_CHN_ATTR_S vo_prev_chn_attr;
 	VO_VIDEO_LAYER_ATTR_S vo_prev_layer_attr;
 	uint32_t max_photo_num;
@@ -300,10 +301,16 @@ static void init_param_by_mode(RK_MODE_E mode, RK_MODE_PARAM_S *param) {
 
 int rk_media_init(void) {
 	int ret = 0;
+	const char* dev_path = rk_param_get_string("storage:dev_path", NULL);
 	RK_MODE_PARAM_S mode_param;
 	memset(&rk_ctrl_param, 0, sizeof(rk_ctrl_param));
+	RKIPC_ASSERT(dev_path != NULL, "bad storage param!");
 	rk_ctrl_param.cur_mode = rk_param_get_int("video.source:mode", RK_VIDEO_MODE);
 	rk_ctrl_param.usb_mode = USB_NORMAL_MODE;
+	if (!strncmp(dev_path, STORAGE_INTERNAL_DEV_PATH, strlen(STORAGE_INTERNAL_DEV_PATH)))
+		rk_ctrl_param.storage_type = RK_STORAGE_INTERNAL;
+	else
+		rk_ctrl_param.storage_type = RK_STORAGE_EXTERNAL;
 	rk_ctrl_param.eis_mode = rk_param_get_int("video.source:eis_mode", RK_EIS_OFF);
 	rk_ctrl_param.enable_eis_debug = rk_param_get_int("video.source:enable_eis_debug", 0);
 	rk_ctrl_param.enable_display = rk_param_get_int("video.source:enable_display", 1);
@@ -316,6 +323,7 @@ int rk_media_init(void) {
 	rk_ctrl_param.max_photo_num = 5;
 	init_param_by_mode(rk_ctrl_param.cur_mode, &mode_param);
 
+	rk_storage_init();
 	if (rk_param_get_int("audio.0:enable", 0) && rk_ctrl_param.cur_mode == RK_VIDEO_MODE)
 		rkipc_audio_init();
 
@@ -328,7 +336,6 @@ int rk_media_init(void) {
 	}
 
 	ret = rk_enable_usb_function();
-	;
 	if (ret) {
 		LOG_ERROR("enable usb function failed %d\n", ret);
 		return ret;
@@ -338,11 +345,7 @@ int rk_media_init(void) {
 
 int rk_media_deinit(void) {
 	int ret = 0;
-	if (rk_param_get_int("audio.0:enable", 0) && rk_ctrl_param.cur_mode == RK_VIDEO_MODE)
-		rkipc_audio_deinit();
-
 	ret = rk_disable_usb_function();
-	;
 	if (ret) {
 		LOG_ERROR("disable usb function failed %d\n", ret);
 		return ret;
@@ -359,6 +362,10 @@ int rk_media_deinit(void) {
 		LOG_ERROR("mode %d has no register deinit callback\n", rk_ctrl_param.cur_mode);
 		return -1;
 	}
+	if (rk_param_get_int("audio.0:enable", 0) && rk_ctrl_param.cur_mode == RK_VIDEO_MODE)
+		rkipc_audio_deinit();
+
+	rk_storage_deinit();
 	return ret;
 }
 
@@ -367,17 +374,14 @@ int rk_media_reinit(void) {
 	RK_MODE_PARAM_S mode_param;
 	init_param_by_mode(rk_ctrl_param.cur_mode, &mode_param);
 
-	RKIPC_ASSERT(rk_mode_ops[rk_ctrl_param.cur_mode].deinit != NULL,
-	             "no register deinit callback\n");
-	RKIPC_ASSERT(rk_mode_ops[rk_ctrl_param.cur_mode].init != NULL, "no register init callback\n");
 	// Deinit old mode
-	ret = rk_mode_ops[rk_ctrl_param.cur_mode].deinit();
+	ret = rk_media_deinit();
 	if (ret) {
 		LOG_ERROR("mode %d deinit failed, ret=%d\n", rk_ctrl_param.cur_mode, ret);
 		return ret;
 	}
 	// Init new mode
-	ret = rk_mode_ops[rk_ctrl_param.cur_mode].init(mode_param);
+	ret = rk_media_init();
 	if (ret) {
 		LOG_ERROR("mode %d init failed, ret=%d\n", rk_ctrl_param.cur_mode, ret);
 		return ret;
@@ -398,6 +402,9 @@ int rk_media_change_mode(RK_MODE_E new_mode) {
 	RKIPC_ASSERT(rk_mode_ops[rk_ctrl_param.cur_mode].deinit != NULL,
 	             "no register deinit callback\n");
 	// Deinit old mode
+	if (rk_param_get_int("audio.0:enable", 0) && rk_ctrl_param.cur_mode == RK_VIDEO_MODE)
+		rkipc_audio_deinit();
+	rk_storage_deinit();
 	ret = rk_mode_ops[rk_ctrl_param.cur_mode].deinit();
 	if (ret) {
 		LOG_ERROR("mode %d deinit failed, ret=%d\n", rk_ctrl_param.cur_mode, ret);
@@ -422,6 +429,9 @@ int rk_media_change_mode(RK_MODE_E new_mode) {
 		LOG_ERROR("mode %d init failed, ret=%d\n", new_mode, ret);
 		return ret;
 	}
+	if (rk_param_get_int("audio.0:enable", 0) && new_mode == RK_VIDEO_MODE)
+		rkipc_audio_init();
+	rk_storage_init();
 	// Change mode success
 	rk_ctrl_param.cur_mode = new_mode;
 	rk_param_set_int("video.source:mode", new_mode);
@@ -693,13 +703,21 @@ int rk_enable_usb_function(void) {
 			return -1;
 		}
 		memset(usb_config_cmd, 0, sizeof(usb_config_cmd));
-		snprintf(usb_config_cmd, sizeof(usb_config_cmd) - 1,
-		         "echo \"ums_block=%s\" >> /tmp/.usb_config",
-		         rk_param_get_string("storage:dev_path", "/dev/mmcblk1p1"));
-		system("echo usb_ums_en > /tmp/.usb_config");
-		system("echo \"ums_block=/dev/mmcblk1p1\" >> /tmp/.usb_config");
-		system("echo \"ums_block_size=8\" >> /tmp/.usb_config");
-		system("echo \"ums_block_type=fat\" >> /tmp/.usb_config");
+		if (rk_ctrl_param.storage_type == RK_STORAGE_EXTERNAL) {
+			snprintf(usb_config_cmd, sizeof(usb_config_cmd) - 1,
+					"echo \"ums_block=%s\" >> /tmp/.usb_config",
+					STORAGE_SDCARD_DEV_PATH);
+			system("echo usb_ums_en > /tmp/.usb_config");
+			system(usb_config_cmd);
+			system("echo \"ums_block_type=exfat\" >> /tmp/.usb_config");
+		} else {
+			snprintf(usb_config_cmd, sizeof(usb_config_cmd) - 1,
+					"echo \"ums_block=%s\" >> /tmp/.usb_config",
+					STORAGE_INTERNAL_DEV_PATH);
+			system("echo usb_ums_en > /tmp/.usb_config");
+			system(usb_config_cmd);
+			system("echo \"ums_block_type=exfat\" >> /tmp/.usb_config");
+		}
 		system("/etc/init.d/S50usbdevice restart");
 	} else {
 		system("echo usb_adb_en > /tmp/.usb_config");
@@ -741,3 +759,24 @@ int rk_set_prev_mode(RK_PREVIEW_MODE_E mode) {
 }
 
 RK_PREVIEW_MODE_E rk_get_prev_mode(void) { return rk_ctrl_param.prev_mode; }
+
+RK_STORAGE_TYPE_E rk_get_storage_type(void) {
+	return rk_ctrl_param.storage_type;
+}
+
+int rk_set_storage_type(RK_STORAGE_TYPE_E type) {
+	int ret = 0;
+	if (type == rk_ctrl_param.storage_type)
+		return ret;
+	rk_storage_deinit();
+	if (type == RK_STORAGE_EXTERNAL) {
+		rk_param_set_string("storage:mount_path", STORAGE_SDCARD_MOUNT_PATH);
+		rk_param_set_string("storage:dev_path", STORAGE_SDCARD_DEV_PATH);
+	} else {
+		rk_param_set_string("storage:mount_path", STORAGE_INTERNAL_MOUNT_PATH);
+		rk_param_set_string("storage:dev_path", STORAGE_INTERNAL_DEV_PATH);
+	}
+	rk_ctrl_param.storage_type = type;
+	rk_storage_init();
+	return ret;
+}

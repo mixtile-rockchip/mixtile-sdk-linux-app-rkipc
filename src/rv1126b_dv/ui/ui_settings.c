@@ -205,6 +205,11 @@ static void format_event_handler(lv_event_t *e) {
 	lv_obj_t *obj = lv_event_get_target(e);
 
 	if (code == LV_EVENT_CLICKED) {
+		// FIXME: /userdata partition not support exfat now
+		if (rk_get_storage_type() == RK_STORAGE_INTERNAL) {
+			LOG_ERROR("Internal storage not support exfat now\n");
+			return ;
+		}
 		switch (rkipc_storage_dev_mount_status_get()) {
 		case DISK_UNMOUNTED:
 			ui_nosdcard_dialog_create();

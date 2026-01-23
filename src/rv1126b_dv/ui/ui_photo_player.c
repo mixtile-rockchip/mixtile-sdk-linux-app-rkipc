@@ -267,9 +267,13 @@ static void photo_player_destroy_ctrl(void) {
 }
 
 static void photo_player_param_init(lv_obj_t *page_obj) {
+	char folder_name[256] = {'\0'};
+	const char *folder_prefix = (rk_get_storage_type() == RK_STORAGE_EXTERNAL)
+		? "/mnt/sdcard" : "/userdata";
+	snprintf(folder_name, sizeof(folder_name) - 1, "%s/photo", folder_prefix);
 	memset(&photo_player_ctx, 0, sizeof(photo_player_ctx));
-	if (rk_get_file_list("/mnt/sdcard/photo", &photo_player_ctx.list) != 0) {
-		LOG_WARN("File list not obtained.\n");
+	if (rk_get_file_list(folder_name, &photo_player_ctx.list) != 0) {
+		LOG_WARN("File list %s not obtained.\n", folder_name);
 		return;
 	}
 	photo_player_ctx.cur_file_index = (size_t)lv_obj_get_user_data(page_obj);

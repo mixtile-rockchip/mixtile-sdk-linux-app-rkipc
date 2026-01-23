@@ -47,7 +47,7 @@ void ui_noformat_dialog_destroy(void) { ui_dialog_destroy(); }
 
 void ui_scansdcard_dialog_destroy(void) { ui_dialog_destroy(); }
 
-void ui_nosdcard_dialog_create(void) { ui_dialog_create("存储状态", "没有SD卡"); }
+void ui_nosdcard_dialog_create(void) { ui_dialog_create("存储状态", "未插入SD卡，请在设置中切换到内置存储"); }
 
 void ui_noformat_dialog_create(void) { ui_dialog_create("存储状态", "SD卡未格式化"); }
 

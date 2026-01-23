@@ -61,13 +61,13 @@ static int format_task_result = 0;
 
 static void *format_task_func(void *arg) {
 	LOG_INFO("start format\n");
-	format_task_result = rk_storage_deinit();
-	LOG_INFO("deinit storage done, ret = %#X\n", format_task_result);
+	rk_storage_deinit();
 	format_task_result = rk_storage_format();
-	LOG_INFO("format storage done, ret = %#X\n", format_task_result);
-	format_task_result = rk_storage_init();
-	LOG_INFO("init storage done, ret = %#X\n", format_task_result);
+	if (format_task_result != 0)
+		LOG_ERROR("format storage failed, ret = %#X\n", format_task_result);
+	rk_storage_init();
 	format_task_done = true;
+	return NULL;
 }
 
 static void format_timer_func(lv_timer_t *timer) {

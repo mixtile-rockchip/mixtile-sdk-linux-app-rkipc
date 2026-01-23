@@ -166,7 +166,6 @@ int main(int argc, char **argv) {
 	rk_media_init();
 	if (rk_param_get_int("video.source:enable_display", 1))
 		ui_init();
-	rk_storage_init();
 	pthread_create(&key_chk, NULL, wait_key_event, NULL);
 	while (g_main_run_) {
 		if (rk_param_get_int("video.source:enable_display", 1))
@@ -175,7 +174,6 @@ int main(int argc, char **argv) {
 			usleep(100000); // 100ms
 	}
 	pthread_join(key_chk, NULL);
-	rk_storage_deinit();
 	if (rk_param_get_int("video.source:enable_display", 1))
 		ui_deinit();
 	rk_media_deinit();

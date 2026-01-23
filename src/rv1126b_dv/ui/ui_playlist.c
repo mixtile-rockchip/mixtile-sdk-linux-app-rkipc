@@ -348,23 +348,25 @@ static void playlist_destroy_ctrl(lv_obj_t *page_obj) {
 static int32_t playlist_param_init(lv_obj_t *page_obj) {
 	uint32_t index = 0;
 
-	const char *folder_name = NULL;
+	char folder_name[256] = {'\0'};
+	const char *folder_prefix = (rk_get_storage_type() == RK_STORAGE_EXTERNAL)
+		? "/mnt/sdcard" : "/userdata";
 	playlist_ctx.cur_btn = NULL;
 
 	orig_pos = (LINE_NUM >> 1);
 
 	playlist_ctx.mode = (RK_MODE_E)lv_obj_get_user_data(page_obj);
 	if (playlist_ctx.mode == RK_VIDEO_MODE) {
-		folder_name = "/mnt/sdcard/video0";
+		snprintf(folder_name, sizeof(folder_name) - 1, "%s/video0", folder_prefix);
 		playlist_ctx.lable = "录像回放";
 	} else if (playlist_ctx.mode == RK_PHOTO_MODE) {
-		folder_name = "/mnt/sdcard/photo";
+		snprintf(folder_name, sizeof(folder_name) - 1, "%s/photo", folder_prefix);
 		playlist_ctx.lable = "照片";
 	} else if (playlist_ctx.mode == RK_SLOW_MOTION_MODE) {
-		folder_name = "/mnt/sdcard/slowmotion";
+		snprintf(folder_name, sizeof(folder_name) - 1, "%s/slowmotion", folder_prefix);
 		playlist_ctx.lable = "慢动作回放";
 	} else if (playlist_ctx.mode == RK_TIME_LAPSE_MODE) {
-		folder_name = "/mnt/sdcard/timelapse";
+		snprintf(folder_name, sizeof(folder_name) - 1, "%s/timelapse", folder_prefix);
 		playlist_ctx.lable = "延时摄影";
 	}
 	if (rk_get_file_list(folder_name, &playlist_ctx.list) != 0) {
