@@ -129,7 +129,7 @@ static const ui_option_entry_t photo_options[] = {
     {"20F2S", photo_config_cb, (void *)20},
 };
 
-#define HIGH_BITRATE 90000
+#define HIGH_BITRATE 120000
 #define NORMAL_BITRATE 50000
 #define LOW_BITRATE 15000
 
