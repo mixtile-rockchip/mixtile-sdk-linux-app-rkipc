@@ -4,10 +4,8 @@
 #include "common.h"
 #include "isp.h"
 #include "log.h"
-#include "network.h"
 #include "osd.h"
 #include "param.h"
-#include "server.h"
 #include "storage.h"
 #include "system.h"
 #include "video.h"
@@ -114,7 +112,6 @@ int main(int argc, char **argv) {
 	// init
 	rk_param_init(rkipc_ini_path_);
 
-	rk_network_init(NULL);
 	rk_system_init();
 	rkipc_camera_id_ = rk_param_get_int("video.source:camera_id", 0); // need rk_param_init
 	// rk_isp_init(rkipc_camera_id_, rkipc_iq_file_path_);
@@ -133,7 +130,6 @@ int main(int argc, char **argv) {
 		player_status = PLAYER_INIT;
 	}
 
-	rkipc_server_init();
 	rk_storage_init();
 	LOG_INFO("rkipc init over\n");
 
@@ -160,9 +156,7 @@ int main(int argc, char **argv) {
 
 	// deinit
 	rk_storage_deinit();
-	rkipc_server_deinit();
 	rk_system_deinit();
-	rk_network_deinit();
 	rk_param_deinit();
 	LOG_INFO("rkipc deinit over\n");
 
