@@ -29,6 +29,8 @@ option(COMPILE_FOR_RV1126B "compile for rv1126b ipc" OFF)
 option(COMPILE_FOR_RV1126B_MULTI_IPC "compile for rv1126b multi-ipc" OFF)
 option(COMPILE_FOR_RV1126B_DV "compile for rv1126b dv" OFF)
 
+option(COMPILE_FOR_RK3572 "compile for rk3572 ipc" OFF)
+
 if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
 	message(STATUS "CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
 	add_definitions(-g -ggdb -gdwarf -funwind-tables -rdynamic -O0)
@@ -130,6 +132,10 @@ endif()
 
 if(COMPILE_FOR_RV1126B_DV)
   add_subdirectory(src/rv1126b_dv)
+endif()
+
+if(COMPILE_FOR_RK3572)
+  add_subdirectory(src/rk3572_ipc)
 endif()
 
 if(COMPILE_FOR_BUILDROOT)
