@@ -2,9 +2,9 @@
 
 文件标识：RK-KF-YF-937
 
-发布版本：V1.7.6
+发布版本：V1.7.7
 
-日期：2025-07-02
+日期：2026-02-05
 
 文件密级：□绝密   □秘密   □内部资料   ■公开
 
@@ -55,6 +55,7 @@ Rockchip Electronics Co., Ltd.
 | RV1103/RV1106/RV1103B | Linux 5.10           |
 | RK3576                | Linux 6.1            |
 | RV1126B               | Linux 6.1            |
+| RK3572                | Linux 6.12           |
 
 **读者对象**
 
@@ -101,6 +102,7 @@ Rockchip Electronics Co., Ltd.
 | V1.7.4     | Yu Zheng   | 2025-04-16   | 新增RV1126B DV的流程框图                                     |
 | V1.7.5     | Fenrir Lin | 2025-04-24   | 新增UVC模块相关说明                                          |
 | V1.7.6     | Fenrir Lin | 2025-07-02   | 新增RV1126B IPC的media node映射表                            |
+| V1.7.7     | Fenrir Lin | 2026-02-05   | 新增RK3572 IPC的流程框图                                     |
 
 ---
 
@@ -320,10 +322,10 @@ graph LR
 	VI_0-->VPSS-->VPSS_0_0_draw_nn_result-->VENC_0-->MUXER-->MP4
 	VENC_0-->RTSP_RTMP_0
 	VPSS-->VPSS_0_1-->VENC_1-->RTSP_RTMP_1
-	VPSS_0_1-->NPU
+	VPSS_0_2-->NPU
 	VPSS-->VPSS_0_2-->VENC_2-->RTSP_RTMP_2
 	VPSS-->VPSS_0_3-->VENC_3-->JPEG
-	VI_1-->VPSS_ROTATE-->VO
+	VI_1-->VO
 ```
 
 ### RK3576 Multi-IPC
@@ -448,6 +450,30 @@ graph LR
 	GDC_0-.->VENC_3-.->JPEG
 	VENC_0_normal-->RTSP_RTMP_0
 	VI_1-->GDC_1-->VO
+```
+
+### RK3572 IPC
+
+当检测到双目时，由AVS做非融合拼接，走虚线的框图
+
+```mermaid
+graph LR
+	AI-->AENC-->RTSP_RTMP_0
+	VI_0_0-->VPSS_0-->VPSS_0_0_draw_nn_result-->VENC_0-->MUXER-->MP4
+	VENC_0-->RTSP_RTMP_0
+	VPSS_0-->VPSS_0_1-->VENC_1-->RTSP_RTMP_1
+	VPSS_0_2-->NPU
+	VPSS_0-->VPSS_0_2-->VENC_2-->RTSP_RTMP_2
+	VPSS_0-->VPSS_0_3-->VENC_3-->JPEG
+	VI_0_1-->VO
+subgraph "dual camera"
+	AVS
+	VI_1_0-.->AVS
+	VI_1_1
+end
+VI_0_0-.->AVS
+AVS-.->VPSS_0
+VI_1_1-.->VO
 ```
 
 ## 代码结构
