@@ -1508,7 +1508,10 @@ int rkipc_pipe_vi_vo_init() {
 	LOG_INFO("stLayerAttr W=%d, H=%d, format is %d\n", stLayerAttr.stDispRect.u32Width,
 	         stLayerAttr.stDispRect.u32Height, stLayerAttr.enPixFormat);
 
-	stLayerAttr.u32DispFrmRt = 30;
+	if (g_sensor_num == 1)
+		stLayerAttr.u32DispFrmRt = 30;
+	else
+		stLayerAttr.u32DispFrmRt = 15;
 	stLayerAttr.enPixFormat = RK_FMT_RGB888;
 	VideoCSC.enCscMatrix = VO_CSC_MATRIX_IDENTITY;
 	VideoCSC.u32Contrast = 50;
