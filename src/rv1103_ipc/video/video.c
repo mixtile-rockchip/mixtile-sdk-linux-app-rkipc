@@ -811,11 +811,13 @@ int rkipc_pipe_0_init() {
 
 	const char *gray_scale_mode = NULL;
 	int video_full_range_flag = 0;
-	rk_isp_get_gray_scale_mode(0, &gray_scale_mode);
-	if (!strcmp(gray_scale_mode, "[16-235]"))
-		video_full_range_flag = 0;
-	else
-		video_full_range_flag = 1;
+	if (rk_param_get_int("video.source:enable_aiq", 1)) {
+		rk_isp_get_gray_scale_mode(0, &gray_scale_mode);
+		if (!strcmp(gray_scale_mode, "[16-235]"))
+			video_full_range_flag = 0;
+		else
+			video_full_range_flag = 1;
+	}
 	if (!strcmp(tmp_output_data_type, "H.264")) {
 		VENC_H264_VUI_S pstH264Vui;
 		RK_MPI_VENC_GetH264Vui(VIDEO_PIPE_0, &pstH264Vui);
@@ -1051,11 +1053,13 @@ int rkipc_pipe_1_init() {
 
 	const char *gray_scale_mode = NULL;
 	int video_full_range_flag = 0;
-	rk_isp_get_gray_scale_mode(0, &gray_scale_mode);
-	if (!strcmp(gray_scale_mode, "[16-235]"))
-		video_full_range_flag = 0;
-	else
-		video_full_range_flag = 1;
+	if (rk_param_get_int("video.source:enable_aiq", 1)) {
+		rk_isp_get_gray_scale_mode(0, &gray_scale_mode);
+		if (!strcmp(gray_scale_mode, "[16-235]"))
+			video_full_range_flag = 0;
+		else
+			video_full_range_flag = 1;
+	}
 	if (!strcmp(tmp_output_data_type, "H.264")) {
 		VENC_H264_VUI_S pstH264Vui;
 		RK_MPI_VENC_GetH264Vui(VIDEO_PIPE_1, &pstH264Vui);
