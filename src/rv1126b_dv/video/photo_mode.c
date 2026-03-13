@@ -965,11 +965,63 @@ static int rk_capture_deinit(void) {
 	return ret;
 }
 
+static int pause_preview(void) {
+	int ret = 0;
+	MPP_CHN_S vi_display_chn;
+	MPP_CHN_S vo_chn;
+	LOG_INFO("enter\n");
+	vi_display_chn.enModId = RK_ID_VI;
+	vi_display_chn.s32DevId = VI_DEV_ID;
+	vi_display_chn.s32ChnId = VI_DISPLAY_CHN;
+	vo_chn.enModId = RK_ID_VO;
+	vo_chn.s32DevId = VO_PREV_LAYER;
+	vo_chn.s32ChnId = VO_PREV_CHN;
+
+	if (rk_mode_param.enable_display) {
+		ret = RK_MPI_SYS_UnBind(&vi_display_chn, &vo_chn);
+		if (ret != RK_SUCCESS)
+			LOG_ERROR("vi display chn unbind vo chn fail:%x\n", ret);
+		vo_deinit();
+	}
+	LOG_INFO("exit\n");
+	return ret;
+}
+
+static int resume_preview(void) {
+	int ret = 0;
+	MPP_CHN_S vi_display_chn;
+	MPP_CHN_S vo_chn;
+	LOG_INFO("enter\n");
+	ret = vo_init();
+	if (ret) {
+		LOG_ERROR("ERROR: vo_init failed! ret=%d\n", ret);
+		return ret;
+	}
+	vi_display_chn.enModId = RK_ID_VI;
+	vi_display_chn.s32DevId = VI_DEV_ID;
+	vi_display_chn.s32ChnId = VI_DISPLAY_CHN;
+	vo_chn.enModId = RK_ID_VO;
+	vo_chn.s32DevId = VO_PREV_LAYER;
+	vo_chn.s32ChnId = VO_PREV_CHN;
+
+	if (rk_mode_param.enable_display) {
+		ret = RK_MPI_SYS_Bind(&vi_display_chn, &vo_chn);
+		if (ret != RK_SUCCESS) {
+			LOG_ERROR("vi display chn bind vo chn fail:%x\n", ret);
+			return ret;
+		}
+	}
+	LOG_INFO("exit\n");
+	return ret;
+}
+
 static RK_MODE_CALLBACK_S capture_ops = {
     .init = rk_capture_init,
     .deinit = rk_capture_deinit,
     .start_record = NULL,
     .stop_record = NULL,
+    .pause_preview = pause_preview,
+    .resume_preview = resume_preview,
     .start_capture = start_capture,
     .stop_capture = stop_capture,
     .get_capture_num = get_capture_num,
