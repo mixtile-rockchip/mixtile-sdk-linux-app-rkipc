@@ -1652,6 +1652,7 @@ static int rkipc_gdc_init() {
 	if (g_current_eis_mode == RK_EIS_OFF)
 		return ret;
 
+	stAttr.stEisAttr.s32DevNo = rk_param_get_int("video.source:imu_device", 1);
 	stAttr.u32MaxInQueue = 8;
 	stAttr.u32MaxOutQueue = 8;
 	stAttr.s32DstWidth = rk_param_get_int("video.0:width", 3840);
@@ -1683,6 +1684,7 @@ static int rkipc_gdc_init() {
 	ret = RK_MPI_GDC_CreateChn(0, &stAttr);
 
 	if (enable_lcd || enable_dp) {
+		stAttr.stEisAttr.s32DevNo = rk_param_get_int("video.source:imu_device", 1);
 		stAttr.u32MaxInQueue = 8;
 		stAttr.u32MaxOutQueue = 8;
 		if (g_current_eis_mode == RK_HORIZON_STEADY) {
