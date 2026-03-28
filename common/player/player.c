@@ -411,7 +411,12 @@ static int create_jpeg_vdec(const RK_PHOTO_CONFIG *config, RK_PHOTO_DATA *data) 
 	memset(&stAttr, 0, sizeof(VDEC_CHN_ATTR_S));
 	memset(&stVdecParam, 0, sizeof(VDEC_CHN_PARAM_S));
 	memset(&stModParam, 0, sizeof(VDEC_MOD_PARAM_S));
-
+	stModParam.enVdecMBSource = MB_SOURCE_MODULE;
+	ret = RK_MPI_VDEC_SetModParam(&stModParam);
+	if (ret != RK_SUCCESS) {
+		LOG_ERROR("vdec %d SetModParam failed! errcode %x\n", VDEC_CHN_ID, ret);
+		return ret;
+	}
 	stAttr.enMode = VIDEO_MODE_FRAME;
 	stAttr.enType = RK_VIDEO_ID_JPEG;
 	stAttr.u32PicWidth = config->input_width;   // width of jpeg
