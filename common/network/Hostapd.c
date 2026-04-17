@@ -4,7 +4,7 @@
 //#include <DeviceIo/DeviceIo.h>
 #include "Hostapd.h"
 #include <Rk_softap.h>
-#include <error.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>

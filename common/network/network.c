@@ -94,7 +94,7 @@ static void parseRoutes(struct nlmsghdr *nlHdr, struct route_info *rtInfo, char 
 		}
 	}
 	if (strstr((char *)inet_ntoa(rtInfo->dstAddr), "0.0.0.0"))
-		sprintf(gateway, (char *)inet_ntoa(rtInfo->gateWay));
+		sprintf(gateway, "%s", (char *)inet_ntoa(rtInfo->gateWay));
 	free(tempBuf);
 	return;
 }

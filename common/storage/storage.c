@@ -81,7 +81,7 @@ int rkipc_storage_set_dev_attr(rkipc_str_dev_attr *pstDevAttr) {
 
 	memset(pstDevAttr, 0, sizeof(rkipc_str_dev_attr));
 	mount_path = rk_param_get_string("storage:mount_path", "/userdata");
-	sprintf(pstDevAttr->mount_path, mount_path);
+	sprintf(pstDevAttr->mount_path, "%s", mount_path);
 	rkipc_storage_get_mount_dev(mount_path, dev_path, type, attributes);
 	if (strlen(dev_path) == 0) {
 		for (int i = 0; i < STORAGE_NUM - 1; i++) {
@@ -89,7 +89,7 @@ int rkipc_storage_set_dev_attr(rkipc_str_dev_attr *pstDevAttr) {
 		}
 		LOG_ERROR("unrecognized dev_path,stop record!\n");
 	} else {
-		sprintf(pstDevAttr->dev_path, dev_path);
+		sprintf(pstDevAttr->dev_path, "%s", dev_path);
 		for (int i = 0; i < STORAGE_NUM - 1; i++) {
 			snprintf(entry, 127, "storage.%d:enable", i);
 			if (rk_param_get_int(entry, 0) == 0)
@@ -115,19 +115,19 @@ int rkipc_storage_set_dev_attr(rkipc_str_dev_attr *pstDevAttr) {
 
 	folder_name = rk_param_get_string("storage.0:folder_name", "video0");
 	pstDevAttr->folder_attr[0].sort_cond = SORT_FILE_NAME;
-	sprintf(pstDevAttr->folder_attr[0].folder_path, folder_name);
+	sprintf(pstDevAttr->folder_attr[0].folder_path, "%s", folder_name);
 
 	folder_name = rk_param_get_string("storage.1:folder_name", "video1");
 	pstDevAttr->folder_attr[1].sort_cond = SORT_FILE_NAME;
-	sprintf(pstDevAttr->folder_attr[1].folder_path, folder_name);
+	sprintf(pstDevAttr->folder_attr[1].folder_path, "%s", folder_name);
 
 	folder_name = rk_param_get_string("storage.2:folder_name", "video2");
 	pstDevAttr->folder_attr[2].sort_cond = SORT_FILE_NAME;
-	sprintf(pstDevAttr->folder_attr[2].folder_path, folder_name);
+	sprintf(pstDevAttr->folder_attr[2].folder_path, "%s", folder_name);
 
 	folder_name = rk_param_get_string("storage.3:folder_name", "photo");
 	pstDevAttr->folder_attr[3].sort_cond = SORT_FILE_NAME;
-	sprintf(pstDevAttr->folder_attr[3].folder_path, folder_name);
+	sprintf(pstDevAttr->folder_attr[3].folder_path, "%s", folder_name);
 
 	if (rk_param_get_int("storage:num_limit_enable", 0)) {
 		pstDevAttr->folder_attr[0].num_limit = true;
@@ -793,7 +793,7 @@ static int rkipc_storage_dev_add(char *dev, rkipc_storage_handle *pHandle) {
 			LOG_ERROR("dev_attr.dev_path[%s] != dev[%s]\n", dev_attr.dev_path, dev);
 			return -1;
 		}
-		sprintf(pHandle->dev_sta.dev_path, dev_attr.dev_path);
+		sprintf(pHandle->dev_sta.dev_path, "%s", dev_attr.dev_path);
 	}
 
 	ret = rkipc_storage_get_mount_path(dev, mountPath, RKIPC_MAX_FILE_PATH_LEN);
@@ -811,7 +811,7 @@ static int rkipc_storage_dev_add(char *dev, rkipc_storage_handle *pHandle) {
 			return -1;
 		}
 	} else {
-		sprintf(dev_attr.mount_path, mountPath);
+		sprintf(dev_attr.mount_path, "%s", mountPath);
 	}
 
 	ret = rkipc_storage_get_mount_dev(dev_attr.mount_path, pHandle->dev_sta.dev_path,
@@ -1191,8 +1191,8 @@ static int rkipc_storage_para_init(rkipc_storage_handle *pstHandle,
 
 	if (pstDevAttr) {
 		if (pstDevAttr->folder_attr) {
-			sprintf(pstHandle->dev_attr.mount_path, pstDevAttr->mount_path);
-			sprintf(pstHandle->dev_attr.dev_path, pstDevAttr->dev_path);
+			sprintf(pstHandle->dev_attr.mount_path, "%s", pstDevAttr->mount_path);
+			sprintf(pstHandle->dev_attr.dev_path, "%s", pstDevAttr->dev_path);
 			LOG_DEBUG(" pstHandle->dev_attr mount path is %s, dev_path is %s\n",
 			          pstHandle->dev_attr.mount_path, pstHandle->dev_attr.dev_path);
 			pstHandle->dev_attr.auto_delete = pstDevAttr->auto_delete;
@@ -1217,7 +1217,7 @@ static int rkipc_storage_para_init(rkipc_storage_handle *pstHandle,
 				pstHandle->dev_attr.folder_attr[i].num_limit = pstDevAttr->folder_attr[i].num_limit;
 				pstHandle->dev_attr.folder_attr[i].limit = pstDevAttr->folder_attr[i].limit;
 				sprintf(pstHandle->dev_attr.folder_attr[i].folder_path,
-				        pstDevAttr->folder_attr[i].folder_path);
+				        "%s", pstDevAttr->folder_attr[i].folder_path);
 			}
 
 			for (i = 0; i < pstDevAttr->folder_num; i++) {

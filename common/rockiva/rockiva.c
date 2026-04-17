@@ -203,7 +203,7 @@ int rkipc_rockiva_init() {
 	//     }
 	// }
 
-	snprintf(globalParams.modelPath, ROCKIVA_PATH_LENGTH, model_path);
+	snprintf(globalParams.modelPath, ROCKIVA_PATH_LENGTH, "%s", model_path);
 	globalParams.coreMask = 0x04;
 	globalParams.logLevel = ROCKIVA_LOG_ERROR;
 	if (!strcmp(model_type, "small") || !strcmp(model_type, "medium")) {
