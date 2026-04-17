@@ -76,6 +76,9 @@ include_directories(video
 
 add_definitions(-DRKIPC_RV1126B)
 
+# Disable WiFi support for rv1126b_ipc (override global RKIPC_WIFI_SUPPORT)
+set(RKIPC_WIFI_SUPPORT OFF)
+
 message(STATUS "RK_APP_ARCH_TYPE is ${RK_APP_ARCH_TYPE}")
 link_directories(${PROJECT_SOURCE_DIR}/lib/${TOOLCHAIN_PREFIX})
 if(RKIPC_WIFI_SUPPORT)
