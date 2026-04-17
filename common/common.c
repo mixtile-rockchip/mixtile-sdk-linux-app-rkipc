@@ -123,7 +123,7 @@ char *get_time_string() {
 	struct tm *timeinfo = localtime(&tv.tv_sec);
 	static char time_string[64];
 	sprintf(time_string, "%.2d:%.2d:%.2d."
-#ifdef __UCLIBC_USE_TIME64__
+#ifdef HAVE_TIME_T_64BIT
                         "%.6lld",
 #else
                         "%.6ld",
