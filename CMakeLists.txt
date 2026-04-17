@@ -160,3 +160,8 @@ endif()
 if(COMPILE_FOR_BUILDROOT)
   add_definitions(-DCOMPILE_FOR_BUILDROOT)
 endif()
+
+option(RKIPC_WIFI_SUPPORT "Enable WiFi support (wpa_client, wifi functions)" ON)
+if(RKIPC_WIFI_SUPPORT)
+  add_definitions(-DRKIPC_WIFI_SUPPORT)
+endif()

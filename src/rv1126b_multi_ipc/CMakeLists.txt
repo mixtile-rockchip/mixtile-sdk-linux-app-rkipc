@@ -26,7 +26,18 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/common/rtsp SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/rtmp SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/osd SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/roi SRCS)
-aux_source_directory(${PROJECT_SOURCE_DIR}/common/network SRCS)
+list(APPEND SRCS ${PROJECT_SOURCE_DIR}/common/network/network.c)
+list(APPEND SRCS ${PROJECT_SOURCE_DIR}/common/network/ntp.c)
+if(RKIPC_WIFI_SUPPORT)
+	list(APPEND SRCS ${PROJECT_SOURCE_DIR}/common/network/Rk_wifi.c)
+	list(APPEND SRCS ${PROJECT_SOURCE_DIR}/common/network/Hostapd.c)
+	list(APPEND SRCS ${PROJECT_SOURCE_DIR}/common/network/RK_encode.c)
+	list(APPEND SRCS ${PROJECT_SOURCE_DIR}/common/network/gbk_to_utf8.c)
+	list(APPEND SRCS ${PROJECT_SOURCE_DIR}/common/network/utf8_to_gbk.c)
+	list(APPEND SRCS ${PROJECT_SOURCE_DIR}/common/network/utility.c)
+else()
+	list(APPEND SRCS ${PROJECT_SOURCE_DIR}/common/network/wifi_stub.c)
+endif()
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/storage SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/rockiva SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/common/event SRCS)
@@ -66,8 +77,10 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-result -Wno-unused-but-set-varia
 
 message(STATUS "RK_APP_ARCH_TYPE is ${RK_APP_ARCH_TYPE}")
 link_directories(${PROJECT_SOURCE_DIR}/lib/${TOOLCHAIN_PREFIX})
-if(EXISTS ${PROJECT_SOURCE_DIR}/lib/${TOOLCHAIN_PREFIX}/libwpa_client.so)
-	install(FILES ${PROJECT_SOURCE_DIR}/lib/${TOOLCHAIN_PREFIX}/libwpa_client.so DESTINATION lib)
+if(RKIPC_WIFI_SUPPORT)
+	if(EXISTS ${PROJECT_SOURCE_DIR}/lib/${TOOLCHAIN_PREFIX}/libwpa_client.so)
+		install(FILES ${PROJECT_SOURCE_DIR}/lib/${TOOLCHAIN_PREFIX}/libwpa_client.so DESTINATION lib)
+	endif()
 endif()
 
 add_definitions(-DISP_HW_V35)
@@ -78,8 +91,13 @@ add_definitions(-DISP_HW_V35)
 # link_libraries(asan)
 
 add_executable(${PROJECT_NAME} ${SRCS})
-target_link_libraries(${PROJECT_NAME}
-				pthread rockit rkaiq rtsp freetype wpa_client rkmuxer m rockiva rga rkaudio)
+if(RKIPC_WIFI_SUPPORT)
+	target_link_libraries(${PROJECT_NAME}
+					pthread rockit rkaiq rtsp freetype wpa_client rkmuxer m rockiva rga rkaudio)
+else()
+	target_link_libraries(${PROJECT_NAME}
+					pthread rockit rkaiq rtsp freetype rkmuxer m rockiva rga rkaudio)
+endif()
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 
