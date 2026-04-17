@@ -53,8 +53,16 @@ endif()
 
 if(RKIPC_CROSS_COMPILE)
 message(STATUS "CROSS COMPILE TOOL: ${RKIPC_CROSS_COMPILE}")
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections -Wl,-rpath-link,${PROJECT_SOURCE_DIR}/lib/${RKIPC_CROSS_COMPILE}")
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections -Wl,-rpath-link,${PROJECT_SOURCE_DIR}/lib/${RKIPC_CROSS_COMPILE}")
+
+# Extract toolchain prefix from CMAKE_C_COMPILER
+# e.g. /path/to/arm-rockchip1240-linux-gnueabihf-gcc -> arm-rockchip1240-linux-gnueabihf
+# e.g. /path/to/arm-vendor-linux-musl-clang -> arm-vendor-linux-musl
+get_filename_component(TOOLCHAIN_PREFIX ${CMAKE_C_COMPILER} NAME)
+string(REGEX REPLACE "-(gcc|clang)$" "" TOOLCHAIN_PREFIX ${TOOLCHAIN_PREFIX})
+message(STATUS "TOOLCHAIN_PREFIX: ${TOOLCHAIN_PREFIX}")
+
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections -Wl,-rpath-link,${PROJECT_SOURCE_DIR}/lib/${TOOLCHAIN_PREFIX}")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections -Wl,-rpath-link,${PROJECT_SOURCE_DIR}/lib/${TOOLCHAIN_PREFIX}")
 set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections -Wl,--as-needed")
 
 # Check if time_t is 64-bit in the toolchain (for musl/uClibc/glibc compatibility)

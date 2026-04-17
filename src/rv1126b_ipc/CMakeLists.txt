@@ -66,12 +66,9 @@ include_directories(video
 add_definitions(-DRKIPC_RV1126B)
 
 message(STATUS "RK_APP_ARCH_TYPE is ${RK_APP_ARCH_TYPE}")
-if(RK_APP_ARCH_TYPE STREQUAL "arm")
-	link_directories(${PROJECT_SOURCE_DIR}/lib/arm-rockchip1240-linux-gnueabihf)
-	install(FILES ${PROJECT_SOURCE_DIR}/lib/arm-rockchip1240-linux-gnueabihf/libwpa_client.so DESTINATION lib)
-else()
-	link_directories(${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1240-linux-gnu)
-	install(FILES ${PROJECT_SOURCE_DIR}/lib/aarch64-rockchip1240-linux-gnu/libwpa_client.so DESTINATION lib)
+link_directories(${PROJECT_SOURCE_DIR}/lib/${TOOLCHAIN_PREFIX})
+if(EXISTS ${PROJECT_SOURCE_DIR}/lib/${TOOLCHAIN_PREFIX}/libwpa_client.so)
+	install(FILES ${PROJECT_SOURCE_DIR}/lib/${TOOLCHAIN_PREFIX}/libwpa_client.so DESTINATION lib)
 endif()
 
 add_definitions(-DISP_HW_V35)
