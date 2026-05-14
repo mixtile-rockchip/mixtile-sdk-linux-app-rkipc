@@ -522,24 +522,31 @@ int rkipc_vi_gdc_vpss_init() {
 		stAttr.stFecAttr.stBgVal.s32BgU = 100;
 		stAttr.stFecAttr.stBgVal.s32BgV = 0;
 
-		const char *fec_ini_file = rk_param_get_string("isp.0.enhancement:fec_ini_file", NULL);
-		if (fec_ini_file) {
-			LOG_INFO("fec_ini_file is %s\n", fec_ini_file);
-			stUpdateAttr.enMode = GDC_CHN_MODE_FEC;
-			RK_MPI_GDC_GetAttrFromFile(&stUpdateAttr, fec_ini_file);
-			stAttr.stFecAttr.enFecMode = GDC_FEC_UPDATE_MESH_ONLINE;
-			stAttr.stFecAttr.dLightCenter[0] = stUpdateAttr.stFecAttr.stOnlineCfg.dLightCenter[0];
-			stAttr.stFecAttr.dLightCenter[1] = stUpdateAttr.stFecAttr.stOnlineCfg.dLightCenter[1];
-			for (int i = 0; i < 4; i++) {
-				stAttr.stFecAttr.dCoeff[i] = stUpdateAttr.stFecAttr.stOnlineCfg.dCoeff[i];
-			}
-			// stAttr.stFecAttr.s32CorrectLevel  = stUpdateAttr.stFecAttr.stOnlineCfg.s32CorrectLevel;
-			stAttr.stFecAttr.s32CorrectLevel =
-				rk_param_get_int("isp.0.enhancement:fec_level", 0) * 2.55;
-			stAttr.stFecAttr.enStyle = stUpdateAttr.stFecAttr.stOnlineCfg.enStyle;
+		const char *fec_mesh_file = rk_param_get_string("isp.0.enhancement:fec_mesh_file", NULL);
+		if (fec_mesh_file && strcmp(fec_mesh_file, "null") != 0) {
+			LOG_INFO("fec_mesh_file is %s\n", fec_mesh_file);
+			stAttr.stFecAttr.enFecMode = GDC_FEC_UPDATE_MESH_FROM_FILE;
+			strncpy(stAttr.stFecAttr.mesh0, fec_mesh_file, sizeof(stAttr.stFecAttr.mesh0) - 1);
+			stAttr.stFecAttr.mesh0[sizeof(stAttr.stFecAttr.mesh0) - 1] = '\0';
 		} else {
-			LOG_ERROR("fec_ini_file is NULL\n");
-			return -1;
+			const char *fec_ini_file = rk_param_get_string("isp.0.enhancement:fec_ini_file", NULL);
+			if (fec_ini_file && strcmp(fec_ini_file, "null") != 0) {
+				LOG_INFO("fec_ini_file is %s\n", fec_ini_file);
+				stUpdateAttr.enMode = GDC_CHN_MODE_FEC;
+				RK_MPI_GDC_GetAttrFromFile(&stUpdateAttr, fec_ini_file);
+				stAttr.stFecAttr.enFecMode = GDC_FEC_UPDATE_MESH_ONLINE;
+				stAttr.stFecAttr.dLightCenter[0] = stUpdateAttr.stFecAttr.stOnlineCfg.dLightCenter[0];
+				stAttr.stFecAttr.dLightCenter[1] = stUpdateAttr.stFecAttr.stOnlineCfg.dLightCenter[1];
+				for (int i = 0; i < 4; i++) {
+					stAttr.stFecAttr.dCoeff[i] = stUpdateAttr.stFecAttr.stOnlineCfg.dCoeff[i];
+				}
+				stAttr.stFecAttr.s32CorrectLevel =
+					rk_param_get_int("isp.0.enhancement:fec_level", 0) * 2.55;
+				stAttr.stFecAttr.enStyle = stUpdateAttr.stFecAttr.stOnlineCfg.enStyle;
+			} else {
+				LOG_ERROR("fec_ini_file and fec_mesh_file are NULL or 'null'\n");
+				return -1;
+			}
 		}
 		stAttr.stFecAttr.enDirection = GDC_FEC_CORRECT_DIRECTION_XY;
 		stAttr.stFecAttr.enStyle = GDC_FEC_KEEP_ASPECT_RATIO_REDUCE_FOV;
