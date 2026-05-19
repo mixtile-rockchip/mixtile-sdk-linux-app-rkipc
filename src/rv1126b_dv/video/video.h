@@ -7,4 +7,8 @@
 #include <rk_mpi_gdc.h>
 #include <rk_mpi_vi.h>
 
+
+// INFO: These functions are reserved for compilation compatibility.
 static int rk_video_restart(void) { return 0; }
+
+static int rk_video_reset_frame_rate(int stream_id) { return 0; }

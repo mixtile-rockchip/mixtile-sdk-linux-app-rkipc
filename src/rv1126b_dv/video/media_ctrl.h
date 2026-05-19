@@ -334,8 +334,6 @@ int rk_photo_start_capture(void);
 int rk_photo_stop_capture(void);
 int rk_enter_sleep(void);
 
-static int rk_video_reset_frame_rate(int stream_id) { return 0; }
-
 /**
  * Display control functions
  *
