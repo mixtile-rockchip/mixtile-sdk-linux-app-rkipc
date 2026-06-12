@@ -432,7 +432,7 @@ graph LR
        VI_0_0--TILE-->AVS
        VI_1_0--TILE-->AVS
        AVS--RFBC-->VPSS_GRP
-       VPSS_GRP-->VPSS_CHN_0--RFBC-->VENC_0_draw_nn_result-->RTSP_0
+       AVS--RFBC-->VENC_0_draw_nn_result-->RTSP_0
        VENC_0_draw_nn_result--combo-->JPEG
        VPSS_GRP-->VPSS_CHN_1-->VENC_1-->RTSP_1
        VPSS_GRP-->VPSS_CHN_2-->NPU

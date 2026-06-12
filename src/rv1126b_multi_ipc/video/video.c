@@ -482,7 +482,7 @@ int rkipc_vpss_init() {
 		LOG_ERROR("RK_MPI_VPSS_CreateGrp error! ret is %#x\n", ret);
 		return ret;
 	}
-
+/*
 	if (enable_venc_0) {
 		stVpssChnAttr[0].enChnMode = VPSS_CHN_MODE_AUTO;
 		stVpssChnAttr[0].enDynamicRange = DYNAMIC_RANGE_SDR8;
@@ -503,6 +503,7 @@ int rkipc_vpss_init() {
 		if (ret != RK_SUCCESS)
 			LOG_ERROR("0: RK_MPI_VPSS_EnableChn error! ret is %#x\n", ret);
 	}
+*/
 	if (enable_venc_1) {
 		stVpssChnAttr[1].enChnMode = VPSS_CHN_MODE_AUTO;
 		stVpssChnAttr[1].enDynamicRange = DYNAMIC_RANGE_SDR8;
@@ -578,8 +579,10 @@ int rkipc_vpss_deinit() {
 	VPSS_CHN VpssChn[VPSS_MAX_CHN_NUM] = {VPSS_CHN0, VPSS_CHN1, VPSS_CHN2, VPSS_CHN3};
 	VPSS_GRP VpssGrp = 0;
 	ret |= RK_MPI_VPSS_StopGrp(VpssGrp);
+/*
 	if (enable_venc_0)
 		ret |= RK_MPI_VPSS_DisableChn(VpssGrp, VpssChn[0]);
+*/
 	if (enable_venc_1)
 		ret |= RK_MPI_VPSS_DisableChn(VpssGrp, VpssChn[1]);
 	if (enable_npu || enable_ivs)
@@ -643,10 +646,10 @@ int rkipc_bind_init() {
 	}
 
 	if (enable_venc_0) {
-		ret = RK_MPI_SYS_Bind(&vpss_out_chn[0], &venc_chn[0]);
+		ret = RK_MPI_SYS_Bind(&avs_out_chn[0], &venc_chn[0]);
 		if (ret != RK_SUCCESS) {
-			LOG_ERROR("bind error %#x: vpss_out_chn[0] [%d, %d] -> venc_chn[0] [%d, %d]", ret,
-			          vpss_out_chn[0].s32DevId, vpss_out_chn[0].s32ChnId, venc_chn[0].s32DevId,
+			LOG_ERROR("bind error %#x: avs_out_chn[0] [%d, %d] -> venc_chn[0] [%d, %d]", ret,
+			          avs_out_chn[0].s32DevId, avs_out_chn[0].s32ChnId, venc_chn[0].s32DevId,
 			          venc_chn[0].s32ChnId);
 			return ret;
 		}
@@ -691,10 +694,10 @@ int rkipc_bind_deinit() {
 
 	// unbind
 	if (enable_venc_0) {
-		ret = RK_MPI_SYS_UnBind(&vpss_out_chn[0], &venc_chn[0]);
+		ret = RK_MPI_SYS_UnBind(&avs_out_chn[0], &venc_chn[0]);
 		if (ret != RK_SUCCESS) {
-			LOG_ERROR("unbind error %#x: vpss_out_chn[0] [%d, %d] -> venc_chn[0] [%d, %d]", ret,
-			          vpss_out_chn[0].s32DevId, vpss_out_chn[0].s32ChnId, venc_chn[0].s32DevId,
+			LOG_ERROR("unbind error %#x: avs_out_chn[0] [%d, %d] -> venc_chn[0] [%d, %d]", ret,
+			          avs_out_chn[0].s32DevId, avs_out_chn[0].s32ChnId, venc_chn[0].s32DevId,
 			          venc_chn[0].s32ChnId);
 			return ret;
 		}
