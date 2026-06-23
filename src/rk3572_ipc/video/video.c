@@ -1304,7 +1304,7 @@ int rkipc_bind_init() {
 	}
 
 	if (g_sensor_num == 1) {
-		ret = RK_MPI_SYS_Bind(&vi_chn, &vpss_in_chn);
+		ret = RK_MPI_SYS_Bind(&vi_chn[0], &vpss_in_chn);
 		if (ret)
 			LOG_ERROR("Bind VI and vpss_in_chn error! ret=%#x\n", ret);
 		else
@@ -1408,7 +1408,7 @@ int rkipc_bind_deinit() {
 		}
 	}
 	// unbind vi and vpss
-	ret = RK_MPI_SYS_UnBind(&vi_chn, &vpss_in_chn);
+	ret = RK_MPI_SYS_UnBind(&vi_chn[0], &vpss_in_chn);
 	if (ret)
 		LOG_ERROR("UnBind VI and VPSS[0] error! ret=%#x\n", ret);
 	else
