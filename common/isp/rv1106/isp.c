@@ -5,6 +5,7 @@
 #include "video.h"
 
 #include <rk_aiq_user_api2_acgc.h>
+#include <rk_aiq_user_api2_awb.h>
 #include <rk_aiq_user_api2_camgroup.h>
 #include <rk_aiq_user_api2_imgproc.h>
 #include <rk_aiq_user_api2_sysctl.h>

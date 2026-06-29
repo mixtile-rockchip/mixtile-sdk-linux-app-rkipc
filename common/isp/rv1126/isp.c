@@ -5,6 +5,7 @@
 #include "common.h"
 #include "rk_gpio.h"
 
+#include <rk_aiq_user_api_awb.h>
 #include <rk_aiq_user_api_camgroup.h>
 #include <rk_aiq_user_api_imgproc.h>
 #include <rk_aiq_user_api_sysctl.h>
